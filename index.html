@@ -68,7 +68,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
   authDomain: "math-katy.firebaseapp.com",
   projectId: "math-katy",
-  storageBucket: "math-katy.app",
+  storageBucket: "math-katy.appspot.com",
   messagingSenderId: "1042280286644",
   appId: "1:1042280286644:web:fbfa68fb1c94dd4d4dcae1",
   measurementId: "G-ZHDTNX60VG"
@@ -91,42 +91,42 @@ let afkTimer;
 function generateReferralCode() { return Math.random().toString(36).substring(2,8).toUpperCase(); }
 
 async function signUp() {
+  console.log("Sign Up clicked");
   const email = document.getElementById("emailInput").value;
   const password = document.getElementById("passwordInput").value;
   if(!email || !password){ alert("Enter email and password"); return; }
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    console.log("User created:", user.uid);
 
-    // Create user data if not exists
-    const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
-    if(!snap.exists()){
-      await setDoc(userRef, {
-        credits: 0,
-        welcomeClaimed: false,
-        referralCode: generateReferralCode()
-      });
-    }
+    await setDoc(doc(db, "users", user.uid), {
+      credits: 0,
+      welcomeClaimed: false,
+      referralCode: generateReferralCode()
+    });
 
-    // UI update
+    // Switch to app view
     authContainer.classList.add("hidden");
     appContainer.classList.remove("hidden");
     await loadUserData(user.uid);
     renderDashboard();
 
   } catch(err){ 
+    console.error("SignUp error:", err);
     alert(err.message); 
   }
 }
 
 async function logIn() {
+  console.log("Log In clicked");
   const email = document.getElementById("emailInput").value;
   const password = document.getElementById("passwordInput").value;
   if(!email || !password){ alert("Enter email and password"); return; }
   try { 
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    console.log("Logged in:", user.uid);
 
     authContainer.classList.add("hidden");
     appContainer.classList.remove("hidden");
@@ -134,16 +134,16 @@ async function logIn() {
     renderDashboard();
 
   } catch(err){ 
+    console.error("Login error:", err);
     alert(err.message); 
   }
 }
 
 function logOut() { 
-  clearInterval(sessionInterval);
   signOut(auth); 
 }
 
-// Auth state listener
+// ON AUTH STATE
 onAuthStateChanged(auth, async(user) => {
   if(user){
     authContainer.classList.add("hidden");
@@ -159,78 +159,71 @@ onAuthStateChanged(auth, async(user) => {
 // USER DATA
 async function loadUserData(uid){
   const snap = await getDoc(doc(db,"users",uid));
-  if(!snap.exists()){
-    currentUserData = {credits:0, welcomeClaimed:false};
-    return;
-  }
+  if(!snap.exists()) return;
   currentUserData = snap.data();
   updateCredits();
 }
 
 function updateCredits(){
   creditCount.textContent = currentUserData?.credits ?? 0;
-  const fill = document.getElementById("timelineFill");
-  if(fill) fill.style.width = Math.min((currentUserData.credits/600)*100,100)+"%";
 }
 
 // REWARDS
 async function redeemWelcome(){
-  if(!currentUserData || currentUserData.welcomeClaimed) return;
+  if(currentUserData?.welcomeClaimed) return;
   const ref = doc(db,"users",auth.currentUser.uid);
   currentUserData.credits +=50;
-  currentUserData.welcomeClaimed = true;
+  currentUserData.welcomeClaimed=true;
   await updateDoc(ref,{credits:currentUserData.credits,welcomeClaimed:true});
   updateCredits();
+  document.getElementById("timelineFill").style.width = Math.min((currentUserData.credits/600)*100,100)+"%";
 }
 
 // DASHBOARD
-const appEl = document.getElementById("app");
+const appEl=document.getElementById("app");
 function renderDashboard(){
-  appEl.innerHTML = `
-    <div class="mb-6 flex gap-4">
-      <button onclick="renderDashboard()" class="bg-gray-700 px-4 py-2 rounded">Dashboard</button>
-    </div>
-    <h2 class="text-xl mb-4">General Links</h2>
-    <div class="grid grid-cols-3 gap-4">
-      ${[1,2,3].map(i=>`<div onclick="openIframe(${i})" class="bg-gray-800 p-4 rounded cursor-pointer hover:bg-gray-700">Link ${i}</div>`).join("")}
-    </div>`;
+  appEl.innerHTML=`
+  <div class="mb-6 flex gap-4">
+    <button onclick="renderDashboard()" class="bg-gray-700 px-4 py-2 rounded">Dashboard</button>
+  </div>
+  <h2 class="text-xl mb-4">General Links</h2>
+  <div class="grid grid-cols-3 gap-4">
+    ${[1,2,3].map(i=>`<div onclick="openIframe(${i})" class="bg-gray-800 p-4 rounded cursor-pointer hover:bg-gray-700">Link ${i}</div>`).join("")}
+  </div>`;
 }
 
-// IFRAME & SESSION TRACKING
-const iframeModal = document.getElementById("iframeModal");
-const contentIframe = document.getElementById("contentIframe");
-
+// IFRAME & TIME TRACKING
+const iframeModal=document.getElementById("iframeModal");
+const contentIframe=document.getElementById("contentIframe");
 async function openIframe(linkId){
-  if(!auth.currentUser) return;
   iframeModal.classList.remove("hidden");
-  contentIframe.src = "https://en.wikipedia.org/wiki/Main_Page";
+  contentIframe.src="https://en.wikipedia.org/wiki/Main_Page";
 
-  clearInterval(sessionInterval); // prevent duplicates
-  const uid = auth.currentUser.uid;
-  const sessionRef = doc(db,"sessions",`${uid}_${linkId}`);
-  const snap = await getDoc(sessionRef);
+  const uid=auth.currentUser.uid;
+  const sessionRef=doc(db,"sessions",`${uid}_${linkId}`);
+  const snap=await getDoc(sessionRef);
   if(!snap.exists()){
     await setDoc(sessionRef,{
-      uid, linkId,
-      startTime: serverTimestamp(),
-      lastTick: serverTimestamp(),
-      minutesEarnedToday: 0,
+      uid,linkId,
+      startTime:serverTimestamp(),
+      lastTick:serverTimestamp(),
+      minutesEarnedToday:0,
       active:true
     });
   }
 
-  sessionInterval = setInterval(()=>tickSession(sessionRef), 60_000);
+  sessionInterval=setInterval(()=>tickSession(sessionRef),60_000);
   resetAFK();
 }
 
 async function tickSession(sessionRef){
   if(afk) return;
-  const snap = await getDoc(sessionRef);
+  const snap=await getDoc(sessionRef);
   if(!snap.exists()) return;
-  const data = snap.data();
-  if(data.minutesEarnedToday >= 30){ closeIframe(); alert("Daily limit reached"); return; }
-  if((data.minutesEarnedToday+1) % 10 === 0){
-    currentUserData.credits +=1;
+  let data=snap.data();
+  if(data.minutesEarnedToday>=30){ closeIframe(); alert("Daily limit reached"); return; }
+  if((data.minutesEarnedToday+1)%10===0){
+    currentUserData.credits+=1;
     updateCredits();
     await updateDoc(doc(db,"users",auth.currentUser.uid),{credits:currentUserData.credits});
   }
@@ -240,23 +233,12 @@ async function tickSession(sessionRef){
   });
 }
 
-function closeIframe(){ 
-  clearInterval(sessionInterval); 
-  iframeModal.classList.add("hidden"); 
-}
+function closeIframe(){ clearInterval(sessionInterval); iframeModal.classList.add("hidden"); }
 
 // AFK
-function resetAFK(){ 
-  afk=false; 
-  clearTimeout(afkTimer); 
-  afkTimer = setTimeout(()=>{ afk=true; alert("AFK detected"); },5*60*1000); 
-}
-document.addEventListener("mousemove", resetAFK);
-document.addEventListener("keydown", resetAFK);
-
-// REWARD MODAL
-function openRewardModal(){ document.getElementById("rewardModal").classList.remove("hidden"); }
-function closeRewardModal(){ document.getElementById("rewardModal").classList.add("hidden"); }
+function resetAFK(){ afk=false; clearTimeout(afkTimer); afkTimer=setTimeout(()=>{afk=true; alert("AFK detected"); },5*60*1000); }
+document.addEventListener("mousemove",resetAFK);
+document.addEventListener("keydown",resetAFK);
 
 </script>
 </body>
