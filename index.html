@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Credit Web App</title>
+<title>Katy MAth </title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
@@ -96,20 +96,41 @@ async function signUp() {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+
     await setDoc(doc(db, "users", user.uid), {
       credits: 0,
       welcomeClaimed: false,
       referralCode: generateReferralCode()
     });
-  } catch(err){ alert(err.message); }
+
+    // Switch to app view immediately after signup
+    authContainer.classList.add("hidden");
+    appContainer.classList.remove("hidden");
+    await loadUserData(user.uid);
+    renderDashboard();
+
+  } catch(err){ 
+    alert(err.message); 
+  }
 }
 
 async function logIn() {
   const email = document.getElementById("emailInput").value;
   const password = document.getElementById("passwordInput").value;
-  try { await signInWithEmailAndPassword(auth,email,password); }
-  catch(err){ alert(err.message); }
+  try { 
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    authContainer.classList.add("hidden");
+    appContainer.classList.remove("hidden");
+    await loadUserData(user.uid);
+    renderDashboard();
+
+  } catch(err){ 
+    alert(err.message); 
+  }
 }
+
 
 function logOut() { signOut(auth); }
 
