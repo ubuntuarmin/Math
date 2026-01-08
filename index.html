@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Katy MAth </title>
+<title>Katy Math</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
@@ -68,7 +68,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
   authDomain: "math-katy.firebaseapp.com",
   projectId: "math-katy",
-  storageBucket: "math-katy.firebasestorage.app",
+  storageBucket: "math-katy.app",
   messagingSenderId: "1042280286644",
   appId: "1:1042280286644:web:fbfa68fb1c94dd4d4dcae1",
   measurementId: "G-ZHDTNX60VG"
@@ -93,17 +93,23 @@ function generateReferralCode() { return Math.random().toString(36).substring(2,
 async function signUp() {
   const email = document.getElementById("emailInput").value;
   const password = document.getElementById("passwordInput").value;
+  if(!email || !password){ alert("Enter email and password"); return; }
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    await setDoc(doc(db, "users", user.uid), {
-      credits: 0,
-      welcomeClaimed: false,
-      referralCode: generateReferralCode()
-    });
+    // Create user data if not exists
+    const userRef = doc(db, "users", user.uid);
+    const snap = await getDoc(userRef);
+    if(!snap.exists()){
+      await setDoc(userRef, {
+        credits: 0,
+        welcomeClaimed: false,
+        referralCode: generateReferralCode()
+      });
+    }
 
-    // Switch to app view immediately after signup
+    // UI update
     authContainer.classList.add("hidden");
     appContainer.classList.remove("hidden");
     await loadUserData(user.uid);
@@ -117,6 +123,7 @@ async function signUp() {
 async function logIn() {
   const email = document.getElementById("emailInput").value;
   const password = document.getElementById("passwordInput").value;
+  if(!email || !password){ alert("Enter email and password"); return; }
   try { 
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
@@ -131,9 +138,12 @@ async function logIn() {
   }
 }
 
+function logOut() { 
+  clearInterval(sessionInterval);
+  signOut(auth); 
+}
 
-function logOut() { signOut(auth); }
-
+// Auth state listener
 onAuthStateChanged(auth, async(user) => {
   if(user){
     authContainer.classList.add("hidden");
@@ -149,71 +159,78 @@ onAuthStateChanged(auth, async(user) => {
 // USER DATA
 async function loadUserData(uid){
   const snap = await getDoc(doc(db,"users",uid));
-  if(!snap.exists()) return;
+  if(!snap.exists()){
+    currentUserData = {credits:0, welcomeClaimed:false};
+    return;
+  }
   currentUserData = snap.data();
   updateCredits();
 }
 
 function updateCredits(){
   creditCount.textContent = currentUserData?.credits ?? 0;
+  const fill = document.getElementById("timelineFill");
+  if(fill) fill.style.width = Math.min((currentUserData.credits/600)*100,100)+"%";
 }
 
 // REWARDS
 async function redeemWelcome(){
-  if(currentUserData?.welcomeClaimed) return;
+  if(!currentUserData || currentUserData.welcomeClaimed) return;
   const ref = doc(db,"users",auth.currentUser.uid);
   currentUserData.credits +=50;
-  currentUserData.welcomeClaimed=true;
+  currentUserData.welcomeClaimed = true;
   await updateDoc(ref,{credits:currentUserData.credits,welcomeClaimed:true});
   updateCredits();
-  document.getElementById("timelineFill").style.width = Math.min((currentUserData.credits/600)*100,100)+"%";
 }
 
 // DASHBOARD
-const appEl=document.getElementById("app");
+const appEl = document.getElementById("app");
 function renderDashboard(){
-  appEl.innerHTML=`
-  <div class="mb-6 flex gap-4">
-    <button onclick="renderDashboard()" class="bg-gray-700 px-4 py-2 rounded">Dashboard</button>
-  </div>
-  <h2 class="text-xl mb-4">General Links</h2>
-  <div class="grid grid-cols-3 gap-4">
-    ${[1,2,3].map(i=>`<div onclick="openIframe(${i})" class="bg-gray-800 p-4 rounded cursor-pointer hover:bg-gray-700">Link ${i}</div>`).join("")}
-  </div>`;
+  appEl.innerHTML = `
+    <div class="mb-6 flex gap-4">
+      <button onclick="renderDashboard()" class="bg-gray-700 px-4 py-2 rounded">Dashboard</button>
+    </div>
+    <h2 class="text-xl mb-4">General Links</h2>
+    <div class="grid grid-cols-3 gap-4">
+      ${[1,2,3].map(i=>`<div onclick="openIframe(${i})" class="bg-gray-800 p-4 rounded cursor-pointer hover:bg-gray-700">Link ${i}</div>`).join("")}
+    </div>`;
 }
 
-// IFRAME & TIME TRACKING
-const iframeModal=document.getElementById("iframeModal");
-const contentIframe=document.getElementById("contentIframe");
-async function openIframe(linkId){
-  iframeModal.classList.remove("hidden");
-  contentIframe.src="https://en.wikipedia.org/wiki/Main_Page";
+// IFRAME & SESSION TRACKING
+const iframeModal = document.getElementById("iframeModal");
+const contentIframe = document.getElementById("contentIframe");
 
-  const uid=auth.currentUser.uid;
-  const sessionRef=doc(db,"sessions",`${uid}_${linkId}`);
-  const snap=await getDoc(sessionRef);
+async function openIframe(linkId){
+  if(!auth.currentUser) return;
+  iframeModal.classList.remove("hidden");
+  contentIframe.src = "https://en.wikipedia.org/wiki/Main_Page";
+
+  clearInterval(sessionInterval); // prevent duplicates
+  const uid = auth.currentUser.uid;
+  const sessionRef = doc(db,"sessions",`${uid}_${linkId}`);
+  const snap = await getDoc(sessionRef);
   if(!snap.exists()){
     await setDoc(sessionRef,{
-      uid,linkId,
-      startTime:serverTimestamp(),
-      lastTick:serverTimestamp(),
-      minutesEarnedToday:0,
+      uid, linkId,
+      startTime: serverTimestamp(),
+      lastTick: serverTimestamp(),
+      minutesEarnedToday: 0,
       active:true
     });
   }
 
-  sessionInterval=setInterval(()=>tickSession(sessionRef),60_000);
+  sessionInterval = setInterval(()=>tickSession(sessionRef), 60_000);
   resetAFK();
 }
 
 async function tickSession(sessionRef){
   if(afk) return;
-  const snap=await getDoc(sessionRef);
+  const snap = await getDoc(sessionRef);
   if(!snap.exists()) return;
-  let data=snap.data();
-  if(data.minutesEarnedToday>=30){ closeIframe(); alert("Daily limit reached"); return; }
-  if((data.minutesEarnedToday+1)%10===0){
-    currentUserData.credits+=1;
+  const data = snap.data();
+  if(data.minutesEarnedToday >= 30){ closeIframe(); alert("Daily limit reached"); return; }
+  if((data.minutesEarnedToday+1) % 10 === 0){
+    currentUserData.credits +=1;
     updateCredits();
     await updateDoc(doc(db,"users",auth.currentUser.uid),{credits:currentUserData.credits});
   }
@@ -223,12 +240,23 @@ async function tickSession(sessionRef){
   });
 }
 
-function closeIframe(){ clearInterval(sessionInterval); iframeModal.classList.add("hidden"); }
+function closeIframe(){ 
+  clearInterval(sessionInterval); 
+  iframeModal.classList.add("hidden"); 
+}
 
 // AFK
-function resetAFK(){ afk=false; clearTimeout(afkTimer); afkTimer=setTimeout(()=>{afk=true; alert("AFK detected"); },5*60*1000); }
-document.addEventListener("mousemove",resetAFK);
-document.addEventListener("keydown",resetAFK);
+function resetAFK(){ 
+  afk=false; 
+  clearTimeout(afkTimer); 
+  afkTimer = setTimeout(()=>{ afk=true; alert("AFK detected"); },5*60*1000); 
+}
+document.addEventListener("mousemove", resetAFK);
+document.addEventListener("keydown", resetAFK);
+
+// REWARD MODAL
+function openRewardModal(){ document.getElementById("rewardModal").classList.remove("hidden"); }
+function closeRewardModal(){ document.getElementById("rewardModal").classList.add("hidden"); }
 
 </script>
 </body>
