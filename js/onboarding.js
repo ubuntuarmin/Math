@@ -1,6 +1,3 @@
-// Onboarding modal shown after sign-up. Collects first/last name and grade and writes to Firestore.
-// Modal is non-dismissible by clicking outside; has validation, loading state, friendly success animation.
-
 import { auth, db } from "./firebase.js";
 import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
@@ -14,118 +11,105 @@ const errorEl = document.getElementById("onboardError");
 
 let _isSaving = false;
 
-function setSavingState(on){
-  _isSaving = !!on;
-  if(saveBtn){
-    saveBtn.disabled = _isSaving;
-    saveBtn.textContent = _isSaving ? "Saving…" : "Save & Continue";
-    saveBtn.setAttribute("aria-busy", _isSaving ? "true" : "false");
-  }
-  if(firstInput) firstInput.disabled = _isSaving;
-  if(lastInput) lastInput.disabled = _isSaving;
-  if(gradeSelect) gradeSelect.disabled = _isSaving;
+// UI State Management
+function setSavingState(on) {
+    _isSaving = !!on;
+    if (saveBtn) {
+        saveBtn.disabled = _isSaving;
+        saveBtn.innerHTML = _isSaving ? 
+            `<span class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                Saving...
+            </span>` : "Save & Continue";
+    }
+    [firstInput, lastInput, gradeSelect].forEach(el => { if(el) el.disabled = _isSaving; });
 }
 
-// Prevent clicking outside from closing: stopPropagation on panel and overlay clicks do nothing
-onboardPanel?.addEventListener("click", (e)=> e.stopPropagation());
-onboardModal?.addEventListener("click", (e)=> { e.stopPropagation(); /* intentionally do nothing */ });
+export function showOnboarding() {
+    if (!onboardModal) return;
+    onboardModal.classList.remove("hidden");
+    onboardModal.classList.add("flex"); // Ensure flex is applied for centering
+    onboardModal.setAttribute("aria-hidden", "false");
+    
+    // Smooth entrance
+    onboardPanel?.animate([
+        { transform: "translateY(20px)", opacity: 0 },
+        { transform: "translateY(0)", opacity: 1 }
+    ], { duration: 400, easing: "cubic-bezier(0.16, 1, 0.3, 1)" });
 
-export function showOnboarding(){
-  if(!onboardModal) return;
-  errorEl.textContent = "";
-  firstInput.value = "";
-  lastInput.value = "";
-  gradeSelect.value = "";
-  onboardModal.classList.remove("hidden");
-  onboardModal.setAttribute("aria-hidden", "false");
-  // entrance animation
-  onboardPanel?.animate([{ transform: "translateY(12px) scale(.98)", opacity: 0 }, { transform: "translateY(0) scale(1)", opacity: 1 }], { duration: 320, easing: "cubic-bezier(.2,.9,.3,1)" });
-  setTimeout(()=> firstInput?.focus(), 80);
+    setTimeout(() => firstInput?.focus(), 100);
 }
 
-export function hideOnboarding(){
-  if(!onboardModal) return;
-  const panel = onboardPanel;
-  if(panel){
-    const anim = panel.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.98)" }], { duration: 200, easing: "ease-in" });
-    anim.onfinish = () => {
-      onboardModal.classList.add("hidden");
-      onboardModal.setAttribute("aria-hidden", "true");
-    };
-  }else{
-    onboardModal.classList.add("hidden");
-    onboardModal.setAttribute("aria-hidden", "true");
-  }
+function showSuccessAndClose(name) {
+    if (!onboardPanel) return;
+
+    // Clear the flag IMMEDIATELY so auth.js doesn't try to re-show this modal
+    sessionStorage.removeItem("justSignedUp");
+
+    // Use Tailwind classes for the success state instead of hardcoded styles
+    onboardPanel.innerHTML = `
+        <div class="text-center py-6 animate-in fade-in zoom-in duration-300">
+            <div class="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 border border-emerald-500/30">
+                ✓
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-2">Welcome, ${name}!</h3>
+            <p class="text-slate-400">Setting up your math dashboard...</p>
+        </div>
+    `;
+
+    // Wait for the user to enjoy their success before switching
+    setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("userProfileUpdated"));
+        onboardModal.classList.add("hidden");
+        onboardModal.classList.remove("flex");
+    }, 1500);
 }
 
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-function showSuccessAndClose(name){
-  if(!onboardPanel) return;
-  const panel = onboardPanel;
-  const successNode = document.createElement("div");
-  successNode.style.display = "flex";
-  successNode.style.flexDirection = "column";
-  successNode.style.alignItems = "center";
-  successNode.style.gap = "12px";
-  successNode.innerHTML = `
-    <div style="width:72px;height:72px;border-radius:16px;background:linear-gradient(135deg,#34d399,#60a5fa);display:flex;align-items:center;justify-content:center;font-size:34px;box-shadow:0 12px 30px rgba(2,6,23,0.4);">✓</div>
-    <div style="font-weight:700;font-size:18px">Welcome, ${escapeHtml(name || "Learner")}!</div>
-    <div style="opacity:.9;font-size:13px;color:rgba(255,255,255,.9)">You're all set — loading your dashboard...</div>
-  `;
-
-  panel.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.96)" }], { duration: 180, easing: "ease-out" })
-    .onfinish = () => {
-      panel.innerHTML = "";
-      panel.appendChild(successNode);
-      successNode.animate([{ opacity: 0, transform: "translateY(8px) scale(.98)" }, { opacity: 1, transform: "translateY(0) scale(1)" }], { duration: 260, easing: "cubic-bezier(.2,.9,.3,1)" });
-    };
-
-  setTimeout(()=>{
-    try{ sessionStorage.removeItem("justSignedUp"); }catch(e){}
-    window.dispatchEvent(new CustomEvent("userProfileUpdated"));
-    hideOnboarding();
-  }, 1200);
-}
-
+// Validation & Save
 saveBtn?.addEventListener("click", async () => {
-  errorEl.textContent = "";
-  if(_isSaving) return;
-  const uid = auth.currentUser?.uid;
-  if(!uid){
-    errorEl.textContent = "Not signed in. Please refresh and sign in again.";
-    return;
-  }
-  const first = (firstInput.value || "").trim();
-  const last = (lastInput.value || "").trim();
-  const grade = (gradeSelect.value || "").trim();
+    if (_isSaving) return;
+    if (errorEl) errorEl.textContent = "";
 
-  if(!first){
-    errorEl.textContent = "Please enter a first name.";
-    firstInput.focus();
-    return;
-  }
-  if(first.length > 50 || last.length > 50){
-    errorEl.textContent = "Name too long.";
-    return;
-  }
+    const uid = auth.currentUser?.uid;
+    const first = (firstInput.value || "").trim();
+    const last = (lastInput.value || "").trim();
+    const grade = (gradeSelect.value || "").trim();
 
-  setSavingState(true);
-  try{
-    await updateDoc(doc(db,"users",uid), { firstName: first, lastName: last, grade });
-    showSuccessAndClose(first);
-  }catch(err){
-    console.error("Onboarding save failed:", err);
-    const msg = (err && err.message) ? err.message : "Failed to save — please check your connection and try again.";
-    errorEl.textContent = msg;
-  }finally{
-    setSavingState(false);
-  }
+    if (!uid) {
+        if (errorEl) errorEl.textContent = "Session expired. Please refresh.";
+        return;
+    }
+
+    if (!first || !grade) {
+        if (errorEl) errorEl.textContent = "First name and grade are required.";
+        return;
+    }
+
+    setSavingState(true);
+
+    try {
+        const userRef = doc(db, "users", uid);
+        await updateDoc(userRef, {
+            firstName: first,
+            lastName: last,
+            grade: grade,
+            setupComplete: true // Helpful flag for future logic
+        });
+
+        showSuccessAndClose(first);
+    } catch (err) {
+        console.error("Onboarding error:", err);
+        if (errorEl) errorEl.textContent = "Error saving: " + err.message;
+        setSavingState(false);
+    }
 });
 
-// Enter key submits
-[firstInput, lastInput, gradeSelect].forEach(el=>{
-  el?.addEventListener("keydown", (e)=>{
-    if(e.key === "Enter"){ e.preventDefault(); saveBtn?.click(); }
-  });
+// Keyboard Support
+[firstInput, lastInput, gradeSelect].forEach(el => {
+    el?.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            saveBtn?.click();
+        }
+    });
 });
