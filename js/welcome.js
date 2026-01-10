@@ -1,4 +1,4 @@
-// Controls the welcome animation overlay
+// Controls the full-screen welcome animation shown to returning users after sign-in
 export function showWelcome(name = "Learner"){
   const overlay = document.getElementById("welcomeOverlay");
   const card = document.getElementById("welcomeCard");
@@ -7,17 +7,18 @@ export function showWelcome(name = "Learner"){
   const sub = document.getElementById("welcomeSub");
 
   if(!overlay || !card || !logo) return;
-  title.textContent = `Welcome, ${name}!`;
-  sub.textContent = "Great to see you — let's learn some math!";
+  title.textContent = `Welcome back, ${name}!`;
+  sub.textContent = "Great to see you — keep up the streak!";
   overlay.classList.add("show");
-  // trigger animations
+
+  // animate
   card.classList.add("animate");
   logo.classList.add("animate");
 
-  // hide after 2.2s
+  // show for 2000ms then fade (fade implemented by removing show after brief delay)
   setTimeout(()=>{
     card.classList.remove("animate");
     logo.classList.remove("animate");
     overlay.classList.remove("show");
-  }, 2200);
+  }, 2000);
 }
