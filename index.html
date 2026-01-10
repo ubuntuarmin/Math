@@ -1,235 +1,209 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>Katy Math</title>
-
 <script src="https://cdn.tailwindcss.com"></script>
 
-<script type="module">
-/* ---------------- FIREBASE ---------------- */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "YOUR_KEY",
-  authDomain: "math-katy.firebaseapp.com",
-  projectId: "math-katy",
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-/* ---------------- GLOBAL STATE ---------------- */
-let userData = null;
-let activeSeconds = 0;
-let visible = true;
-let sessionStart = Date.now();
-
-/* ---------------- TAB DETECTION ---------------- */
-document.addEventListener("visibilitychange", () => {
-  visible = !document.hidden;
-});
-
-/* ---------------- AUTH ---------------- */
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    document.getElementById("auth").classList.remove("hidden");
-    document.getElementById("app").classList.add("hidden");
-    return;
-  }
-
-  const ref = doc(db, "users", user.uid);
-  const snap = await getDoc(ref);
-
-  if (!snap.exists()) {
-    document.getElementById("onboarding").classList.remove("hidden");
-    window.completeOnboarding = async () => {
-      const data = {
-        first: fname.value,
-        last: lname.value,
-        grade: grade.value,
-        credits: 0,
-        totalMinutes: 0,
-        weeklyMinutes: 0,
-        streak: 0,
-        lastVisit: new Date().toDateString()
-      };
-      await setDoc(ref, data);
-      location.reload();
-    };
-    return;
-  }
-
-  userData = snap.data();
-  document.getElementById("credits").innerText = userData.credits;
-  document.getElementById("app").classList.remove("hidden");
-
-  startTracking();
-  renderNextReward();
-  renderStreak();
-  renderLeaderboard();
-});
-
-/* ---------------- LOGOUT ---------------- */
-window.logOut = async () => {
-  await signOut(auth);
-  location.reload();
-};
-
-/* ---------------- TIME TRACKING ---------------- */
-function startTracking() {
-  setInterval(async () => {
-    if (!visible) return;
-
-    activeSeconds++;
-    if (activeSeconds % 60 === 0) {
-      await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        totalMinutes: increment(1),
-        weeklyMinutes: increment(1)
-      });
-    }
-    document.getElementById("timer").innerText =
-      Math.floor(activeSeconds / 60) + " min";
-  }, 1000);
-}
-
-/* ---------------- DAILY STREAK ---------------- */
-async function renderStreak() {
-  const today = new Date().toDateString();
-  let streak = userData.streak || 0;
-
-  if (userData.lastVisit !== today) {
-    streak = Math.min(streak + 1, 30);
-    const reward = Math.min(streak * 10, 100);
-
-    await updateDoc(doc(db, "users", auth.currentUser.uid), {
-      streak,
-      credits: increment(reward),
-      lastVisit: today
-    });
-
-    document.getElementById("credits").innerText =
-      userData.credits + reward;
-  }
-
-  document.getElementById("streakText").innerText =
-    `Day ${streak}/30 — +${Math.min(streak * 10, 100)} credits`;
-}
-
-/* ---------------- NEXT REWARD ---------------- */
-function renderNextReward() {
-  let next = "Loyal Tier (100 credits)";
-  if (userData.credits >= 100) next = "VIP Tier (200 credits)";
-  if (userData.credits >= 200) next = "Ultimate Tier (500 credits)";
-
-  document.getElementById("nextReward").innerText = next;
-}
-
-/* ---------------- IFRAME LOADING ---------------- */
-window.openLink = (url) => {
-  const loader = document.getElementById("loader");
-  const frame = document.getElementById("iframe");
-
-  loader.classList.remove("hidden");
-  frame.classList.add("hidden");
-
-  setTimeout(() => {
-    frame.src = url;
-  }, 2500);
-
-  frame.onload = () => {
-    loader.classList.add("hidden");
-    frame.classList.remove("hidden");
-    document.getElementById("feedback").classList.remove("hidden");
-  };
-};
-
-/* ---------------- LEADERBOARD ---------------- */
-async function renderLeaderboard() {
-  document.getElementById("leaderboard").innerText =
-    "Leaderboard loading (demo)";
-}
-</script>
-
 <style>
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.token-spin { animation: spin 3s linear infinite; }
+@keyframes spin { from{transform:rotateY(0)} to{transform:rotateY(360deg)} }
+
+.loader {
+  width:64px;height:64px;
+  border-radius:50%;
+  border:6px solid #1f2937;
+  border-top:6px solid #22c55e;
+  animation: spin 1s linear infinite;
 }
-.token {
-  animation: spin 6s linear infinite;
+
+.pulse {
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0%{opacity:.3}50%{opacity:1}100%{opacity:.3}
 }
 </style>
 </head>
 
-<body class="bg-gray-900 text-white">
+<body class="bg-gray-900 text-gray-100 min-h-screen">
 
-<!-- AUTH -->
-<div id="auth" class="hidden p-10 text-center">
-  <h1 class="text-3xl font-bold">Sign In</h1>
-</div>
-
-<!-- ONBOARDING -->
-<div id="onboarding" class="hidden p-10 text-center">
-  <h2 class="text-2xl mb-4">Welcome</h2>
-  <input id="fname" placeholder="First Name" class="p-2 text-black"><br><br>
-  <input id="lname" placeholder="Last Name" class="p-2 text-black"><br><br>
-  <input id="grade" placeholder="Grade" class="p-2 text-black"><br><br>
-  <button onclick="completeOnboarding()" class="bg-blue-600 px-4 py-2 rounded">
-    Continue
-  </button>
-</div>
-
-<!-- APP -->
-<div id="app" class="hidden p-6 space-y-6">
-
-<header class="flex justify-between items-center">
-  <div class="flex items-center gap-4">
-    <div class="token w-10 h-10 bg-yellow-400 rounded-full"></div>
-    <div>Credits: <span id="credits">0</span></div>
+<header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div class="token-spin text-yellow-400 text-xl">🪙</div>
+        <span id="creditCount">0</span>
+      </div>
+      <button onclick="showTierDetails()" class="text-sm text-blue-400 underline">
+        Tier: <span id="tierLabel">Basic</span>
+      </button>
+    </div>
+    <div class="flex gap-4">
+      <button onclick="navigate('dashboard')">Dashboard</button>
+      <button onclick="navigate('tokens')">Tokens</button>
+      <button onclick="navigate('leaderboard')">Leaderboard</button>
+      <button onclick="navigate('account')">Account</button>
+      <button onclick="logOut()" class="bg-red-600 px-3 py-1 rounded">Logout</button>
+    </div>
   </div>
-  <button onclick="logOut()" class="bg-red-600 px-4 py-2 rounded">Logout</button>
 </header>
 
-<div class="bg-black/60 p-3 rounded w-fit" id="timer">0 min</div>
+<main id="appContainer" class="hidden pt-24 max-w-6xl mx-auto p-4">
 
-<section class="grid grid-cols-3 gap-4">
-  <button onclick="openLink('https://wikipedia.org')" class="bg-blue-700 p-4 rounded">Link 1</button>
-  <button onclick="openLink('https://wikipedia.org')" class="bg-blue-700 p-4 rounded">Link 2</button>
-  <button onclick="openLink('https://wikipedia.org')" class="bg-blue-700 p-4 rounded">Link 3</button>
+<section id="dashboardPage">
+<h2 class="text-xl mb-4">General Links</h2>
+<div id="links" class="grid grid-cols-3 gap-4"></div>
 </section>
 
-<div id="loader" class="hidden text-center text-xl animate-pulse">
-  Loading content securely…
+<section id="tokensPage" class="hidden space-y-6">
+
+<div class="bg-gray-800 p-6 rounded">
+  <div class="flex items-center gap-4">
+    <div class="token-spin text-4xl">🪙</div>
+    <div>
+      <div class="font-semibold">Next Reward</div>
+      <div id="nextReward" class="text-green-400 text-sm"></div>
+    </div>
+  </div>
 </div>
 
-<iframe id="iframe" class="hidden w-full h-[400px] bg-white rounded"></iframe>
-
-<div id="feedback" class="hidden text-center mt-4">
-  Did this link work?
-  <button class="bg-green-600 px-3 py-1 rounded ml-2">Yes</button>
-  <button class="bg-red-600 px-3 py-1 rounded ml-2">No</button>
+<div class="bg-gray-800 p-6 rounded">
+<h3 class="font-semibold mb-3">Daily Streak</h3>
+<div id="dailyTracker" class="grid grid-cols-10 gap-2"></div>
 </div>
 
-<section class="bg-gray-800 p-4 rounded">
-  <h3 class="text-xl">Next Reward</h3>
-  <p id="nextReward"></p>
-</section>
-
-<section class="bg-gray-800 p-4 rounded">
-  <h3 class="text-xl">Daily Streak</h3>
-  <p id="streakText"></p>
-</section>
-
-<section class="bg-gray-800 p-4 rounded">
-  <h3 class="text-xl">Leaderboard</h3>
-  <div id="leaderboard"></div>
-</section>
-
+<div class="bg-gray-800 p-6 rounded">
+<h3 class="font-semibold mb-2">Referral</h3>
+<input id="refInput" placeholder="Enter referral code"
+class="w-full bg-gray-700 p-2 rounded mb-2">
+<button onclick="applyReferral()" class="bg-green-600 w-full py-2 rounded">
+Apply Referral (+60)
+</button>
 </div>
+
+</section>
+
+<section id="leaderboardPage" class="hidden">
+<h2 class="text-xl mb-4">Weekly Leaderboard</h2>
+<div id="leaderboard" class="bg-gray-800 p-4 rounded space-y-2"></div>
+</section>
+
+<section id="accountPage" class="hidden">
+<div class="bg-gray-800 p-6 rounded space-y-2">
+<div id="accountInfo"></div>
+<div class="text-sm text-gray-400">
+Total Minutes on Site: <span id="totalMinutes">0</span>
+</div>
+</div>
+</section>
+
+</main>
+
+<!-- IFRAME -->
+<div id="iframeModal" class="hidden fixed inset-0 bg-black z-50">
+<div class="absolute top-4 left-4 bg-gray-800 px-4 py-2 rounded text-green-400 font-mono">
+⏱ <span id="iframeTimer">45:00</span>
+</div>
+
+<button onclick="closeIframe()" class="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded">Close</button>
+
+<div id="iframeLoader" class="absolute inset-0 flex flex-col items-center justify-center bg-black">
+<div class="loader mb-4"></div>
+<div class="pulse text-gray-400">Preparing learning environment…</div>
+</div>
+
+<iframe id="contentIframe" class="w-full h-full hidden"></iframe>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, updateDoc, increment, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+const app = initializeApp({
+apiKey:"AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
+authDomain:"math-katy.firebaseapp.com",
+projectId:"math-katy"
+});
+
+const auth=getAuth(app);
+const db=getFirestore(app);
+
+let userData,seconds=0,active=true;
+
+onAuthStateChanged(auth,async u=>{
+if(!u) return;
+const snap=await getDoc(doc(db,"users",u.uid));
+userData=snap.data();
+header.classList.remove("hidden");
+appContainer.classList.remove("hidden");
+updateAll();
+setInterval(trackTime,1000);
+});
+
+function trackTime(){
+if(!active) return;
+seconds++;
+if(seconds%60===0){
+userData.totalMinutes=(userData.totalMinutes||0)+1;
+updateDoc(doc(db,"users",auth.currentUser.uid),{
+totalMinutes:increment(1),
+weekMinutes:increment(1)
+});
+document.getElementById("totalMinutes").textContent=userData.totalMinutes;
+}
+}
+
+function updateAll(){
+creditCount.textContent=userData.credits;
+tierLabel.textContent="Basic";
+document.getElementById("totalMinutes").textContent=userData.totalMinutes||0;
+renderDaily();
+renderLeaderboard();
+document.getElementById("nextReward").textContent="Daily login +10 · Referral +60";
+}
+
+function renderDaily(){
+dailyTracker.innerHTML="";
+const streak=userData.streak||0;
+for(let i=1;i<=30;i++){
+dailyTracker.innerHTML+=`
+<div class="h-8 rounded ${i<=streak?"bg-green-500":"bg-gray-700"}"></div>`;
+}
+}
+
+async function renderLeaderboard(){
+leaderboard.innerHTML="";
+const snap=await getDocs(collection(db,"users"));
+const arr=[];
+snap.forEach(d=>arr.push(d.data()));
+arr.sort((a,b)=>(b.weekMinutes||0)-(a.weekMinutes||0));
+arr.slice(0,5).forEach((u,i)=>{
+leaderboard.innerHTML+=`
+<div>${i+1}. ${u.firstName||"User"} — ${u.weekMinutes||0} min</div>`;
+});
+}
+
+function applyReferral(){
+if(userData.referred) return;
+userData.referred=true;
+userData.credits+=60;
+updateDoc(doc(db,"users",auth.currentUser.uid),{
+credits:increment(60),
+referred:true
+});
+creditCount.textContent=userData.credits;
+}
+
+async function logOut(){
+await signOut(auth);
+location.reload();
+}
+
+document.addEventListener("visibilitychange",()=>active=!document.hidden);
+Object.assign(window,{navigate,logOut,applyReferral});
+</script>
 
 </body>
 </html>
