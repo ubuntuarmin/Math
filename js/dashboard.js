@@ -1,13 +1,13 @@
-import { db, userData } from "./auth.js";
+import { db } from "./auth.js";
 import { showPage, tier } from "./utils.js";
 
 const linksEl = document.getElementById("links");
 const creditCount = document.getElementById("creditCount");
 const tierLabel = document.getElementById("tierLabel");
 
-export function updateUI(){
+export function updateUI(userData){
   creditCount.textContent = userData?.credits || 0;
-  tierLabel.textContent = tier(userData?.totalEarned||0);
+  tierLabel.textContent = tier(userData?.totalEarned || 0);
   renderLinks();
 }
 
