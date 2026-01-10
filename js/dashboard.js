@@ -1,5 +1,6 @@
 import { db } from "./auth.js";
 import { showPage, tier } from "./utils.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const linksEl = document.getElementById("links");
 const creditCount = document.getElementById("creditCount");
