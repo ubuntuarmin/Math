@@ -7,20 +7,11 @@
 <style>
 .token-spin { animation: spin 3s linear infinite; }
 @keyframes spin { from{transform:rotateY(0)} to{transform:rotateY(360deg)} }
-
-.loader {
-  width:64px;height:64px;
-  border-radius:50%;
-  border:6px solid #1f2937;
-  border-top:6px solid #22c55e;
-  animation: spin 1s linear infinite;
-}
-
+.loader { width:64px;height:64px;border-radius:50%;border:6px solid #1f2937;border-top:6px solid #22c55e;animation: spin 1s linear infinite;}
 .pulse { animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
 </style>
 </head>
-
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
 <header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow">
@@ -43,203 +34,41 @@
 </header>
 
 <main id="appContainer" class="hidden pt-24 max-w-6xl mx-auto p-4">
-
-<section id="dashboardPage">
-  <h2 class="text-xl mb-4">General Links</h2>
-  <div id="links" class="grid grid-cols-3 gap-4"></div>
-</section>
-
-<section id="tokensPage" class="hidden space-y-6">
-  <div class="bg-gray-800 p-6 rounded">
-    <div class="flex items-center gap-4">
-      <div class="token-spin text-4xl">🪙</div>
-      <div>
-        <div class="font-semibold">Next Reward</div>
-        <div id="nextReward" class="text-green-400 text-sm"></div>
+  <section id="dashboardPage"><h2 class="text-xl mb-4">General Links</h2><div id="links" class="grid grid-cols-3 gap-4"></div></section>
+  <section id="tokensPage" class="hidden space-y-6">
+    <div class="bg-gray-800 p-6 rounded">
+      <div class="flex items-center gap-4">
+        <div class="token-spin text-4xl">🪙</div>
+        <div>
+          <div class="font-semibold">Next Reward</div>
+          <div id="nextReward" class="text-green-400 text-sm"></div>
+        </div>
       </div>
     </div>
-  </div>
-
-  <div class="bg-gray-800 p-6 rounded">
-    <h3 class="font-semibold mb-3">Daily Streak</h3>
-    <div id="dailyTracker" class="grid grid-cols-10 gap-2"></div>
-  </div>
-</section>
-
-<section id="leaderboardPage" class="hidden">
-  <h2 class="text-xl mb-4">Weekly Leaderboard</h2>
-  <div id="leaderboard" class="bg-gray-800 p-4 rounded space-y-2"></div>
-</section>
-
-<section id="accountPage" class="hidden">
-  <div class="bg-gray-800 p-6 rounded space-y-2">
-    <div id="accountInfo"></div>
-    <div class="text-sm text-gray-400">
-      Total Minutes on Site: <span id="totalMinutes">0</span>
+    <div class="bg-gray-800 p-6 rounded">
+      <h3 class="font-semibold mb-3">Daily Streak</h3>
+      <div id="dailyTracker" class="grid grid-cols-10 gap-2"></div>
     </div>
-  </div>
-</section>
-
+  </section>
+  <section id="leaderboardPage" class="hidden">
+    <h2 class="text-xl mb-4">Weekly Leaderboard</h2>
+    <div id="leaderboard" class="bg-gray-800 p-4 rounded space-y-2"></div>
+  </section>
+  <section id="accountPage" class="hidden">
+    <div class="bg-gray-800 p-6 rounded space-y-2">
+      <div id="accountInfo"></div>
+      <div class="text-sm text-gray-400">
+        Total Minutes on Site: <span id="totalMinutes">0</span>
+      </div>
+    </div>
+  </section>
 </main>
 
-<!-- IFRAME -->
-<div id="iframeModal" class="hidden fixed inset-0 bg-black z-50">
-  <div class="absolute top-4 left-4 bg-gray-800 px-4 py-2 rounded text-green-400 font-mono">
-    ⏱ <span id="iframeTimer">45:00</span>
-  </div>
-  <button onclick="closeIframe()" class="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded">Close</button>
-
-  <div id="iframeLoader" class="absolute inset-0 flex flex-col items-center justify-center bg-black">
-    <div class="loader mb-4"></div>
-    <div class="pulse text-gray-400">Preparing learning environment…</div>
-  </div>
-
-  <iframe id="contentIframe" class="w-full h-full hidden"></iframe>
-</div>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, updateDoc, increment, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-
-// Firebase config
-const app = initializeApp({
-  apiKey:"AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
-  authDomain:"math-katy.firebaseapp.com",
-  projectId:"math-katy"
-});
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// Cached DOM
-const header = document.getElementById("header"),
-      appContainer = document.getElementById("appContainer"),
-      creditCount = document.getElementById("creditCount"),
-      tierLabel = document.getElementById("tierLabel"),
-      linksEl = document.getElementById("links"),
-      dailyTracker = document.getElementById("dailyTracker"),
-      nextReward = document.getElementById("nextReward"),
-      leaderboard = document.getElementById("leaderboard"),
-      accountInfo = document.getElementById("accountInfo"),
-      totalMinutesEl = document.getElementById("totalMinutes"),
-      logoutBtn = document.getElementById("logoutBtn");
-
-let userData = null;
-let seconds = 0;
-let active = true;
-
-// Auth
-onAuthStateChanged(auth, async user => {
-  if (!user) return;
-
-  const snap = await getDoc(doc(db, "users", user.uid));
-  userData = snap.exists() ? snap.data() : {};
-  header.classList.remove("hidden");
-  appContainer.classList.remove("hidden");
-
-  updateAll();
-  setInterval(trackTime, 1000);
-  renderLinks();
-});
-
-// Track total minutes
-function trackTime(){
-  if(!active || !userData) return;
-  seconds++;
-  if(seconds % 60 === 0){
-    userData.totalMinutes = (userData.totalMinutes || 0) + 1;
-    updateDoc(doc(db,"users",auth.currentUser.uid),{
-      totalMinutes: increment(1),
-      weekMinutes: increment(1)
-    });
-    totalMinutesEl.textContent = userData.totalMinutes;
-  }
-}
-
-// General update
-function updateAll(){
-  creditCount.textContent = userData.credits || 0;
-  tierLabel.textContent = tier();
-  renderDaily();
-  renderLeaderboard();
-  nextReward.textContent = "Daily login +10 · Referral handled on sign-up";
-  updateAccount();
-}
-
-// Tier
-function tier(){
-  const t = userData.totalEarned || 0;
-  if(t>=1000) return "VIP";
-  if(t>=800) return "Gold";
-  if(t>=400) return "Silver";
-  return "Basic";
-}
-
-// Render daily streak
-function renderDaily(){
-  dailyTracker.innerHTML = "";
-  const streak = userData.streak || 0;
-  for(let i=1; i<=30; i++){
-    dailyTracker.innerHTML += `<div class="h-8 rounded ${i<=streak?"bg-green-500":"bg-gray-700"}"></div>`;
-  }
-}
-
-// Render leaderboard
-async function renderLeaderboard(){
-  leaderboard.innerHTML = "";
-  const snap = await getDocs(collection(db,"users"));
-  const arr = [];
-  snap.forEach(d=>arr.push(d.data()));
-  arr.sort((a,b) => (b.weekMinutes||0) - (a.weekMinutes||0));
-  arr.slice(0,5).forEach((u,i)=>{
-    leaderboard.innerHTML += `<div>${i+1}. ${u.firstName||"User"} — ${u.weekMinutes||0} min</div>`;
-  });
-}
-
-// Account info
-function updateAccount(){
-  accountInfo.innerHTML = `
-  <div>Name: ${userData.firstName||""} ${userData.lastName||""}</div>
-  <div>Grade: ${userData.grade||""}</div>
-  <div>Total Earned: ${userData.totalEarned||0}</div>`;
-}
-
-// Navigate pages
-function navigate(page){
-  ["dashboard","tokens","account","leaderboard"].forEach(p=>{
-    document.getElementById(p+"Page").classList.add("hidden");
-  });
-  document.getElementById(page+"Page").classList.remove("hidden");
-}
-
-// Logout
-logoutBtn.addEventListener("click", async () => {
-  await signOut(auth);
-  location.reload();
-});
-
-// Render General Links (always 3)
-async function renderLinks(){
-  linksEl.innerHTML = "";
-  const snap = await getDocs(collection(db,"linkVotes"));
-  const votes = {};
-  snap.forEach(d=>votes[d.id] = d.data());
-
-  [1,2,3].forEach(i=>{
-    const v = votes["link"+i] || {yes:0, no:0};
-    linksEl.innerHTML += `
-      <div class="bg-gray-800 p-4 rounded cursor-pointer">
-        <div class="font-semibold">General Link ${i}</div>
-        <div class="text-xs text-gray-400 mt-2">
-          👍 ${v.yes} · 👎 ${v.no}
-        </div>
-      </div>`;
-  });
-}
-
-// Visibility tab
-document.addEventListener("visibilitychange", ()=>active = !document.hidden);
-</script>
-
+<script type="module" src="/js/utils.js"></script>
+<script type="module" src="/js/auth.js"></script>
+<script type="module" src="/js/dashboard.js"></script>
+<script type="module" src="/js/tokens.js"></script>
+<script type="module" src="/js/leaderboard.js"></script>
+<script type="module" src="/js/account.js"></script>
 </body>
 </html>
