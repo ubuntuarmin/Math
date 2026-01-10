@@ -1,10 +1,11 @@
 // Onboarding modal shown after sign-up. Collects first/last name and grade and writes to Firestore.
-// Improved UX: validation, loading state, friendly error messages, success animation, focus handling.
+// Modal is non-dismissible by clicking outside; has validation, loading state, friendly success animation.
 
 import { auth, db } from "./firebase.js";
 import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const onboardModal = document.getElementById("onboardModal");
+const onboardPanel = document.getElementById("onboardPanel");
 const firstInput = document.getElementById("onboardFirst");
 const lastInput = document.getElementById("onboardLast");
 const gradeSelect = document.getElementById("onboardGrade");
@@ -25,9 +26,10 @@ function setSavingState(on){
   if(gradeSelect) gradeSelect.disabled = _isSaving;
 }
 
-/**
- * Show onboarding modal and prepare UI
- */
+// Prevent clicking outside from closing: stopPropagation on panel and overlay clicks do nothing
+onboardPanel?.addEventListener("click", (e)=> e.stopPropagation());
+onboardModal?.addEventListener("click", (e)=> { e.stopPropagation(); /* intentionally do nothing */ });
+
 export function showOnboarding(){
   if(!onboardModal) return;
   errorEl.textContent = "";
@@ -36,29 +38,16 @@ export function showOnboarding(){
   gradeSelect.value = "";
   onboardModal.classList.remove("hidden");
   onboardModal.setAttribute("aria-hidden", "false");
-
-  // small entrance animation using scale
-  onboardModal.querySelector(".panel")?.animate(
-    [{ transform: "translateY(12px) scale(.98)", opacity: 0 }, { transform: "translateY(0) scale(1)", opacity: 1 }],
-    { duration: 320, easing: "cubic-bezier(.2,.9,.3,1)" }
-  );
-
-  // focus first name for fast keyboard entry
-  setTimeout(()=> firstInput?.focus(), 50);
+  // entrance animation
+  onboardPanel?.animate([{ transform: "translateY(12px) scale(.98)", opacity: 0 }, { transform: "translateY(0) scale(1)", opacity: 1 }], { duration: 320, easing: "cubic-bezier(.2,.9,.3,1)" });
+  setTimeout(()=> firstInput?.focus(), 80);
 }
 
-/**
- * Hide onboarding modal
- */
 export function hideOnboarding(){
   if(!onboardModal) return;
-  // exit animation
-  const panel = onboardModal.querySelector(".panel");
+  const panel = onboardPanel;
   if(panel){
-    const anim = panel.animate(
-      [{ transform: "translateY(0) scale(1)", opacity: 1 }, { transform: "translateY(12px) scale(.98)", opacity: 0 }],
-      { duration: 220, easing: "ease-in" }
-    );
+    const anim = panel.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.98)" }], { duration: 200, easing: "ease-in" });
     anim.onfinish = () => {
       onboardModal.classList.add("hidden");
       onboardModal.setAttribute("aria-hidden", "true");
@@ -69,16 +58,11 @@ export function hideOnboarding(){
   }
 }
 
-/**
- * Internal helper to show an inline success state inside the modal.
- * Replaces modal content temporarily with a friendly check + message.
- */
-function showSuccessAndClose(name){
-  if(!onboardModal) return;
-  const panel = onboardModal.querySelector(".panel");
-  if(!panel) return;
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-  // create success node
+function showSuccessAndClose(name){
+  if(!onboardPanel) return;
+  const panel = onboardPanel;
   const successNode = document.createElement("div");
   successNode.style.display = "flex";
   successNode.style.flexDirection = "column";
@@ -90,7 +74,6 @@ function showSuccessAndClose(name){
     <div style="opacity:.9;font-size:13px;color:rgba(255,255,255,.9)">You're all set — loading your dashboard...</div>
   `;
 
-  // animate swap
   panel.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.96)" }], { duration: 180, easing: "ease-out" })
     .onfinish = () => {
       panel.innerHTML = "";
@@ -98,18 +81,13 @@ function showSuccessAndClose(name){
       successNode.animate([{ opacity: 0, transform: "translateY(8px) scale(.98)" }, { opacity: 1, transform: "translateY(0) scale(1)" }], { duration: 260, easing: "cubic-bezier(.2,.9,.3,1)" });
     };
 
-  // hide after a short delay
   setTimeout(()=>{
     try{ sessionStorage.removeItem("justSignedUp"); }catch(e){}
-    const ev = new CustomEvent("userProfileUpdated");
-    window.dispatchEvent(ev);
+    window.dispatchEvent(new CustomEvent("userProfileUpdated"));
     hideOnboarding();
   }, 1200);
 }
 
-/**
- * Save onboarding info to Firestore
- */
 saveBtn?.addEventListener("click", async () => {
   errorEl.textContent = "";
   if(_isSaving) return;
@@ -127,45 +105,27 @@ saveBtn?.addEventListener("click", async () => {
     firstInput.focus();
     return;
   }
-  // basic length checks
   if(first.length > 50 || last.length > 50){
     errorEl.textContent = "Name too long.";
     return;
   }
 
   setSavingState(true);
-
   try{
-    await updateDoc(doc(db,"users",uid), {
-      firstName: first,
-      lastName: last,
-      grade
-    });
-
-    // success: show a friendly animated confirmation then close modal
+    await updateDoc(doc(db,"users",uid), { firstName: first, lastName: last, grade });
     showSuccessAndClose(first);
   }catch(err){
     console.error("Onboarding save failed:", err);
-    // Show a clearer error message when possible
     const msg = (err && err.message) ? err.message : "Failed to save — please check your connection and try again.";
     errorEl.textContent = msg;
-    // keep modal open so user can retry
   }finally{
     setSavingState(false);
   }
 });
 
-// also allow Enter key to submit when focused in inputs
+// Enter key submits
 [firstInput, lastInput, gradeSelect].forEach(el=>{
   el?.addEventListener("keydown", (e)=>{
-    if(e.key === "Enter"){
-      e.preventDefault();
-      saveBtn?.click();
-    }
+    if(e.key === "Enter"){ e.preventDefault(); saveBtn?.click(); }
   });
 });
-
-// small helper to escape HTML inside success message
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
