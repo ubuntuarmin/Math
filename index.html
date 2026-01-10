@@ -9,66 +9,54 @@
 .token-spin { animation: spin 3s linear infinite; }
 @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
 
-/* Loader */
-.loader { width:64px; height:64px; border-radius:50%; border:6px solid #1f2937; border-top:6px solid #22c55e; animation: spin 1s linear infinite; }
-
-/* Pulse effect */
-.pulse { animation: pulse 1.5s infinite; }
-@keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
-
-/* Login modal */
-#loginModal { position:fixed; inset:0; z-index:50; }
-#loginModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
-#loginModal .panel { width:320px; background:#0f172a; padding:18px; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); }
-#loginModal input { width:100%; margin-top:8px; padding:8px; background:#0b1220; border:1px solid #1f2937; color:#e5e7eb; border-radius:6px; }
-#loginModal button { margin-top:12px; width:100%; }
-
-/* Fullscreen welcome overlay */
-#welcomeOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index:60; pointer-events:none; }
-#welcomeOverlay.show { display:flex; pointer-events:auto; }
-.welcome-full {
-  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-  background: linear-gradient(180deg, rgba(2,6,23,0.95), rgba(2,6,23,0.85));
-  backdrop-filter: blur(6px);
+/* Login animated background */
+.login-bg {
+  position: fixed; inset: 0; z-index: 10; pointer-events: none;
+  background: radial-gradient(circle at 10% 20%, rgba(124,58,237,0.12), transparent 6%),
+              radial-gradient(circle at 80% 80%, rgba(14,165,164,0.10), transparent 12%),
+              linear-gradient(135deg, rgba(2,6,23,1), rgba(7,10,34,1));
+  transition: opacity .35s ease;
+  opacity: 1;
+  backdrop-filter: blur(2px);
 }
-.welcome-card {
-  background: linear-gradient(135deg,#0ea5a4,#7c3aed);
-  color:white; padding:30px 36px; border-radius:18px; box-shadow:0 20px 60px rgba(2,6,23,0.7);
-  transform: translateY(20px) scale(.96); opacity: 0; display:flex; gap:18px; align-items:center;
-  max-width:920px; width:90%;
+.login-bg .b {
+  position:absolute; border-radius:50%; filter:blur(32px); opacity:.9;
 }
-.welcome-logo { width:88px; height:88px; border-radius:16px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:36px; transform-origin:center; }
-@keyframes welcome-pop {
-  0% { transform: translateY(30px) scale(.94); opacity:0; }
-  60% { transform: translateY(-8px) scale(1.03); opacity:1; }
-  100% { transform: translateY(0) scale(1); opacity:1; }
-}
-@keyframes logo-bounce {
-  0% { transform: translateY(0) rotate(-6deg) }
-  50% { transform: translateY(-6px) rotate(8deg) }
-  100% { transform: translateY(0) rotate(0deg) }
-}
-.welcome-card.animate { animation: welcome-pop 700ms cubic-bezier(.2,.9,.3,1) forwards; }
-.welcome-logo.animate { animation: logo-bounce 900ms cubic-bezier(.2,.9,.3,1) forwards; }
+.login-bg .b.a{ width:360px; height:360px; left:8%; top:10%; background:linear-gradient(135deg,#7c3aed,#06b6d4); animation: floaty 9s ease-in-out infinite; }
+.login-bg .b.b{ width:520px; height:520px; right:6%; bottom:6%; background:linear-gradient(135deg,#06b6d4,#34d399); animation: floaty 12s ease-in-out infinite; }
+@keyframes floaty { 0%{ transform: translateY(0) }50%{ transform: translateY(-26px) }100%{ transform: translateY(0) } }
 
-/* Onboarding modal */
-#onboardModal { position:fixed; inset:0; z-index:70; }
-#onboardModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
-#onboardModal .panel { width:420px; background:#071024; padding:20px; border-radius:12px; color:#e6eef8; }
+/* Modal and overlays (kept high specificity so .hidden works) */
+#loginModal{ position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; }
+#loginModal:not(.hidden){ display:flex; background:rgba(0,0,0,0.5); pointer-events:auto; }
+#loginModal .panel{ width:360px; background:linear-gradient(180deg,#071024,#0b1220); padding:20px; border-radius:12px; box-shadow:0 18px 60px rgba(2,6,23,.7); color:#e6eef8; pointer-events:auto; }
+#onboardModal{ position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center; }
+#onboardModal:not(.hidden){ display:flex; background:rgba(0,0,0,0.55); pointer-events:auto; }
+#onboardModal .panel{ width:420px; background:#071024; padding:20px; border-radius:12px; color:#e6eef8; pointer-events:auto; }
 
-/* daily streak interactive styles */
-.day-card { transition: transform .14s ease, box-shadow .14s ease; cursor: pointer; }
-.day-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(2,6,23,0.6); }
-.redeem-btn { background:#065f46; color:white; padding:6px 8px; border-radius:8px; font-size:12px; border:none; }
-.redeem-btn[disabled] { background:#334155; opacity:.7; cursor:not-allowed; }
-.floating-credit {
-  position: absolute; pointer-events:none; transform: translateY(0); opacity:1;
-  transition: transform 700ms cubic-bezier(.2,.9,.3,1), opacity 700ms;
-  color:#34d399; font-weight:700;
-}
+/* Welcome overlay */
+#welcomeOverlay{ position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; pointer-events:none; }
+#welcomeOverlay.show{ display:flex; pointer-events:auto; }
+.welcome-full{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg, rgba(2,6,23,0.96), rgba(2,6,23,0.86)); backdrop-filter: blur(6px); }
+.welcome-card{ background:linear-gradient(135deg,#0ea5a4,#7c3aed); color:white; padding:30px 36px; border-radius:18px; box-shadow:0 20px 60px rgba(2,6,23,0.7); transform: translateY(20px) scale(.96); opacity:0; display:flex; gap:18px; align-items:center; max-width:920px; width:90%; pointer-events:auto; }
+.welcome-card.animate{ animation: welcome-pop 700ms cubic-bezier(.2,.9,.3,1) forwards; }
+@keyframes welcome-pop { 0% { transform: translateY(30px) scale(.94); opacity:0; } 60%{ transform: translateY(-8px) scale(1.03); opacity:1 } 100%{ transform: translateY(0) scale(1); opacity:1 } }
+
+/* Referral page small styles */
+#referralPage{ display:none; }
+#referralPage:not(.hidden){ display:block; }
+
+/* small helpers */
+.redeem-btn{ background:#065f46; color:white; padding:6px 8px; border-radius:8px; font-size:12px; border:none; }
+.redeem-btn[disabled]{ background:#334155; opacity:.7; cursor:not-allowed; }
 </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
+
+<div class="login-bg" aria-hidden="true">
+  <div class="b a"></div>
+  <div class="b b"></div>
+</div>
 
 <!-- HEADER -->
 <header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow">
@@ -85,6 +73,7 @@
       <button onclick="navigate('tokens')">Tokens</button>
       <button onclick="navigate('leaderboard')">Leaderboard</button>
       <button onclick="navigate('account')">Account</button>
+      <button onclick="navigate('referral')">Referral</button>
       <button id="logoutBtn" class="bg-red-600 px-3 py-1 rounded">Logout</button>
     </div>
   </div>
@@ -126,20 +115,25 @@
     <div class="bg-gray-800 p-6 rounded space-y-2">
       <div id="accountInfo"></div>
       <div class="text-sm text-gray-400">Total Minutes on Site: <span id="totalMinutes">0</span></div>
-      <div id="referralArea" class="mt-3 text-sm"></div>
     </div>
+  </section>
+
+  <!-- Referral -->
+  <section id="referralPage" class="hidden">
+    <h2 class="text-xl mb-4">Referrals & Credits</h2>
+    <div id="referralContent" class="bg-gray-800 p-4 rounded"></div>
   </section>
 </main>
 
 <!-- LOGIN MODAL -->
 <div id="loginModal" class="hidden" aria-hidden="true">
-  <div class="panel">
+  <div class="panel" id="loginPanel">
     <h3 class="text-lg font-semibold">Sign in to Katy Math</h3>
     <div id="loginError" class="text-red-400 text-sm mt-2"></div>
     <input id="email" type="email" placeholder="Email" />
     <input id="password" type="password" placeholder="Password" />
     <input id="referralCodeInput" type="text" placeholder="Referral code (optional)" />
-    <div class="flex gap-2">
+    <div class="flex gap-2 mt-3">
       <button id="signInBtn" class="bg-blue-600 px-3 py-2 rounded">Sign In</button>
       <button id="signUpBtn" class="bg-green-600 px-3 py-2 rounded">Create Account</button>
     </div>
@@ -147,9 +141,9 @@
   </div>
 </div>
 
-<!-- ONBOARDING MODAL (shown immediately after sign-up) -->
+<!-- ONBOARDING MODAL -->
 <div id="onboardModal" class="hidden" aria-hidden="true">
-  <div class="panel">
+  <div class="panel" id="onboardPanel">
     <h3 class="text-lg font-semibold">Welcome! Tell us about you</h3>
     <div id="onboardError" class="text-red-400 text-sm mt-2"></div>
     <input id="onboardFirst" type="text" placeholder="First name" />
@@ -182,18 +176,19 @@
 
 <!-- MODULE SCRIPTS -->
 <script type="module" src="./js/blockExtensions.js"></script>
-<script type="module" src="./js/utils.js?v=5"></script>
+<script type="module" src="./js/utils.js?v=9"></script>
 
 <script type="module" src="./js/firebase.js"></script>
-<script type="module" src="./js/login.js?v=8"></script>
-<script type="module" src="./js/onboarding.js?v=1"></script>
-<script type="module" src="./js/auth.js?v=8"></script>
+<script type="module" src="./js/login.js?v=9"></script>
+<script type="module" src="./js/onboarding.js?v=3"></script>
+<script type="module" src="./js/auth.js?v=9"></script>
 
-<script type="module" src="./js/dashboard.js?v=6"></script>
-<script type="module" src="./js/tokens.js?v=8"></script>
-<script type="module" src="./js/leaderboard.js?v=6"></script>
-<script type="module" src="./js/account.js?v=8"></script>
-<script type="module" src="./js/welcome.js?v=2"></script>
+<script type="module" src="./js/dashboard.js?v=7"></script>
+<script type="module" src="./js/tokens.js?v=9"></script>
+<script type="module" src="./js/leaderboard.js?v=7"></script>
+<script type="module" src="./js/account.js?v=9"></script>
+<script type="module" src="./js/referral.js?v=1"></script>
+<script type="module" src="./js/welcome.js?v=3"></script>
 
 <script>
 console.log("Debug: index.html loaded.");
