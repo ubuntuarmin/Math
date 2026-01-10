@@ -5,15 +5,21 @@
 <title>Katy Math</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
+/* Spinning token */
 .token-spin { animation: spin 3s linear infinite; }
-@keyframes spin { from{transform:rotateY(0)} to{transform:rotateY(360deg)} }
-.loader { width:64px;height:64px;border-radius:50%;border:6px solid #1f2937;border-top:6px solid #22c55e;animation: spin 1s linear infinite;}
+@keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+
+/* Loader */
+.loader { width:64px; height:64px; border-radius:50%; border:6px solid #1f2937; border-top:6px solid #22c55e; animation: spin 1s linear infinite; }
+
+/* Pulse effect */
 .pulse { animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
 </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
+<!-- HEADER -->
 <header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow">
   <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
     <div class="flex items-center gap-4">
@@ -33,8 +39,15 @@
   </div>
 </header>
 
+<!-- MAIN -->
 <main id="appContainer" class="hidden pt-24 max-w-6xl mx-auto p-4">
-  <section id="dashboardPage"><h2 class="text-xl mb-4">General Links</h2><div id="links" class="grid grid-cols-3 gap-4"></div></section>
+  <!-- Dashboard -->
+  <section id="dashboardPage">
+    <h2 class="text-xl mb-4">General Links</h2>
+    <div id="links" class="grid grid-cols-3 gap-4"></div>
+  </section>
+
+  <!-- Tokens -->
   <section id="tokensPage" class="hidden space-y-6">
     <div class="bg-gray-800 p-6 rounded">
       <div class="flex items-center gap-4">
@@ -50,25 +63,29 @@
       <div id="dailyTracker" class="grid grid-cols-10 gap-2"></div>
     </div>
   </section>
+
+  <!-- Leaderboard -->
   <section id="leaderboardPage" class="hidden">
     <h2 class="text-xl mb-4">Weekly Leaderboard</h2>
     <div id="leaderboard" class="bg-gray-800 p-4 rounded space-y-2"></div>
   </section>
+
+  <!-- Account -->
   <section id="accountPage" class="hidden">
     <div class="bg-gray-800 p-6 rounded space-y-2">
       <div id="accountInfo"></div>
-      <div class="text-sm text-gray-400">
-        Total Minutes on Site: <span id="totalMinutes">0</span>
-      </div>
+      <div class="text-sm text-gray-400">Total Minutes on Site: <span id="totalMinutes">0</span></div>
     </div>
   </section>
 </main>
 
-<script type="module" src="/js/utils.js"></script>
-<script type="module" src="/js/auth.js"></script>
-<script type="module" src="/js/dashboard.js"></script>
-<script type="module" src="/js/tokens.js"></script>
-<script type="module" src="/js/leaderboard.js"></script>
-<script type="module" src="/js/account.js"></script>
+<!-- MODULE SCRIPTS (versioned to bypass cache) -->
+<script type="module" src="/js/utils.js?v=3"></script>
+<script type="module" src="/js/auth.js?v=3"></script>
+<script type="module" src="/js/dashboard.js?v=3"></script>
+<script type="module" src="/js/tokens.js?v=3"></script>
+<script type="module" src="/js/leaderboard.js?v=3"></script>
+<script type="module" src="/js/account.js?v=3"></script>
+
 </body>
 </html>
