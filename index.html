@@ -15,6 +15,12 @@
 /* Pulse effect */
 .pulse { animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
+
+/* Login modal */
+#loginModal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); z-index:50; }
+#loginModal .panel { width:320px; background:#0f172a; padding:18px; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); }
+#loginModal input { width:100%; margin-top:8px; padding:8px; background:#0b1220; border:1px solid #1f2937; color:#e5e7eb; border-radius:6px; }
+#loginModal button { margin-top:12px; width:100%; }
 </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
@@ -79,14 +85,35 @@
   </section>
 </main>
 
+<!-- LOGIN MODAL (shown when not signed in) -->
+<div id="loginModal" class="hidden" aria-hidden="true">
+  <div class="panel">
+    <h3 class="text-lg font-semibold">Sign in to Katy Math</h3>
+    <div id="loginError" class="text-red-400 text-sm mt-2"></div>
+    <input id="email" type="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="Password" />
+    <button id="signInBtn" class="bg-blue-600 px-3 py-2 rounded">Sign In</button>
+    <button id="signUpBtn" class="bg-green-600 px-3 py-2 rounded">Create Account</button>
+    <div class="text-xs text-gray-400 mt-3">You must be signed in to use the site.</div>
+  </div>
+</div>
+
 <!-- MODULE SCRIPTS -->
 <script type="module" src="./js/blockExtensions.js"></script>
 <script type="module" src="./js/utils.js?v=5"></script>
-<script type="module" src="./js/auth.js?v=5"></script>
-<script type="module" src="./js/dashboard.js?v=5"></script>
-<script type="module" src="./js/tokens.js?v=5"></script>
-<script type="module" src="./js/leaderboard.js?v=5"></script>
-<script type="module" src="./js/account.js?v=5"></script>
+
+<!-- Firebase init (central) + login UI -->
+<script type="module" src="./js/firebase.js"></script>
+<script type="module" src="./js/login.js?v=6"></script>
+
+<!-- Auth (depends on firebase.js) -->
+<script type="module" src="./js/auth.js?v=6"></script>
+
+<!-- Rest of app modules -->
+<script type="module" src="./js/dashboard.js?v=6"></script>
+<script type="module" src="./js/tokens.js?v=6"></script>
+<script type="module" src="./js/leaderboard.js?v=6"></script>
+<script type="module" src="./js/account.js?v=6"></script>
 
 <script>
 console.log("Debug: index.html loaded. App container should be visible for testing.");
