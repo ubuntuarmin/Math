@@ -14,22 +14,36 @@ export const db = getFirestore(app);
 export let userData = null;
 
 const header = document.getElementById("header");
+const appContainer = document.getElementById("appContainer");
 const logoutBtn = document.getElementById("logoutBtn");
+
+// Track intervals so we can clear on logout
+let activeIntervals = [];
 
 onAuthStateChanged(auth, async user => {
   if(!user){
     userData = null;
+
+    // Hide UI instead of reloading
     header.classList.add("hidden");
-    location.reload(); // clean state on logout
+    appContainer.classList.add("hidden");
+
+    // Clear any intervals
+    activeIntervals.forEach(i=>clearInterval(i));
+    activeIntervals = [];
+
     return;
   }
 
   const snap = await getDoc(doc(db,"users",user.uid));
   userData = snap.exists()?snap.data():{};
   header.classList.remove("hidden");
+  appContainer.classList.remove("hidden");
+
   updateUI();
 });
 
+// Logout
 logoutBtn.addEventListener("click", async () => {
   if(auth.currentUser) await signOut(auth);
 });
