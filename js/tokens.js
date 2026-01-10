@@ -1,9 +1,7 @@
-import { userData } from "./auth.js";
-
 const dailyTracker = document.getElementById("dailyTracker");
 const nextReward = document.getElementById("nextReward");
 
-export function renderDaily(){
+export function renderDaily(userData){
   dailyTracker.innerHTML = "";
   const streak = userData?.streak || 0;
   for(let i=1;i<=30;i++){
