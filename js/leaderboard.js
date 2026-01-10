@@ -1,4 +1,6 @@
 import { db } from "./auth.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
 const leaderboard = document.getElementById("leaderboard");
 
 export async function renderLeaderboard(userData){
