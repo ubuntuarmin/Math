@@ -1,7 +1,7 @@
 import { db } from "./auth.js";
 const leaderboard = document.getElementById("leaderboard");
 
-export async function renderLeaderboard(){
+export async function renderLeaderboard(userData){
   leaderboard.innerHTML = "";
   const snap = await getDocs(collection(db,"users"));
   const arr=[];
