@@ -1,21 +1,13 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { auth, db } from "./firebase.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // UI modules
 import { updateUI } from "./dashboard.js";
 import { renderDaily } from "./tokens.js";
 import { updateAccount } from "./account.js";
 import { renderLeaderboard } from "./leaderboard.js";
-
-const app = initializeApp({
-  apiKey:"AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
-  authDomain:"math-katy.firebaseapp.com",
-  projectId:"math-katy"
-});
-
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+import { showLogin, hideLogin } from "./login.js";
 
 const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
@@ -28,29 +20,36 @@ onAuthStateChanged(auth, async user => {
   console.log("Auth state changed:", user ? `signed in (${user.uid})` : "signed out");
 
   if(!user){
-    // Keep main UI visible for guests / local testing
-    // Hide header (logout / account controls) but do NOT hide appContainer
+    // Require sign-in: show login modal and hide app
     header.classList.add("hidden");
-    // appContainer.classList.add("hidden");  <-- removed so guest UI stays visible
-
-    // Clear any running intervals
+    appContainer.classList.add("hidden");
+    // show login UI
+    showLogin();
     activeIntervals.forEach(i=>clearInterval(i));
     activeIntervals=[];
     return;
   }
 
-  // Fetch user data
-  const snap = await getDoc(doc(db,"users",user.uid));
-  const currentUserData = snap.exists()?snap.data():{};
-
+  // hide login modal and show main UI
+  hideLogin();
   header.classList.remove("hidden");
   appContainer.classList.remove("hidden");
 
+  // Fetch user data (guard with try/catch)
+  let currentUserData = {};
+  try{
+    const snap = await getDoc(doc(db,"users",user.uid));
+    currentUserData = snap.exists()?snap.data():{};
+  }catch(err){
+    console.error("Failed to fetch user doc:", err);
+    currentUserData = {};
+  }
+
   // Pass userData to all modules AFTER auth ready
-  updateUI(currentUserData);
-  renderDaily(currentUserData);
-  updateAccount(currentUserData);
-  renderLeaderboard(currentUserData);
+  try{ updateUI(currentUserData); }catch(e){ console.error("updateUI error:", e); }
+  try{ renderDaily(currentUserData); }catch(e){ console.error("renderDaily error:", e); }
+  try{ updateAccount(currentUserData); }catch(e){ console.error("updateAccount error:", e); }
+  try{ renderLeaderboard(currentUserData); }catch(e){ console.error("renderLeaderboard error:", e); }
 });
 
 logoutBtn.addEventListener("click", async () => {
