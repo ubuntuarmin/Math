@@ -1,8 +1,7 @@
-import { userData } from "./auth.js";
 const accountInfo = document.getElementById("accountInfo");
 const totalMinutesEl = document.getElementById("totalMinutes");
 
-export function updateAccount(){
+export function updateAccount(userData){
   accountInfo.innerHTML = `
     <div>Name: ${userData?.firstName||""} ${userData?.lastName||""}</div>
     <div>Grade: ${userData?.grade||""}</div>
