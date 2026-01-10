@@ -1,9 +1,10 @@
-// Login + sign-up. Sets a session flag when user signs up so onboarding is shown.
+// Login + sign-up. Defensive UI: modal cannot be dismissed by clicking outside accidentally.
 import { auth, db } from "./firebase.js";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, setDoc, collection, query, where, getDocs, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const loginModal = document.getElementById("loginModal");
+const loginPanel = document.getElementById("loginPanel");
 const emailInput = document.getElementById("email");
 const passwordInput = document.getElementById("password");
 const referralInput = document.getElementById("referralCodeInput");
@@ -11,10 +12,20 @@ const signInBtn = document.getElementById("signInBtn");
 const signUpBtn = document.getElementById("signUpBtn");
 const loginError = document.getElementById("loginError");
 
+// Prevent clicks on overlay from closing modal: stop propagation on panel
+loginPanel?.addEventListener("click", (e)=> e.stopPropagation());
+// make sure clicks on overlay do nothing
+loginModal?.addEventListener("click", (e)=> {
+  e.stopPropagation();
+  // keep modal open intentionally; do not close on outside click
+});
+
+// Expose show/hide
 export function showLogin(message){
   loginError.textContent = message || "";
   loginModal.classList.remove("hidden");
   loginModal.setAttribute("aria-hidden", "false");
+  emailInput?.focus();
 }
 
 export function hideLogin(){
@@ -66,6 +77,13 @@ signUpBtn.addEventListener("click", async () => {
       referralCode
     });
 
+    // Optionally set a temporary displayName to avoid "null" being displayed — keep short
+    try{
+      await updateProfile(cred.user, { displayName: "New learner" });
+    }catch(e){
+      // not critical
+    }
+
     // process referral (best effort)
     if(referral){
       try{
@@ -93,7 +111,7 @@ signUpBtn.addEventListener("click", async () => {
 
     // set a session flag so auth.js knows we just signed up and should show onboarding
     sessionStorage.setItem("justSignedUp", "1");
-    // onAuthStateChanged will fire and handle the rest (onboarding)
+    // onAuthStateChanged will handle showing onboarding
   }catch(err){
     console.error("Sign up error:", err);
     loginError.textContent = err.message || "Sign up failed.";
