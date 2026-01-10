@@ -25,10 +25,15 @@ const logoutBtn = document.getElementById("logoutBtn");
 let activeIntervals = [];
 
 onAuthStateChanged(auth, async user => {
+  console.log("Auth state changed:", user ? `signed in (${user.uid})` : "signed out");
+
   if(!user){
-    // Hide UI and clear intervals
+    // Keep main UI visible for guests / local testing
+    // Hide header (logout / account controls) but do NOT hide appContainer
     header.classList.add("hidden");
-    appContainer.classList.add("hidden");
+    // appContainer.classList.add("hidden");  <-- removed so guest UI stays visible
+
+    // Clear any running intervals
     activeIntervals.forEach(i=>clearInterval(i));
     activeIntervals=[];
     return;
