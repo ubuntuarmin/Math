@@ -1,17 +1,32 @@
+import { auth, db } from "./firebase.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
 const accountInfo = document.getElementById("accountInfo");
 const totalMinutesEl = document.getElementById("totalMinutes");
 const referralArea = document.getElementById("referralArea");
 
-export function updateAccount(userData){
+// updateAccount now fetches latest user doc if necessary to ensure referral code is shown
+export async function updateAccount(userData){
+  let data = userData || {};
+  try{
+    // if referralCode missing or critical fields missing, fetch fresh doc for current user
+    if(!data.referralCode && auth.currentUser){
+      const snap = await getDoc(doc(db,"users",auth.currentUser.uid));
+      if(snap.exists()) data = snap.data();
+    }
+  }catch(err){
+    console.error("Failed to refresh account data:", err);
+  }
+
   accountInfo.innerHTML = `
-    <div>Name: ${userData?.firstName||""} ${userData?.lastName||""}</div>
-    <div>Grade: ${userData?.grade||""}</div>
-    <div>Total Earned: ${userData?.totalEarned||0}</div>
+    <div>Name: ${data?.firstName||""} ${data?.lastName||""}</div>
+    <div>Grade: ${data?.grade||""}</div>
+    <div>Total Earned: ${data?.totalEarned||0}</div>
   `;
-  totalMinutesEl.textContent = userData?.totalMinutes || 0;
+  totalMinutesEl.textContent = data?.totalMinutes || 0;
 
   // referral display / copy button
-  const code = userData?.referralCode || "";
+  const code = data?.referralCode || "";
   if(code){
     referralArea.innerHTML = `
       <div class="flex items-center gap-2">
