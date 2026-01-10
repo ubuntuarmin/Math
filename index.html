@@ -7,49 +7,45 @@
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
+<!-- AUTH -->
 <div id="authContainer" class="flex flex-col items-center justify-center min-h-screen gap-4">
   <h1 class="text-2xl font-bold">Welcome</h1>
   <input id="emailInput" type="email" placeholder="Email" class="p-2 rounded text-black w-64">
   <input id="passwordInput" type="password" placeholder="Password" class="p-2 rounded text-black w-64">
-  <button onclick="signUp()" class="bg-green-600 px-4 py-2 rounded w-64 hover:bg-green-500 transition">Sign Up</button>
-  <button onclick="logIn()" class="bg-blue-600 px-4 py-2 rounded w-64 hover:bg-blue-500 transition">Log In</button>
+  <button onclick="signUp()" class="bg-green-600 px-4 py-2 rounded w-64">Sign Up</button>
+  <button onclick="logIn()" class="bg-blue-600 px-4 py-2 rounded w-64">Log In</button>
+
+  <button onclick="showAdminLogin()" class="text-gray-400 text-sm mt-4">Admin Login</button>
 </div>
 
+<!-- ADMIN -->
+<div id="adminPanel" class="hidden p-6">
+  <h2 class="text-xl mb-4">Admin Panel</h2>
+  <div id="adminUsers" class="space-y-2"></div>
+  <button onclick="exitAdmin()" class="mt-6 bg-red-600 px-4 py-2 rounded">Exit</button>
+</div>
+
+<!-- APP -->
 <div id="appContainer" class="hidden">
-  <header class="fixed top-0 left-0 right-0 bg-gray-800 z-40 shadow">
-    <div class="max-w-5xl mx-auto flex justify-between items-center p-4">
-      <h1 class="text-lg font-semibold">Dashboard</h1>
-      <div onclick="openRewardModal()" class="cursor-pointer relative hover:scale-110 transition">
-        🪙 <span id="creditCount">0</span>
-      </div>
-      <button onclick="logOut()" class="bg-red-600 px-3 py-1 rounded hover:bg-red-500">Logout</button>
-    </div>
-  </header>
-  <div class="pt-20 max-w-5xl mx-auto px-4">
-    <div id="app"></div>
-  </div>
+<header class="fixed top-0 w-full bg-gray-800 z-40 p-4 flex justify-between">
+  <span>Credits: <span id="creditCount">0</span> | Tier: <span id="tierLabel">Basic</span></span>
+  <button onclick="logOut()" class="bg-red-600 px-3 py-1 rounded">Logout</button>
+</header>
 
-  <div id="rewardModal" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center">
-    <div class="bg-gray-800 p-6 rounded w-full max-w-md">
-      <h2 class="text-xl mb-4">Reward Timeline</h2>
-      <div class="w-full bg-gray-700 h-3 rounded mb-4">
-        <div id="timelineFill" class="bg-green-500 h-3 rounded transition-all duration-700" style="width: 0%"></div>
-      </div>
-      <button id="redeemBtn" onclick="redeemWelcome()" class="w-full bg-blue-600 py-2 rounded disabled:opacity-40 hover:bg-blue-500">
-        Redeem Welcome Reward (+50)
-      </button>
-      <button onclick="closeRewardModal()" class="mt-3 text-gray-400 w-full hover:text-white">Close</button>
-    </div>
-  </div>
+<div class="pt-20 p-6" id="app"></div>
+</div>
 
-  <div id="iframeModal" class="hidden fixed inset-0 bg-black z-50">
-    <button onclick="closeIframe()" class="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded z-50">Close</button>
-    <iframe id="contentIframe" class="w-full h-full"></iframe>
-    <div id="afkWarning" class="hidden absolute inset-0 flex items-center justify-center bg-black bg-opacity-80 z-50">
-      <div class="bg-gray-800 p-6 rounded">
-        <p class="mb-4">Still there?</p>
-        <button onclick="dismissAFK()" class="bg-blue-600 px-4 py-2 rounded">I'm here</button>
-      </div>
+<!-- IFRAME -->
+<div id="iframeModal" class="hidden fixed inset-0 bg-black z-50">
+  <div class="absolute top-2 left-2 text-sm">Time left: <span id="iframeTimer">45:00</span></div>
+  <button onclick="closeIframe()" class="absolute top-2 right-2 bg-red-600 px-3 py-1 rounded">Close</button>
+  <iframe id="contentIframe" class="w-full h-full"></iframe>
+
+  <div id="siteCheck" class="hidden absolute inset-0 flex items-center justify-center bg-black bg-opacity-80">
+    <div class="bg-gray-800 p-6 rounded text-center">
+      <p class="mb-4">Is this site working?</p>
+      <button onclick="reportSite(true)" class="bg-green-600 px-4 py-2 rounded mr-2">Yes</button>
+      <button onclick="reportSite(false)" class="bg-red-600 px-4 py-2 rounded">No</button>
     </div>
   </div>
 </div>
@@ -57,250 +53,190 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, collection, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
   authDomain: "math-katy.firebaseapp.com",
   projectId: "math-katy",
   storageBucket: "math-katy.appspot.com",
   messagingSenderId: "1042280286644",
-  appId: "1:1042280286644:web:fbfa68fb1c94dd4d4dcae1",
-  measurementId: "G-ZHDTNX60VG"
+  appId: "1:1042280286644:web:fbfa68fb1c94dd4d4dcae1"
 };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const authContainer = document.getElementById("authContainer");
-const appContainer = document.getElementById("appContainer");
-const creditCount = document.getElementById("creditCount");
+let userData = null;
+let iframeInterval, afkTimer, iframeSeconds = 0, earnedToday = 0;
+let currentLink = null;
 
-let currentUserData = null;
-let sessionInterval = null;
-let afk = false;
-let afkTimer;
-
-// AUTH FUNCTIONS
-function generateReferralCode() { return Math.random().toString(36).substring(2,8).toUpperCase(); }
-
-async function signUp() {
-  console.log("Sign Up clicked");
-  const email = document.getElementById("emailInput").value;
-  const password = document.getElementById("passwordInput").value;
-  if(!email || !password){ alert("Enter email and password"); return; }
-  
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    
-    await setDoc(doc(db, "users", user.uid), {
-      credits: 0,
-      welcomeClaimed: false,
-      referralCode: generateReferralCode()
-    });
-
-    // Not strictly needed as onAuthStateChanged handles UI switch, but good for UX speed
-    await loadUserData(user.uid);
-  } catch(err){ 
-    console.error("SignUp error:", err);
-    alert(err.message); 
-  }
+// ---------- AUTH ----------
+async function signUp(){
+  const email = emailInput.value;
+  const password = passwordInput.value;
+  const cred = await createUserWithEmailAndPassword(auth,email,password);
+  await setDoc(doc(db,"users",cred.user.uid),{
+    credits:0,
+    totalEarned:0,
+    welcome:false,
+    lastLogin:null,
+    banned:false
+  });
 }
 
-async function logIn() {
-  console.log("Log In clicked");
-  const email = document.getElementById("emailInput").value;
-  const password = document.getElementById("passwordInput").value;
-  if(!email || !password){ alert("Enter email and password"); return; }
-  
-  try { 
-    await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged will handle the rest
-  } catch(err){ 
-    console.error("Login error:", err);
-    alert(err.message); 
-  }
+async function logIn(){
+  await signInWithEmailAndPassword(auth,emailInput.value,passwordInput.value);
 }
 
-function logOut() { 
-  signOut(auth); 
-}
+function logOut(){ signOut(auth); }
 
-// ON AUTH STATE
-onAuthStateChanged(auth, async(user) => {
-  if(user){
-    console.log("User authenticated:", user.uid);
+// ---------- ADMIN ----------
+function showAdminLogin(){
+  const u = prompt("Admin user");
+  const p = prompt("Admin pass");
+  if(u==="Armin" && p==="2351"){
     authContainer.classList.add("hidden");
-    appContainer.classList.remove("hidden");
-    await loadUserData(user.uid);
-    renderDashboard();
-  }else{
-    console.log("User signed out");
-    authContainer.classList.remove("hidden");
-    appContainer.classList.add("hidden");
-    currentUserData = null;
+    adminPanel.classList.remove("hidden");
+    loadAdmin();
   }
+}
+
+async function loadAdmin(){
+  const snap = await getDocs(collection(db,"users"));
+  adminUsers.innerHTML="";
+  snap.forEach(d=>{
+    const u=d.data();
+    adminUsers.innerHTML+=`
+    <div class="bg-gray-800 p-2 rounded flex justify-between">
+      <span>${d.id} | ${u.credits}</span>
+      <button onclick="modCredits('${d.id}',10)">+10</button>
+      <button onclick="modCredits('${d.id}',-10)">-10</button>
+      <button onclick="banUser('${d.id}')">Ban</button>
+    </div>`;
+  });
+}
+
+async function modCredits(uid,val){
+  await updateDoc(doc(db,"users",uid),{credits:increment(val)});
+  loadAdmin();
+}
+
+async function banUser(uid){
+  await updateDoc(doc(db,"users",uid),{banned:true});
+  loadAdmin();
+}
+
+function exitAdmin(){
+  adminPanel.classList.add("hidden");
+  authContainer.classList.remove("hidden");
+}
+
+// ---------- USER ----------
+onAuthStateChanged(auth, async(user)=>{
+  if(!user) return;
+  const ref=doc(db,"users",user.uid);
+  const snap=await getDoc(ref);
+  userData=snap.data();
+
+  if(userData.banned){ alert("Account banned"); logOut(); return; }
+
+  const today=new Date().toDateString();
+  if(userData.lastLogin!==today){
+    await updateDoc(ref,{
+      credits:increment(10),
+      totalEarned:increment(10),
+      lastLogin:today
+    });
+  }
+
+  if(!userData.welcome){
+    await updateDoc(ref,{credits:increment(50),totalEarned:increment(50),welcome:true});
+  }
+
+  authContainer.classList.add("hidden");
+  appContainer.classList.remove("hidden");
+  updateUI();
 });
 
-// USER DATA
-async function loadUserData(uid){
-  try {
-    const snap = await getDoc(doc(db,"users",uid));
-    if(!snap.exists()) return;
-    currentUserData = snap.data();
-    updateCredits();
-  } catch(e) {
-    console.error("Error loading user data", e);
-  }
+function tier(){
+  const t=userData.totalEarned;
+  if(t>=1000) return "VIP";
+  if(t>=800) return "Gold";
+  if(t>=400) return "Silver";
+  return "Basic";
 }
 
-function updateCredits(){
-  creditCount.textContent = currentUserData?.credits ?? 0;
-  // Update timeline width if modal is open
-  if(currentUserData) {
-     const percent = Math.min((currentUserData.credits/600)*100,100);
-     document.getElementById("timelineFill").style.width = percent+"%";
-  }
+function updateUI(){
+  creditCount.textContent=userData.credits;
+  tierLabel.textContent=tier();
+  renderLinks();
 }
 
-// REWARDS
-async function redeemWelcome(){
-  if(!auth.currentUser || !currentUserData) return;
-  if(currentUserData.welcomeClaimed) { alert("Already claimed!"); return; }
-  
-  const ref = doc(db,"users",auth.currentUser.uid);
-  currentUserData.credits += 50;
-  currentUserData.welcomeClaimed = true;
-  
-  await updateDoc(ref, {
-      credits: currentUserData.credits,
-      welcomeClaimed: true
-  });
-  
-  updateCredits();
-  alert("Reward claimed!");
-}
-
-// MODAL FUNCTIONS (These were missing in your original code)
-function openRewardModal() {
-    document.getElementById("rewardModal").classList.remove("hidden");
-}
-
-function closeRewardModal() {
-    document.getElementById("rewardModal").classList.add("hidden");
-}
-
-// DASHBOARD
-const appEl = document.getElementById("app");
-function renderDashboard(){
-  appEl.innerHTML=`
-  <div class="mb-6 flex gap-4">
-    <button onclick="renderDashboard()" class="bg-gray-700 px-4 py-2 rounded">Dashboard</button>
-  </div>
-  <h2 class="text-xl mb-4">General Links</h2>
-  <div class="grid grid-cols-3 gap-4">
-    ${[1,2,3].map(i=>`<div onclick="openIframe(${i})" class="bg-gray-800 p-4 rounded cursor-pointer hover:bg-gray-700 text-center font-bold">Link ${i}</div>`).join("")}
+// ---------- LINKS ----------
+function renderLinks(){
+  app.innerHTML=`<div class="grid grid-cols-3 gap-4">
+  <div onclick="openIframe('basic')" class="bg-gray-800 p-4 rounded">Basic</div>
+  ${userData.credits>=100?`<div onclick="openIframe('loyal')" class="bg-gray-800 p-4 rounded">Loyal</div>`:""}
+  ${userData.credits>=200?`<div onclick="openIframe('vip')" class="bg-gray-800 p-4 rounded">VIP</div>`:""}
   </div>`;
 }
 
-// IFRAME & TIME TRACKING
-const iframeModal = document.getElementById("iframeModal");
-const contentIframe = document.getElementById("contentIframe");
-
-async function openIframe(linkId){
+// ---------- IFRAME ----------
+function openIframe(link){
+  currentLink=link;
+  iframeSeconds=0;
+  earnedToday=0;
   iframeModal.classList.remove("hidden");
-  contentIframe.src = "https://en.wikipedia.org/wiki/Main_Page"; // Example URL
+  contentIframe.src="https://en.wikipedia.org/wiki/Main_Page";
+  setTimeout(()=>siteCheck.classList.remove("hidden"),5000);
 
-  const uid = auth.currentUser.uid;
-  const sessionRef = doc(db, "sessions", `${uid}_${linkId}`);
-  const snap = await getDoc(sessionRef);
-  
-  if(!snap.exists()){
-    await setDoc(sessionRef, {
-      uid, linkId,
-      startTime: serverTimestamp(),
-      lastTick: serverTimestamp(),
-      minutesEarnedToday: 0,
-      active: true
-    });
-  }
-
-  // Clear existing interval if any
-  if(sessionInterval) clearInterval(sessionInterval);
-  sessionInterval = setInterval(() => tickSession(sessionRef), 60000); // 60 seconds
+  iframeInterval=setInterval(tick,1000);
   resetAFK();
 }
 
-async function tickSession(sessionRef){
-  if(afk) return;
-  const snap = await getDoc(sessionRef);
-  if(!snap.exists()) return;
-  
-  let data = snap.data();
-  // Example Limit
-  if(data.minutesEarnedToday >= 30){ 
-      closeIframe(); 
-      alert("Daily limit reached"); 
-      return; 
+function tick(){
+  iframeSeconds++;
+  iframeTimer.textContent=`${Math.max(0,45*60-iframeSeconds)}`;
+  if(iframeSeconds%600===0){
+    userData.credits++;
+    userData.totalEarned++;
+    updateDoc(doc(db,"users",auth.currentUser.uid),{
+      credits:userData.credits,
+      totalEarned:userData.totalEarned
+    });
+    updateUI();
   }
-  
-  // Every 10 minutes give 1 credit (example logic)
-  if((data.minutesEarnedToday + 1) % 10 === 0){
-    currentUserData.credits += 1;
-    updateCredits();
-    await updateDoc(doc(db, "users", auth.currentUser.uid), {credits: currentUserData.credits});
-  }
-  
-  await updateDoc(sessionRef, {
-    minutesEarnedToday: increment(1),
-    lastTick: serverTimestamp()
-  });
+  if(iframeSeconds>=2700) closeIframe();
 }
 
-function closeIframe(){ 
-    if(sessionInterval) clearInterval(sessionInterval); 
-    iframeModal.classList.add("hidden"); 
-    contentIframe.src = ""; // Stop loading
+function closeIframe(){
+  clearInterval(iframeInterval);
+  iframeModal.classList.add("hidden");
+  contentIframe.src="";
 }
 
-// AFK
-function dismissAFK() {
-    document.getElementById("afkWarning").classList.add("hidden");
-    afk = false;
-    resetAFK();
+// ---------- AFK ----------
+function resetAFK(){
+  clearTimeout(afkTimer);
+  afkTimer=setTimeout(()=>{alert("AFK kicked"); closeIframe();},300000);
 }
 
-function resetAFK(){ 
-    if(afk) return; // If already AFK, don't reset
-    
-    clearTimeout(afkTimer); 
-    afkTimer = setTimeout(() => {
-        afk = true; 
-        document.getElementById("afkWarning").classList.remove("hidden");
-        // alert("AFK detected"); // Alert is annoying, used modal instead
-    }, 5 * 60 * 1000); // 5 minutes
+document.addEventListener("mousemove",resetAFK);
+document.addEventListener("keydown",resetAFK);
+
+// ---------- SITE REPORT ----------
+async function reportSite(ok){
+  siteCheck.classList.add("hidden");
+  await setDoc(doc(db,"siteReports",Date.now()+""),{ok});
 }
 
-document.addEventListener("mousemove", resetAFK);
-document.addEventListener("keydown", resetAFK);
-
-// --- VITAL FIX: EXPOSE FUNCTIONS TO WINDOW ---
-// Because this script is type="module", these functions are not global by default.
-// We must explicitly attach them to the window object so the HTML onclick="" attributes can find them.
-window.signUp = signUp;
-window.logIn = logIn;
-window.logOut = logOut;
-window.renderDashboard = renderDashboard;
-window.openRewardModal = openRewardModal;
-window.closeRewardModal = closeRewardModal;
-window.redeemWelcome = redeemWelcome;
-window.openIframe = openIframe;
-window.closeIframe = closeIframe;
-window.dismissAFK = dismissAFK;
-
+// expose
+Object.assign(window,{
+  signUp,logIn,logOut,openIframe,closeIframe,
+  showAdminLogin,exitAdmin
+});
 </script>
 </body>
 </html>
