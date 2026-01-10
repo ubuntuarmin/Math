@@ -1,4 +1,4 @@
-// Simple login UI: sign-in + sign-up handlers with referral support
+// Login + sign-up. Sets a session flag when user signs up so onboarding is shown.
 import { auth, db } from "./firebase.js";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, setDoc, collection, query, where, getDocs, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -26,20 +26,22 @@ export function hideLogin(){
   loginModal.setAttribute("aria-hidden", "true");
 }
 
+// sign in
 signInBtn.addEventListener("click", async () => {
   loginError.textContent = "";
+  sessionStorage.removeItem("justSignedUp"); // ensure flag cleared on explicit sign-in
   const email = emailInput.value.trim();
   const password = passwordInput.value;
   if(!email || !password){ loginError.textContent = "Email and password required."; return; }
   try{
     await signInWithEmailAndPassword(auth, email, password);
-    // onAuthStateChanged in auth.js will handle hiding the modal
   }catch(err){
     console.error("Sign in error:", err);
     loginError.textContent = err.message || "Sign in failed.";
   }
 });
 
+// sign up
 signUpBtn.addEventListener("click", async () => {
   loginError.textContent = "";
   const email = emailInput.value.trim();
@@ -49,10 +51,8 @@ signUpBtn.addEventListener("click", async () => {
   try{
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const uid = cred.user.uid;
-    // Generate a short referral code from uid (6 chars)
+    // generate short referral code and create user doc
     const referralCode = uid.slice(0,6).toUpperCase();
-
-    // Create the user document with defaults
     const userDocRef = doc(db, "users", uid);
     await setDoc(userDocRef, {
       firstName: "",
@@ -66,17 +66,15 @@ signUpBtn.addEventListener("click", async () => {
       referralCode
     });
 
-    // If a referral code was provided, try to find the referring user and award credits
+    // process referral (best effort)
     if(referral){
       try{
         const usersRef = collection(db, "users");
         const q = query(usersRef, where("referralCode", "==", referral));
         const snap = await getDocs(q);
         if(!snap.empty){
-          // Use the first match as the referrer
           const refDoc = snap.docs[0];
           const refUid = refDoc.id;
-          // award credits to referrer and new user
           await updateDoc(doc(db,"users",refUid), {
             credits: increment(50),
             totalEarned: increment(50),
@@ -87,15 +85,15 @@ signUpBtn.addEventListener("click", async () => {
             totalEarned: increment(20),
             referredBy: refUid
           });
-        }else{
-          // no referrer; do nothing
         }
       }catch(err){
         console.error("Referral processing failed:", err);
       }
     }
 
-    // onAuthStateChanged will pick up the new user and hide modal
+    // set a session flag so auth.js knows we just signed up and should show onboarding
+    sessionStorage.setItem("justSignedUp", "1");
+    // onAuthStateChanged will fire and handle the rest (onboarding)
   }catch(err){
     console.error("Sign up error:", err);
     loginError.textContent = err.message || "Sign up failed.";
