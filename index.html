@@ -5,17 +5,65 @@
 <title>Katy Math</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
 <!-- AUTH -->
 <div id="authContainer" class="flex flex-col items-center justify-center min-h-screen gap-4">
-  <h1 class="text-2xl font-bold">Welcome</h1>
+  <h1 class="text-2xl font-bold">Welcome to Katy Math</h1>
   <input id="emailInput" type="email" placeholder="Email" class="p-2 rounded text-black w-64">
   <input id="passwordInput" type="password" placeholder="Password" class="p-2 rounded text-black w-64">
   <button onclick="signUp()" class="bg-green-600 px-4 py-2 rounded w-64">Sign Up</button>
   <button onclick="logIn()" class="bg-blue-600 px-4 py-2 rounded w-64">Log In</button>
+  <button onclick="adminLogin()" class="text-sm text-gray-400 mt-4">Admin Login</button>
+</div>
 
-  <button onclick="showAdminLogin()" class="text-gray-400 text-sm mt-4">Admin Login</button>
+<!-- HEADER -->
+<header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <div>
+      <div class="font-semibold">
+        Credits: <span id="creditCount">0</span> · Tier: <span id="tierLabel">Basic</span>
+      </div>
+      <div class="text-xs text-gray-400">
+        Next reward in <span id="nextReward">10</span> min
+      </div>
+    </div>
+    <button onclick="logOut()" class="bg-red-600 px-3 py-1 rounded">Logout</button>
+  </div>
+</header>
+
+<!-- APP -->
+<div id="appContainer" class="hidden pt-24 max-w-6xl mx-auto p-4">
+  <div id="earnInfo" class="bg-gray-800 p-4 rounded mb-6">
+    <h2 class="font-semibold mb-2">How to earn credits</h2>
+    <ul class="text-sm text-gray-300 space-y-1">
+      <li>• +50 welcome reward (one time)</li>
+      <li>• +10 daily login</li>
+      <li>• +1 credit every 10 active minutes in a link</li>
+      <li>• AFK or tab hidden time does not count</li>
+    </ul>
+  </div>
+
+  <div id="links" class="grid grid-cols-3 gap-4"></div>
+</div>
+
+<!-- ONBOARDING -->
+<div id="onboarding" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center">
+  <div class="bg-gray-800 p-6 rounded w-full max-w-sm">
+    <h2 class="text-xl mb-4">Tell us about you</h2>
+    <input id="firstName" placeholder="First name" class="p-2 rounded text-black w-full mb-2">
+    <input id="lastName" placeholder="Last name" class="p-2 rounded text-black w-full mb-2">
+    <input id="grade" placeholder="Grade" class="p-2 rounded text-black w-full mb-4">
+    <button onclick="saveOnboarding()" class="bg-blue-600 w-full py-2 rounded">Continue</button>
+  </div>
+</div>
+
+<!-- IFRAME -->
+<div id="iframeModal" class="hidden fixed inset-0 bg-black z-50">
+  <div class="absolute top-3 left-3 text-sm">Time left: <span id="iframeTimer">45:00</span></div>
+  <button onclick="closeIframe()" class="absolute top-3 right-3 bg-red-600 px-3 py-1 rounded">Close</button>
+  <iframe id="contentIframe" class="w-full h-full"></iframe>
 </div>
 
 <!-- ADMIN -->
@@ -25,35 +73,10 @@
   <button onclick="exitAdmin()" class="mt-6 bg-red-600 px-4 py-2 rounded">Exit</button>
 </div>
 
-<!-- APP -->
-<div id="appContainer" class="hidden">
-<header class="fixed top-0 w-full bg-gray-800 z-40 p-4 flex justify-between">
-  <span>Credits: <span id="creditCount">0</span> | Tier: <span id="tierLabel">Basic</span></span>
-  <button onclick="logOut()" class="bg-red-600 px-3 py-1 rounded">Logout</button>
-</header>
-
-<div class="pt-20 p-6" id="app"></div>
-</div>
-
-<!-- IFRAME -->
-<div id="iframeModal" class="hidden fixed inset-0 bg-black z-50">
-  <div class="absolute top-2 left-2 text-sm">Time left: <span id="iframeTimer">45:00</span></div>
-  <button onclick="closeIframe()" class="absolute top-2 right-2 bg-red-600 px-3 py-1 rounded">Close</button>
-  <iframe id="contentIframe" class="w-full h-full"></iframe>
-
-  <div id="siteCheck" class="hidden absolute inset-0 flex items-center justify-center bg-black bg-opacity-80">
-    <div class="bg-gray-800 p-6 rounded text-center">
-      <p class="mb-4">Is this site working?</p>
-      <button onclick="reportSite(true)" class="bg-green-600 px-4 py-2 rounded mr-2">Yes</button>
-      <button onclick="reportSite(false)" class="bg-red-600 px-4 py-2 rounded">No</button>
-    </div>
-  </div>
-</div>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, collection, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, getDocs, collection, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
@@ -69,19 +92,20 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 let userData = null;
-let iframeInterval, afkTimer, iframeSeconds = 0, earnedToday = 0;
-let currentLink = null;
+let iframeInterval = null;
+let iframeSeconds = 0;
+let afkTimer = null;
+let tabActive = true;
 
 // ---------- AUTH ----------
 async function signUp(){
-  const email = emailInput.value;
-  const password = passwordInput.value;
-  const cred = await createUserWithEmailAndPassword(auth,email,password);
+  const cred = await createUserWithEmailAndPassword(auth,emailInput.value,passwordInput.value);
   await setDoc(doc(db,"users",cred.user.uid),{
     credits:0,
     totalEarned:0,
     welcome:false,
     lastLogin:null,
+    onboarded:false,
     banned:false
   });
 }
@@ -90,76 +114,58 @@ async function logIn(){
   await signInWithEmailAndPassword(auth,emailInput.value,passwordInput.value);
 }
 
-function logOut(){ signOut(auth); }
-
-// ---------- ADMIN ----------
-function showAdminLogin(){
-  const u = prompt("Admin user");
-  const p = prompt("Admin pass");
-  if(u==="Armin" && p==="2351"){
-    authContainer.classList.add("hidden");
-    adminPanel.classList.remove("hidden");
-    loadAdmin();
-  }
+function logOut(){
+  signOut(auth);
 }
 
-async function loadAdmin(){
-  const snap = await getDocs(collection(db,"users"));
-  adminUsers.innerHTML="";
-  snap.forEach(d=>{
-    const u=d.data();
-    adminUsers.innerHTML+=`
-    <div class="bg-gray-800 p-2 rounded flex justify-between">
-      <span>${d.id} | ${u.credits}</span>
-      <button onclick="modCredits('${d.id}',10)">+10</button>
-      <button onclick="modCredits('${d.id}',-10)">-10</button>
-      <button onclick="banUser('${d.id}')">Ban</button>
-    </div>`;
-  });
-}
-
-async function modCredits(uid,val){
-  await updateDoc(doc(db,"users",uid),{credits:increment(val)});
-  loadAdmin();
-}
-
-async function banUser(uid){
-  await updateDoc(doc(db,"users",uid),{banned:true});
-  loadAdmin();
-}
-
-function exitAdmin(){
-  adminPanel.classList.add("hidden");
-  authContainer.classList.remove("hidden");
-}
-
-// ---------- USER ----------
+// ---------- STATE ----------
 onAuthStateChanged(auth, async(user)=>{
-  if(!user) return;
-  const ref=doc(db,"users",user.uid);
-  const snap=await getDoc(ref);
-  userData=snap.data();
+  if(!user){
+    authContainer.classList.remove("hidden");
+    appContainer.classList.add("hidden");
+    header.classList.add("hidden");
+    return;
+  }
 
-  if(userData.banned){ alert("Account banned"); logOut(); return; }
+  const ref = doc(db,"users",user.uid);
+  const snap = await getDoc(ref);
+  userData = snap.data();
 
-  const today=new Date().toDateString();
-  if(userData.lastLogin!==today){
+  if(userData.banned){
+    alert("Account banned");
+    logOut();
+    return;
+  }
+
+  const today = new Date().toDateString();
+  if(userData.lastLogin !== today){
     await updateDoc(ref,{
-      credits:increment(10),
-      totalEarned:increment(10),
-      lastLogin:today
+      credits: increment(10),
+      totalEarned: increment(10),
+      lastLogin: today
     });
   }
 
   if(!userData.welcome){
-    await updateDoc(ref,{credits:increment(50),totalEarned:increment(50),welcome:true});
+    await updateDoc(ref,{
+      credits: increment(50),
+      totalEarned: increment(50),
+      welcome:true
+    });
   }
 
   authContainer.classList.add("hidden");
   appContainer.classList.remove("hidden");
-  updateUI();
+  header.classList.remove("hidden");
+
+  if(!userData.onboarded){
+    onboarding.classList.remove("hidden");
+  }
+
+  renderUI();
 });
 
+// ---------- UI ----------
 function tier(){
   const t=userData.totalEarned;
   if(t>=1000) return "VIP";
@@ -168,47 +174,57 @@ function tier(){
   return "Basic";
 }
 
-function updateUI(){
-  creditCount.textContent=userData.credits;
-  tierLabel.textContent=tier();
+function renderUI(){
+  creditCount.textContent = userData.credits;
+  tierLabel.textContent = tier();
   renderLinks();
 }
 
-// ---------- LINKS ----------
 function renderLinks(){
-  app.innerHTML=`<div class="grid grid-cols-3 gap-4">
-  <div onclick="openIframe('basic')" class="bg-gray-800 p-4 rounded">Basic</div>
-  ${userData.credits>=100?`<div onclick="openIframe('loyal')" class="bg-gray-800 p-4 rounded">Loyal</div>`:""}
-  ${userData.credits>=200?`<div onclick="openIframe('vip')" class="bg-gray-800 p-4 rounded">VIP</div>`:""}
-  </div>`;
+  links.innerHTML = `
+    <div onclick="openIframe()" class="bg-gray-800 p-4 rounded cursor-pointer text-center">
+      Basic Link
+    </div>
+  `;
+}
+
+// ---------- ONBOARDING ----------
+async function saveOnboarding(){
+  await updateDoc(doc(db,"users",auth.currentUser.uid),{
+    firstName:firstName.value,
+    lastName:lastName.value,
+    grade:grade.value,
+    onboarded:true
+  });
+  onboarding.classList.add("hidden");
 }
 
 // ---------- IFRAME ----------
-function openIframe(link){
-  currentLink=link;
-  iframeSeconds=0;
-  earnedToday=0;
+function openIframe(){
+  iframeSeconds = 0;
   iframeModal.classList.remove("hidden");
-  contentIframe.src="https://en.wikipedia.org/wiki/Main_Page";
-  setTimeout(()=>siteCheck.classList.remove("hidden"),5000);
-
-  iframeInterval=setInterval(tick,1000);
+  contentIframe.src = "https://en.wikipedia.org/wiki/Main_Page";
+  iframeInterval = setInterval(tickIframe,1000);
   resetAFK();
 }
 
-function tick(){
+function tickIframe(){
+  if(!tabActive) return;
   iframeSeconds++;
-  iframeTimer.textContent=`${Math.max(0,45*60-iframeSeconds)}`;
-  if(iframeSeconds%600===0){
+  const remaining = Math.max(0,2700-iframeSeconds);
+  iframeTimer.textContent = `${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,"0")}`;
+
+  if(iframeSeconds % 600 === 0){
+    updateDoc(doc(db,"users",auth.currentUser.uid),{
+      credits: increment(1),
+      totalEarned: increment(1)
+    });
     userData.credits++;
     userData.totalEarned++;
-    updateDoc(doc(db,"users",auth.currentUser.uid),{
-      credits:userData.credits,
-      totalEarned:userData.totalEarned
-    });
-    updateUI();
+    renderUI();
   }
-  if(iframeSeconds>=2700) closeIframe();
+
+  if(iframeSeconds >= 2700) closeIframe();
 }
 
 function closeIframe(){
@@ -217,25 +233,63 @@ function closeIframe(){
   contentIframe.src="";
 }
 
-// ---------- AFK ----------
+// ---------- AFK + TAB ----------
 function resetAFK(){
   clearTimeout(afkTimer);
-  afkTimer=setTimeout(()=>{alert("AFK kicked"); closeIframe();},300000);
+  afkTimer = setTimeout(()=>{
+    alert("AFK detected. Session ended.");
+    closeIframe();
+  },300000);
 }
 
 document.addEventListener("mousemove",resetAFK);
 document.addEventListener("keydown",resetAFK);
 
-// ---------- SITE REPORT ----------
-async function reportSite(ok){
-  siteCheck.classList.add("hidden");
-  await setDoc(doc(db,"siteReports",Date.now()+""),{ok});
+document.addEventListener("visibilitychange",()=>{
+  tabActive = !document.hidden;
+});
+
+// ---------- ADMIN ----------
+function adminLogin(){
+  const u=prompt("Admin user");
+  const p=prompt("Admin pass");
+  if(u==="Armin" && p==="2351"){
+    authContainer.classList.add("hidden");
+    adminPanel.classList.remove("hidden");
+    loadAdmin();
+  }
+}
+
+async function loadAdmin(){
+  adminUsers.innerHTML="";
+  const snap = await getDocs(collection(db,"users"));
+  snap.forEach(d=>{
+    adminUsers.innerHTML+=`
+      <div class="bg-gray-800 p-2 rounded flex justify-between">
+        <span>${d.id}</span>
+        <button onclick="confirmCredit('${d.id}',10)">+10</button>
+        <button onclick="confirmCredit('${d.id}',-10)">-10</button>
+      </div>
+    `;
+  });
+}
+
+async function confirmCredit(uid,val){
+  if(confirm("Are you sure?")){
+    await updateDoc(doc(db,"users",uid),{credits:increment(val)});
+    loadAdmin();
+  }
+}
+
+function exitAdmin(){
+  adminPanel.classList.add("hidden");
+  authContainer.classList.remove("hidden");
 }
 
 // expose
 Object.assign(window,{
   signUp,logIn,logOut,openIframe,closeIframe,
-  showAdminLogin,exitAdmin
+  saveOnboarding,adminLogin,exitAdmin
 });
 </script>
 </body>
