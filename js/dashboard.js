@@ -1,4 +1,4 @@
-import { db } from "./auth.js";
+import { db } from "./firebase.js";
 import { showPage, tier } from "./utils.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
@@ -14,18 +14,30 @@ export function updateUI(userData){
 
 async function renderLinks(){
   linksEl.innerHTML = "";
-  const snap = await getDocs(collection(db,"linkVotes"));
-  const votes = {};
-  snap.forEach(d=>votes[d.id]=d.data());
+  try{
+    const snap = await getDocs(collection(db,"linkVotes"));
+    const votes = {};
+    snap.forEach(d=>votes[d.id]=d.data());
 
-  [1,2,3].forEach(i=>{
-    const v = votes["link"+i] || {yes:0,no:0};
-    linksEl.innerHTML += `
-      <div class="bg-gray-800 p-4 rounded cursor-pointer">
-        <div class="font-semibold">General Link ${i}</div>
-        <div class="text-xs text-gray-400 mt-2">👍 ${v.yes} · 👎 ${v.no}</div>
-      </div>`;
-  });
+    [1,2,3].forEach(i=>{
+      const v = votes["link"+i] || {yes:0,no:0};
+      linksEl.innerHTML += `
+        <div class="bg-gray-800 p-4 rounded cursor-pointer">
+          <div class="font-semibold">General Link ${i}</div>
+          <div class="text-xs text-gray-400 mt-2">👍 ${v.yes} · 👎 ${v.no}</div>
+        </div>`;
+    });
+  }catch(err){
+    console.error("Error loading linkVotes:", err);
+    // show placeholders so UI doesn't vanish
+    [1,2,3].forEach(i=>{
+      linksEl.innerHTML += `
+        <div class="bg-gray-800 p-4 rounded">
+          <div class="font-semibold">General Link ${i}</div>
+          <div class="text-xs text-gray-400 mt-2">loading...</div>
+        </div>`;
+    });
+  }
 }
 
 window.navigate = showPage;
