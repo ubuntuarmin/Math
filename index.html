@@ -4,168 +4,185 @@
 <meta charset="UTF-8">
 <title>Katy Math</title>
 <script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+/* Animated token */
+.token-spin {
+  animation: spin 3s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+/* Iframe loader */
+.loader {
+  border: 4px solid #2d3748;
+  border-top: 4px solid #22c55e;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  animation: spin 1s linear infinite;
+}
+</style>
 </head>
 
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
-<!-- AUTH -->
-<div id="authContainer" class="flex flex-col items-center justify-center min-h-screen gap-4">
-  <h1 class="text-2xl font-bold">Welcome to Katy Math</h1>
-  <input id="emailInput" type="email" placeholder="Email" class="p-2 rounded text-black w-64">
-  <input id="passwordInput" type="password" placeholder="Password" class="p-2 rounded text-black w-64">
-  <button onclick="signUp()" class="bg-green-600 px-4 py-2 rounded w-64">Sign Up</button>
-  <button onclick="logIn()" class="bg-blue-600 px-4 py-2 rounded w-64">Log In</button>
-  <button onclick="adminLogin()" class="text-sm text-gray-400 mt-4">Admin Login</button>
-</div>
-
 <!-- HEADER -->
 <header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow">
   <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-    <div>
-      <div class="font-semibold">
-        Credits: <span id="creditCount">0</span> · Tier: <span id="tierLabel">Basic</span>
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div class="token-spin text-yellow-400 text-xl">🪙</div>
+        <span id="creditCount">0</span>
       </div>
-      <div class="text-xs text-gray-400">
-        Next reward in <span id="nextReward">10</span> min
-      </div>
+      <button onclick="showTierDetails()" class="text-sm text-blue-400 underline">
+        Tier: <span id="tierLabel">Basic</span>
+      </button>
     </div>
-    <button onclick="logOut()" class="bg-red-600 px-3 py-1 rounded">Logout</button>
+
+    <div class="flex gap-4">
+      <button onclick="navigate('dashboard')">Dashboard</button>
+      <button onclick="navigate('tokens')">Tokens</button>
+      <button onclick="navigate('account')">Account</button>
+      <button onclick="logOut()" class="bg-red-600 px-3 py-1 rounded">Logout</button>
+    </div>
   </div>
 </header>
 
-<!-- APP -->
-<div id="appContainer" class="hidden pt-24 max-w-6xl mx-auto p-4">
-  <div id="earnInfo" class="bg-gray-800 p-4 rounded mb-6">
-    <h2 class="font-semibold mb-2">How to earn credits</h2>
-    <ul class="text-sm text-gray-300 space-y-1">
-      <li>• +50 welcome reward (one time)</li>
-      <li>• +10 daily login</li>
-      <li>• +1 credit every 10 active minutes in a link</li>
-      <li>• AFK or tab hidden time does not count</li>
-    </ul>
-  </div>
+<!-- MAIN -->
+<main id="appContainer" class="hidden pt-24 max-w-6xl mx-auto p-4">
 
-  <div id="links" class="grid grid-cols-3 gap-4"></div>
-</div>
+  <!-- DASHBOARD -->
+  <section id="dashboardPage">
+    <h2 class="text-xl mb-4">General Links</h2>
+    <div id="links" class="grid grid-cols-3 gap-4"></div>
+  </section>
 
-<!-- ONBOARDING -->
-<div id="onboarding" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center">
-  <div class="bg-gray-800 p-6 rounded w-full max-w-sm">
-    <h2 class="text-xl mb-4">Tell us about you</h2>
-    <input id="firstName" placeholder="First name" class="p-2 rounded text-black w-full mb-2">
-    <input id="lastName" placeholder="Last name" class="p-2 rounded text-black w-full mb-2">
-    <input id="grade" placeholder="Grade" class="p-2 rounded text-black w-full mb-4">
-    <button onclick="saveOnboarding()" class="bg-blue-600 w-full py-2 rounded">Continue</button>
+  <!-- TOKENS -->
+  <section id="tokensPage" class="hidden">
+    <h2 class="text-xl mb-4">Tokens & Rewards</h2>
+
+    <div class="bg-gray-800 p-6 rounded mb-6">
+      <div class="flex items-center gap-4 mb-4">
+        <div class="token-spin text-4xl">🪙</div>
+        <div>
+          <div class="text-lg font-semibold">Your Tokens</div>
+          <div class="text-sm text-gray-400">Used to unlock links & tiers</div>
+        </div>
+      </div>
+
+      <div class="mb-2">Next Unlock: <span id="nextUnlock">100</span> credits</div>
+      <div class="w-full bg-gray-700 h-3 rounded">
+        <div id="unlockProgress" class="bg-green-500 h-3 rounded"></div>
+      </div>
+    </div>
+
+    <div class="bg-gray-800 p-6 rounded">
+      <h3 class="font-semibold mb-2">How to earn</h3>
+      <ul class="text-sm text-gray-300 space-y-1">
+        <li>• +50 Welcome reward (once)</li>
+        <li>• +10 Daily login</li>
+        <li>• +1 credit per 10 active minutes</li>
+        <li>• AFK / tab hidden time does not count</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ACCOUNT -->
+  <section id="accountPage" class="hidden">
+    <h2 class="text-xl mb-4">Account</h2>
+    <div class="bg-gray-800 p-6 rounded">
+      <div id="accountInfo"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- TIER MODAL -->
+<div id="tierModal" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center">
+  <div class="bg-gray-800 p-6 rounded max-w-md w-full">
+    <h2 class="text-xl mb-4">Tier Details</h2>
+    <div id="tierDetails" class="text-sm text-gray-300 space-y-2"></div>
+    <button onclick="closeTierDetails()" class="mt-4 w-full bg-blue-600 py-2 rounded">Close</button>
   </div>
 </div>
 
 <!-- IFRAME -->
 <div id="iframeModal" class="hidden fixed inset-0 bg-black z-50">
-  <div class="absolute top-3 left-3 text-sm">Time left: <span id="iframeTimer">45:00</span></div>
-  <button onclick="closeIframe()" class="absolute top-3 right-3 bg-red-600 px-3 py-1 rounded">Close</button>
-  <iframe id="contentIframe" class="w-full h-full"></iframe>
-</div>
+  <div class="absolute top-4 left-4 text-white text-lg">
+    ⏱ <span id="iframeTimer">45:00</span>
+  </div>
 
-<!-- ADMIN -->
-<div id="adminPanel" class="hidden p-6">
-  <h2 class="text-xl mb-4">Admin Panel</h2>
-  <div id="adminUsers" class="space-y-2"></div>
-  <button onclick="exitAdmin()" class="mt-6 bg-red-600 px-4 py-2 rounded">Exit</button>
+  <button onclick="closeIframe()" class="absolute top-4 right-4 bg-red-600 px-4 py-2 rounded">Close</button>
+
+  <!-- Loader -->
+  <div id="iframeLoader" class="absolute inset-0 flex flex-col items-center justify-center bg-black">
+    <div class="loader mb-4"></div>
+    <div class="text-gray-400">Loading content…</div>
+  </div>
+
+  <iframe id="contentIframe" class="w-full h-full hidden"></iframe>
+
+  <!-- Vote -->
+  <div id="voteBox" class="hidden absolute bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 p-4 rounded flex gap-4">
+    <span>Did this link work?</span>
+    <button onclick="vote(true)" class="bg-green-600 px-3 py-1 rounded">Yes</button>
+    <button onclick="vote(false)" class="bg-red-600 px-3 py-1 rounded">No</button>
+  </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, getDocs, collection, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, increment, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-const firebaseConfig = {
+const app = initializeApp({
   apiKey: "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
   authDomain: "math-katy.firebaseapp.com",
-  projectId: "math-katy",
-  storageBucket: "math-katy.appspot.com",
-  messagingSenderId: "1042280286644",
-  appId: "1:1042280286644:web:fbfa68fb1c94dd4d4dcae1"
-};
+  projectId: "math-katy"
+});
 
-const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 let userData = null;
-let iframeInterval = null;
 let iframeSeconds = 0;
-let afkTimer = null;
+let iframeInterval = null;
+let currentLinkId = null;
 let tabActive = true;
 
-// ---------- AUTH ----------
-async function signUp(){
-  const cred = await createUserWithEmailAndPassword(auth,emailInput.value,passwordInput.value);
-  await setDoc(doc(db,"users",cred.user.uid),{
-    credits:0,
-    totalEarned:0,
-    welcome:false,
-    lastLogin:null,
-    onboarded:false,
-    banned:false
-  });
-}
-
-async function logIn(){
-  await signInWithEmailAndPassword(auth,emailInput.value,passwordInput.value);
-}
-
-function logOut(){
-  signOut(auth);
-}
-
-// ---------- STATE ----------
+// ---------- AUTH STATE ----------
 onAuthStateChanged(auth, async(user)=>{
-  if(!user){
-    authContainer.classList.remove("hidden");
-    appContainer.classList.add("hidden");
-    header.classList.add("hidden");
-    return;
-  }
+  if(!user) return;
 
   const ref = doc(db,"users",user.uid);
   const snap = await getDoc(ref);
   userData = snap.data();
 
-  if(userData.banned){
-    alert("Account banned");
-    logOut();
-    return;
-  }
-
-  const today = new Date().toDateString();
-  if(userData.lastLogin !== today){
-    await updateDoc(ref,{
-      credits: increment(10),
-      totalEarned: increment(10),
-      lastLogin: today
-    });
-  }
-
-  if(!userData.welcome){
-    await updateDoc(ref,{
-      credits: increment(50),
-      totalEarned: increment(50),
-      welcome:true
-    });
-  }
-
-  authContainer.classList.add("hidden");
-  appContainer.classList.remove("hidden");
   header.classList.remove("hidden");
+  appContainer.classList.remove("hidden");
 
-  if(!userData.onboarded){
-    onboarding.classList.remove("hidden");
-  }
-
-  renderUI();
+  updateHeader();
+  renderLinks();
+  updateTokensPage();
+  updateAccount();
 });
 
 // ---------- UI ----------
+function navigate(page){
+  ["dashboard","tokens","account"].forEach(p=>{
+    document.getElementById(p+"Page").classList.add("hidden");
+  });
+  document.getElementById(page+"Page").classList.remove("hidden");
+}
+
+function updateHeader(){
+  creditCount.textContent = userData.credits;
+  tierLabel.textContent = tier();
+}
+
 function tier(){
   const t=userData.totalEarned;
   if(t>=1000) return "VIP";
@@ -174,57 +191,66 @@ function tier(){
   return "Basic";
 }
 
-function renderUI(){
-  creditCount.textContent = userData.credits;
-  tierLabel.textContent = tier();
-  renderLinks();
-}
+// ---------- LINKS ----------
+async function renderLinks(){
+  links.innerHTML="";
+  const linkSnap = await getDocs(collection(db,"linkVotes"));
 
-function renderLinks(){
-  links.innerHTML = `
-    <div onclick="openIframe()" class="bg-gray-800 p-4 rounded cursor-pointer text-center">
-      Basic Link
-    </div>
-  `;
-}
-
-// ---------- ONBOARDING ----------
-async function saveOnboarding(){
-  await updateDoc(doc(db,"users",auth.currentUser.uid),{
-    firstName:firstName.value,
-    lastName:lastName.value,
-    grade:grade.value,
-    onboarded:true
+  const votes = {};
+  linkSnap.forEach(d=>{
+    votes[d.id]=d.data();
   });
-  onboarding.classList.add("hidden");
+
+  [1,2,3].forEach(i=>{
+    const v = votes["link"+i] || {yes:0,no:0};
+    links.innerHTML += `
+      <div onclick="openIframe(${i})" class="bg-gray-800 p-4 rounded cursor-pointer">
+        <div class="font-semibold">General Link ${i}</div>
+        <div class="text-xs text-gray-400 mt-2">
+          👍 ${v.yes} · 👎 ${v.no}
+        </div>
+      </div>`;
+  });
 }
 
 // ---------- IFRAME ----------
-function openIframe(){
-  iframeSeconds = 0;
+function openIframe(id){
+  currentLinkId="link"+id;
+  iframeSeconds=0;
   iframeModal.classList.remove("hidden");
-  contentIframe.src = "https://en.wikipedia.org/wiki/Main_Page";
-  iframeInterval = setInterval(tickIframe,1000);
-  resetAFK();
+  iframeLoader.classList.remove("hidden");
+  contentIframe.classList.add("hidden");
+  voteBox.classList.add("hidden");
+
+  contentIframe.src="https://en.wikipedia.org/wiki/Main_Page";
+  contentIframe.onload=()=>{
+    iframeLoader.classList.add("hidden");
+    contentIframe.classList.remove("hidden");
+    setTimeout(()=>voteBox.classList.remove("hidden"),2000);
+  };
+
+  iframeInterval=setInterval(tickIframe,1000);
 }
 
 function tickIframe(){
   if(!tabActive) return;
   iframeSeconds++;
-  const remaining = Math.max(0,2700-iframeSeconds);
-  iframeTimer.textContent = `${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,"0")}`;
+  const remain = 2700-iframeSeconds;
+  iframeTimer.textContent =
+    Math.floor(remain/60)+":"+String(remain%60).padStart(2,"0");
 
-  if(iframeSeconds % 600 === 0){
+  if(iframeSeconds%600===0){
     updateDoc(doc(db,"users",auth.currentUser.uid),{
-      credits: increment(1),
-      totalEarned: increment(1)
+      credits:increment(1),
+      totalEarned:increment(1)
     });
     userData.credits++;
     userData.totalEarned++;
-    renderUI();
+    updateHeader();
+    updateTokensPage();
   }
 
-  if(iframeSeconds >= 2700) closeIframe();
+  if(remain<=0) closeIframe();
 }
 
 function closeIframe(){
@@ -233,63 +259,55 @@ function closeIframe(){
   contentIframe.src="";
 }
 
-// ---------- AFK + TAB ----------
-function resetAFK(){
-  clearTimeout(afkTimer);
-  afkTimer = setTimeout(()=>{
-    alert("AFK detected. Session ended.");
-    closeIframe();
-  },300000);
+// ---------- VOTING ----------
+async function vote(ok){
+  const ref = doc(db,"linkVotes",currentLinkId);
+  const snap = await getDoc(ref);
+  if(!snap.exists()){
+    await setDoc(ref,{yes: ok?1:0, no: ok?0:1});
+  }else{
+    await updateDoc(ref, ok?{yes:increment(1)}:{no:increment(1)});
+  }
+  voteBox.classList.add("hidden");
+  renderLinks();
 }
 
-document.addEventListener("mousemove",resetAFK);
-document.addEventListener("keydown",resetAFK);
+// ---------- TOKENS PAGE ----------
+function updateTokensPage(){
+  let next = userData.credits<100?100:userData.credits<200?200:1000;
+  nextUnlock.textContent = next;
+  unlockProgress.style.width = Math.min((userData.credits/next)*100,100)+"%";
+}
 
+// ---------- ACCOUNT ----------
+function updateAccount(){
+  accountInfo.innerHTML = `
+    <div>Name: ${userData.firstName||""} ${userData.lastName||""}</div>
+    <div>Grade: ${userData.grade||""}</div>
+    <div>Total Earned: ${userData.totalEarned}</div>
+  `;
+}
+
+// ---------- TIER MODAL ----------
+function showTierDetails(){
+  tierModal.classList.remove("hidden");
+  tierDetails.innerHTML = `
+    <div>Basic: 3h/day · 45m/link</div>
+    <div>Silver: 5h/day · 1h/link</div>
+    <div>Gold: 6h/day · 1h15m/link</div>
+    <div>VIP: Unlimited · 1h30m/link</div>
+  `;
+}
+function closeTierDetails(){ tierModal.classList.add("hidden"); }
+
+// ---------- TAB ----------
 document.addEventListener("visibilitychange",()=>{
-  tabActive = !document.hidden;
+  tabActive=!document.hidden;
 });
-
-// ---------- ADMIN ----------
-function adminLogin(){
-  const u=prompt("Admin user");
-  const p=prompt("Admin pass");
-  if(u==="Armin" && p==="2351"){
-    authContainer.classList.add("hidden");
-    adminPanel.classList.remove("hidden");
-    loadAdmin();
-  }
-}
-
-async function loadAdmin(){
-  adminUsers.innerHTML="";
-  const snap = await getDocs(collection(db,"users"));
-  snap.forEach(d=>{
-    adminUsers.innerHTML+=`
-      <div class="bg-gray-800 p-2 rounded flex justify-between">
-        <span>${d.id}</span>
-        <button onclick="confirmCredit('${d.id}',10)">+10</button>
-        <button onclick="confirmCredit('${d.id}',-10)">-10</button>
-      </div>
-    `;
-  });
-}
-
-async function confirmCredit(uid,val){
-  if(confirm("Are you sure?")){
-    await updateDoc(doc(db,"users",uid),{credits:increment(val)});
-    loadAdmin();
-  }
-}
-
-function exitAdmin(){
-  adminPanel.classList.add("hidden");
-  authContainer.classList.remove("hidden");
-}
 
 // expose
 Object.assign(window,{
-  signUp,logIn,logOut,openIframe,closeIframe,
-  saveOnboarding,adminLogin,exitAdmin
+  navigate,openIframe,closeIframe,showTierDetails,closeTierDetails,vote
 });
 </script>
 </body>
