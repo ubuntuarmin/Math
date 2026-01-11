@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase.js";
-import { doc, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, updateDoc, arrayUnion, increment, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const dailyTracker = document.getElementById("dailyTracker");
 const nextReward = document.getElementById("nextReward");
@@ -30,7 +30,9 @@ function formatTime(ms) {
 }
 
 export async function renderDaily(userData) {
+  if (!dailyTracker) return;
   dailyTracker.innerHTML = "";
+  
   const streak = userData?.streak || 0;
   const redeemed = new Set(userData?.redeemedDays || []);
   const lastUpdate = userData?.lastStreakUpdate?.toMillis() || 0;
@@ -66,7 +68,7 @@ export async function renderDaily(userData) {
       info.classList.add("text-green-400");
     } else if (isNextDay) {
       if (isWaitPeriodOver || streak === 0) {
-        info.textContent = "Unlock Now";
+        info.textContent = "Ready!";
         info.classList.add("text-blue-400");
       } else {
         info.id = `timer-${i}`;
@@ -79,25 +81,55 @@ export async function renderDaily(userData) {
     wrapper.appendChild(info);
 
     const btn = document.createElement("button");
-    btn.className = "redeem-btn w-full mt-auto";
-    btn.textContent = isRedeemed ? "Done" : (isEligible ? "Claim" : "Locked");
-    btn.disabled = !isEligible || isRedeemed || !uid;
+    btn.className = "redeem-btn w-full mt-auto text-white font-bold py-1 px-2 rounded transition-colors";
+    
+    // Style the button based on state
+    if (isRedeemed) {
+        btn.textContent = "Claimed";
+        btn.classList.add("bg-gray-600", "cursor-default");
+        btn.disabled = true;
+    } else if (isEligible) {
+        btn.textContent = "Claim";
+        btn.classList.add("bg-green-600", "hover:bg-green-500");
+        btn.disabled = false;
+    } else {
+        btn.textContent = "Locked";
+        btn.classList.add("bg-gray-700", "opacity-50", "cursor-not-allowed");
+        btn.disabled = true;
+    }
     wrapper.appendChild(btn);
 
     btn.addEventListener("click", async () => {
       if (!uid || btn.disabled) return;
       btn.disabled = true;
-      btn.textContent = "...";
+      btn.textContent = "Processing...";
 
       try {
         const userRef = doc(db, "users", uid);
+        
+        // Use field names consistent with your app
         await updateDoc(userRef, {
           redeemedDays: arrayUnion(i),
-          credits: increment(10),
-          totalEarned: increment(10)
+          credits: increment(10),       // Main balance
+          totalEarned: increment(10)   // Lifetime balance
         });
-        showFloating(wrapper, "+10");
-        window.dispatchEvent(new CustomEvent("userProfileUpdated"));
+
+        showFloating(wrapper, "+10 🪙");
+        
+        // IMPORTANT: Refresh data immediately
+        const freshSnap = await getDoc(userRef);
+        const newData = freshSnap.data();
+
+        // Update the header credits immediately
+        const headerCredits = document.getElementById("creditCount");
+        if (headerCredits) headerCredits.textContent = newData.credits || 0;
+
+        // Re-render this page so the button turns to "Claimed"
+        renderDaily(newData);
+
+        // Tell other pages (Account/Leaderboard) that data changed
+        window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: newData }));
+
       } catch (err) {
         console.error("Redeem failed:", err);
         btn.disabled = false;
@@ -107,13 +139,17 @@ export async function renderDaily(userData) {
 
     dailyTracker.appendChild(wrapper);
 
-    // Timer for the next day
+    // Timer logic
     if (isNextDay && !isWaitPeriodOver && lastUpdate > 0) {
       const timerEl = document.getElementById(`timer-${i}`);
       const interval = setInterval(() => {
         const remaining = DAY_IN_MS - (Date.now() - lastUpdate);
         if (remaining <= 0) {
-          if (timerEl) timerEl.textContent = "Ready!";
+          if (timerEl) {
+              timerEl.textContent = "Ready!";
+              timerEl.classList.add("text-blue-400");
+          }
+          // Potentially refresh the UI here
           clearInterval(interval);
         } else if (timerEl) {
           timerEl.textContent = formatTime(remaining);
@@ -123,11 +159,18 @@ export async function renderDaily(userData) {
   }
 
   // Update Top Banner
-  if (streak < 30) {
-    if (isWaitPeriodOver || streak === 0) {
-      nextReward.textContent = "New day available! Refresh to update your streak.";
-    } else {
-      nextReward.textContent = `Next update in: ${formatTime(DAY_IN_MS - timeSinceLast)}`;
-    }
+  if (nextReward) {
+      if (streak < 30) {
+        if (isWaitPeriodOver || streak === 0) {
+          nextReward.textContent = "A new day is ready to be unlocked! Keep learning to increase your streak.";
+          nextReward.className = "text-green-400 font-bold pulse";
+        } else {
+          nextReward.textContent = `Next streak unlock in: ${formatTime(DAY_IN_MS - timeSinceLast)}`;
+          nextReward.className = "text-blue-300";
+        }
+      } else {
+          nextReward.textContent = "Maximum streak reached! You are a Math Master.";
+          nextReward.className = "text-yellow-400 font-bold";
+      }
   }
 }
