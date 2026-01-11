@@ -1,97 +1,120 @@
 import { auth, db } from "./firebase.js";
-import { doc, updateDoc, arrayUnion, getDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, updateDoc, arrayUnion, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const dailyTracker = document.getElementById("dailyTracker");
 const nextReward = document.getElementById("nextReward");
 
-// helper: small floating +10 animation
-function showFloating(parent, text="+10"){
-  const el = document.createElement("div");
-  el.className = "floating-credit";
-  el.style.left = "50%";
-  el.style.top = "10%";
-  el.style.transform = "translate(-50%, 0)";
-  el.textContent = text;
-  parent.appendChild(el);
-  requestAnimationFrame(()=> {
-    el.style.transform = "translate(-50%, -80px)";
-    el.style.opacity = "0";
-  });
-  setTimeout(()=>el.remove(), 800);
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function formatTime(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours}h ${minutes}m ${seconds}s`;
 }
 
-/**
- * Render daily streak UI.
- * Each day shows a small box and a redeem button when eligible.
- */
-export async function renderDaily(userData){
-  dailyTracker.innerHTML = "";
-  const streak = userData?.streak || 0;
-  const redeemed = new Set(userData?.redeemedDays || []);
-  const uid = auth.currentUser?.uid;
+export async function renderDaily(userData) {
+    dailyTracker.innerHTML = "";
+    const streak = userData?.streak || 0;
+    const redeemed = new Set(userData?.redeemedDays || []);
+    const lastUpdate = userData?.lastStreakUpdate?.toMillis() || 0;
+    const uid = auth.currentUser?.uid;
 
-  // compute "today's" index for UI hint — use streak as last earned day
-  const todaysIndex = streak; // e.g., if streak=3 then day 3 is latest
+    const now = Date.now();
+    const timeSinceLast = now - lastUpdate;
+    const isWaitPeriodOver = timeSinceLast >= DAY_IN_MS;
 
-  for(let i=1;i<=30;i++){
-    const isEligible = i <= streak;
-    const isRedeemed = redeemed.has(i);
-    const wrapper = document.createElement("div");
-    wrapper.className = "day-card bg-gray-800 p-2 rounded flex flex-col items-center gap-2 relative";
-    wrapper.style.minHeight = "72px";
+    for (let i = 1; i <= 30; i++) {
+        const isEarned = i <= streak; // Day is unlocked via streak
+        const isRedeemed = redeemed.has(i); // Day has already been claimed
+        const isNextToUnlock = i === streak + 1;
 
-    const box = document.createElement("div");
-    box.className = `h-12 w-full rounded flex items-center justify-center ${i<=streak ? "bg-gradient-to-r from-green-400 to-green-500" : "bg-gray-700"}`;
-    box.innerHTML = `<div class="font-semibold">${i}</div>`;
-    wrapper.appendChild(box);
+        const wrapper = document.createElement("div");
+        wrapper.className = "day-card bg-gray-800 p-2 rounded flex flex-col items-center gap-2 relative min-h-[100px]";
 
-    const info = document.createElement("div");
-    info.className = "text-xs text-gray-300";
-    info.textContent = isRedeemed ? "Redeemed" : (isEligible ? (i===todaysIndex ? "Today" : "Available") : "Locked");
-    wrapper.appendChild(info);
+        // Visual Box
+        const box = document.createElement("div");
+        box.className = `h-10 w-full rounded flex items-center justify-center transition-colors ${
+            isRedeemed ? "bg-gray-600 opacity-50" : (isEarned ? "bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg shadow-green-900/20" : "bg-gray-700")
+        }`;
+        box.innerHTML = `<span class="font-bold text-sm">${i}</span>`;
+        wrapper.appendChild(box);
 
-    const btn = document.createElement("button");
-    btn.className = "redeem-btn";
-    btn.textContent = isRedeemed ? "Redeemed" : (isEligible ? "Redeem +10" : "Locked");
-    btn.disabled = !isEligible || isRedeemed || !uid;
-    wrapper.appendChild(btn);
+        // Status Label
+        const info = document.createElement("div");
+        info.className = "text-[10px] uppercase tracking-wider font-medium text-center";
+        
+        if (isRedeemed) {
+            info.textContent = "Claimed";
+            info.className += " text-gray-500";
+        } else if (isEarned) {
+            info.textContent = "Ready!";
+            info.className += " text-green-400 animate-pulse";
+        } else if (isNextToUnlock) {
+            info.id = `timer-${i}`;
+            info.textContent = isWaitPeriodOver ? "Available Now" : "Locked";
+            info.className += isWaitPeriodOver ? " text-blue-400" : " text-gray-400";
+        } else {
+            info.textContent = "Locked";
+            info.className += " text-gray-600";
+        }
+        wrapper.appendChild(info);
 
-    // click behavior: interactive confirmation + animation
-    btn.addEventListener("click", async (ev) => {
-      if(!uid || btn.disabled) return;
-      // small confirm overlay (window.confirm is simplest)
-      const confirmMsg = `Redeem day ${i} for +10 coins?`;
-      if(!confirm(confirmMsg)) return;
-      btn.disabled = true;
-      const prevText = btn.textContent;
-      btn.textContent = "Redeeming...";
-      try{
-        const userRef = doc(db, "users", uid);
-        await updateDoc(userRef, {
-          redeemedDays: arrayUnion(i),
-          credits: increment(10),
-          totalEarned: increment(10)
-        });
-        // update UI instantly
-        isRedeemed = true;
-        info.textContent = "Redeemed";
-        box.className = `h-12 w-full rounded flex items-center justify-center bg-gradient-to-r from-green-400 to-green-500`;
-        btn.textContent = "Redeemed";
-        btn.disabled = true;
-        // floating animation
-        showFloating(wrapper, "+10");
-        // refresh account and header via dispatch so other modules can pick up change
-        window.dispatchEvent(new CustomEvent("userProfileUpdated"));
-      }catch(err){
-        console.error("Redeem failed:", err);
-        btn.disabled = false;
-        btn.textContent = prevText;
-        alert("Failed to redeem. Try again.");
-      }
-    });
+        // Action Button
+        const btn = document.createElement("button");
+        btn.className = "redeem-btn w-full mt-auto py-1 text-[10px]";
+        btn.disabled = !isEarned || isRedeemed;
+        btn.textContent = isRedeemed ? "Done" : (isEarned ? "Redeem +10" : "Locked");
 
-    dailyTracker.appendChild(wrapper);
-  }
+        btn.onclick = async () => {
+            if (!uid || btn.disabled) return;
+            btn.disabled = true;
+            btn.textContent = "...";
 
-  nextReward.textContent = "Daily login +10 · Refer friends for bonus";
+            try {
+                const userRef = doc(db, "users", uid);
+                await updateDoc(userRef, {
+                    redeemedDays: arrayUnion(i),
+                    credits: increment(10),
+                    totalEarned: increment(10)
+                });
+                // Success: Update UI without full refresh
+                window.dispatchEvent(new CustomEvent("userProfileUpdated"));
+            } catch (err) {
+                console.error("Redemption error:", err);
+                btn.disabled = false;
+                btn.textContent = "Retry";
+            }
+        };
+        wrapper.appendChild(btn);
+        dailyTracker.appendChild(wrapper);
+
+        // Individual Timer for the next day
+        if (isNextToUnlock && !isWaitPeriodOver) {
+            const timerEl = document.getElementById(`timer-${i}`);
+            const interval = setInterval(() => {
+                const remaining = DAY_IN_MS - (Date.now() - lastUpdate);
+                if (remaining <= 0) {
+                    timerEl.textContent = "Refresh to Unlock";
+                    timerEl.classList.replace("text-gray-400", "text-blue-400");
+                    clearInterval(interval);
+                } else {
+                    timerEl.textContent = formatTime(remaining);
+                }
+            }, 1000);
+        }
+    }
+
+    // Top Header Banner Update
+    if (streak < 30) {
+        if (isWaitPeriodOver) {
+            nextReward.innerHTML = `<span class="text-blue-400 font-bold">New Day Available!</span> Refresh or re-login to progress your streak.`;
+        } else {
+            const timeLeft = DAY_IN_MS - timeSinceLast;
+            nextReward.textContent = `Next streak point in: ${formatTime(timeLeft)}`;
+        }
+    } else {
+        nextReward.textContent = "Monthly streak complete! Great job!";
+    }
 }
