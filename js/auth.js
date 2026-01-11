@@ -15,7 +15,7 @@ const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
 const logoutBtn = document.getElementById("logoutBtn");
 
-// Force sign-out on page reload
+// Force sign-out on page reload (Optional: remove if you want users to stay logged in)
 try {
   const nav = performance.getEntriesByType?.('navigation')?.[0];
   const isReload = nav ? nav.type === 'reload' : (performance?.navigation?.type === 1);
@@ -25,40 +25,53 @@ try {
 } catch (e) {}
 
 /**
- * Handles the logic for incrementing the daily streak.
- * Day 1 is granted automatically if streak is 0.
+ * Handles resetting daily limits and updating the streak.
  */
-async function handleDailyStreak(uid, userData) {
-  const DAY_IN_MS = 24 * 60 * 60 * 1000;
-  const lastUpdate = userData.lastStreakUpdate?.toMillis() || 0;
-  const currentStreak = userData.streak || 0;
-  const now = Date.now();
-
+async function handleDailyData(uid, userData) {
   const userRef = doc(db, "users", uid);
+  const now = new Date();
+  const todayStr = now.toDateString(); // e.g. "Sun Jan 11 2026"
+  
+  const lastVisitDate = userData.lastVisitDate || "";
+  const updates = {};
 
-  // BUG AVOIDANCE: If streak is 0, initialize Day 1 immediately
+  // --- 1. DAILY RESET LOGIC (Resets 45-min link timer) ---
+  if (lastVisitDate !== todayStr) {
+    updates.dailyLinkUsage = 0;
+    updates.lastVisitDate = todayStr;
+    console.log("New day detected! Resetting link usage timer.");
+  }
+
+  // --- 2. WEEKLY RESET LOGIC (Resets leaderboard minutes) ---
+  // If today is Sunday (day 0) and the last visit wasn't today
+  if (now.getDay() === 0 && lastVisitDate !== todayStr) {
+    updates.weekMinutes = 0;
+    console.log("New week detected! Resetting leaderboard.");
+  }
+
+  // --- 3. STREAK LOGIC ---
+  const DAY_IN_MS = 24 * 60 * 60 * 1000;
+  const lastStreakUpdate = userData.lastStreakUpdate?.toMillis() || 0;
+  const currentStreak = userData.streak || 0;
+  const timeDiff = Date.now() - lastStreakUpdate;
+
   if (currentStreak === 0) {
-    await updateDoc(userRef, {
-      streak: 1,
-      lastStreakUpdate: serverTimestamp()
-    });
+    updates.streak = 1;
+    updates.lastStreakUpdate = serverTimestamp();
+  } else if (timeDiff >= DAY_IN_MS) {
+    // Note: You might want to check if they missed a day to reset streak, 
+    // but for now this just increments every 24h.
+    updates.streak = increment(1);
+    updates.lastStreakUpdate = serverTimestamp();
+  }
+
+  // Apply all updates if any exist
+  if (Object.keys(updates).length > 0) {
+    await updateDoc(userRef, updates);
     const snap = await getDoc(userRef);
     return snap.data();
   }
 
-  // Standard Logic: Increment if 24 hours passed since last update
-  if (now - lastUpdate >= DAY_IN_MS) {
-    try {
-      await updateDoc(userRef, {
-        streak: increment(1),
-        lastStreakUpdate: serverTimestamp()
-      });
-      const snap = await getDoc(userRef);
-      return snap.data();
-    } catch (err) {
-      console.error("Streak update failed:", err);
-    }
-  }
   return userData;
 }
 
@@ -81,17 +94,21 @@ onAuthStateChanged(auth, async user => {
     
     if (snap.exists()) {
       currentUserData = snap.data();
-      // Only process streak logic for returning users not in onboarding
+      
       const justSignedUp = sessionStorage.getItem("justSignedUp");
       if (!justSignedUp) {
-        currentUserData = await handleDailyStreak(user.uid, currentUserData);
+        // Run our reset and streak logic
+        currentUserData = await handleDailyData(user.uid, currentUserData);
       }
+    } else {
+        // Handle case where user exists in Auth but not in Firestore yet
+        console.warn("User document not found. Redirecting to onboarding.");
     }
   } catch (err) {
-    console.error("Failed to fetch user doc:", err);
+    console.error("Auth State Error:", err);
   }
 
-  // Update modules
+  // Refresh all UI modules with the latest data
   try { updateUI(currentUserData); } catch (e) {}
   try { renderDaily(currentUserData); } catch (e) {}
   try { updateAccount(currentUserData); } catch (e) {}
@@ -103,11 +120,11 @@ onAuthStateChanged(auth, async user => {
   }
 
   try {
-    const displayName = user.displayName || currentUserData.firstName || null;
+    const displayName = user.displayName || currentUserData.firstName || "Student";
     showWelcome(displayName);
   } catch (e) {}
 });
 
 logoutBtn.addEventListener("click", async () => {
-  if (auth.currentUser) await signOut(auth);
+  if (auth.currentUser) await signOut(auth).then(() => location.reload());
 });
