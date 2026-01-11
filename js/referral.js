@@ -72,14 +72,4 @@ export async function renderReferral(){
   }
 }
 
-// expose a helper that navigation can call
-window.showReferralPage = function(){
-  // hide others
-  ["dashboard","tokens","account","leaderboard","referral"].forEach(p=>{
-    const el = document.getElementById(p+"Page");
-    if(el) el.classList.add("hidden");
-  });
-  const target = document.getElementById("referralPage");
-  if(target) target.classList.remove("hidden");
-  renderReferral();
-};
+window.renderReferral = renderReferral;

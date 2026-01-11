@@ -75,12 +75,54 @@
     </div>
 </header>
 
-<main id="appContainer" class="pt-28 max-w-6xl mx-auto p-6">
-    <section id="dashboardPage">
-        <h2 class="text-2xl font-bold mb-6">Learning Path</h2>
-        <div id="links" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
-    </section>
+    <main id="appContainer" class="pt-28 max-w-6xl mx-auto p-6">
+        <section id="dashboardPage">
+            <h2 class="text-2xl font-bold mb-6">Learning Path</h2>
+            <div id="links" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        </section>
 
+        <!-- Tokens Page -->
+        <section id="tokensPage" class="hidden">
+            <h2 class="text-2xl font-bold mb-6">Daily Rewards</h2>
+            <div id="dailyTracker" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4"></div>
+            <p id="nextReward" class="mt-6 text-slate-400"></p>
+        </section>
+
+        <!-- Leaderboard Page -->
+        <section id="leaderboardPage" class="hidden">
+            <h2 class="text-2xl font-bold mb-6">Top Learners</h2>
+            <div id="leaderboard" class="space-y-4 bg-slate-900 p-6 rounded-2xl border border-slate-800"></div>
+        </section>
+
+        <!-- Referral Page -->
+        <section id="referralPage" class="hidden">
+            <h2 class="text-2xl font-bold mb-6">Invite Friends</h2>
+            <div id="referralContent" class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl"></div>
+        </section>
+
+        <!-- Account Page -->
+        <section id="accountPage" class="hidden">
+            <h2 class="text-2xl font-bold mb-6">Account Settings</h2>
+            <div id="accountInfo" class="space-y-6 bg-slate-900 p-8 rounded-2xl border border-slate-800">
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-2xl">👤</div>
+                    <div>
+                        <h3 id="accountName" class="text-xl font-bold">Learner</h3>
+                        <p id="accountEmail" class="text-slate-400"></p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+                    <div class="bg-slate-800/50 p-4 rounded-xl">
+                        <div class="text-xs text-slate-400 uppercase">Current Credits</div>
+                        <div id="accountCredits" class="text-2xl font-bold text-yellow-500">0</div>
+                    </div>
+                    <div class="bg-slate-800/50 p-4 rounded-xl">
+                        <div class="text-xs text-slate-400 uppercase">Referral Code</div>
+                        <div id="accountRefCode" class="text-xl font-mono font-bold text-indigo-400">------</div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
 <div id="loginModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
