@@ -24,9 +24,8 @@ function showFloating(parent, text="+10"){
  * Render daily streak UI.
  * Each day shows a small box and a redeem button when eligible.
  */
-export async function renderDaily(userData) {
-    if (!dailyTracker) return;
-    dailyTracker.innerHTML = "";
+export async function renderDaily(userData){
+  dailyTracker.innerHTML = "";
   const streak = userData?.streak || 0;
   const redeemed = new Set(userData?.redeemedDays || []);
   const uid = auth.currentUser?.uid;
