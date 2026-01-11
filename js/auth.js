@@ -63,8 +63,6 @@ async function handleDailyStreak(uid, userData) {
 }
 
 onAuthStateChanged(auth, async user => {
-  console.log("Auth state changed:", user ? `signed in (${user.uid})` : "signed out");
-
   if (!user) {
     header.classList.add("hidden");
     appContainer.classList.add("hidden");
@@ -83,7 +81,7 @@ onAuthStateChanged(auth, async user => {
     
     if (snap.exists()) {
       currentUserData = snap.data();
-      // Process streak logic (Initializes Day 1 or increments others)
+      // Only process streak logic for returning users not in onboarding
       const justSignedUp = sessionStorage.getItem("justSignedUp");
       if (!justSignedUp) {
         currentUserData = await handleDailyStreak(user.uid, currentUserData);
@@ -94,13 +92,12 @@ onAuthStateChanged(auth, async user => {
   }
 
   // Update modules
-  try { updateUI(currentUserData); } catch (e) { console.error("updateUI error:", e); }
-  try { renderDaily(currentUserData); } catch (e) { console.error("renderDaily error:", e); }
-  try { updateAccount(currentUserData); } catch (e) { console.error("updateAccount error:", e); }
-  try { renderLeaderboard(currentUserData); } catch (e) { console.error("renderLeaderboard error:", e); }
+  try { updateUI(currentUserData); } catch (e) {}
+  try { renderDaily(currentUserData); } catch (e) {}
+  try { updateAccount(currentUserData); } catch (e) {}
+  try { renderLeaderboard(currentUserData); } catch (e) {}
 
-  const justSignedUp = sessionStorage.getItem("justSignedUp");
-  if (justSignedUp) {
+  if (sessionStorage.getItem("justSignedUp")) {
     showOnboarding();
     return;
   }
@@ -108,9 +105,7 @@ onAuthStateChanged(auth, async user => {
   try {
     const displayName = user.displayName || currentUserData.firstName || null;
     showWelcome(displayName);
-  } catch (e) {
-    console.error("welcome animation error:", e);
-  }
+  } catch (e) {}
 });
 
 logoutBtn.addEventListener("click", async () => {
