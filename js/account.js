@@ -3,10 +3,13 @@ import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-
 
 const accountInfo = document.getElementById("accountInfo");
 const totalMinutesEl = document.getElementById("totalMinutes");
+const referralArea = document.getElementById("referralArea");
 
+// updateAccount now fetches latest user doc if necessary to ensure referral code is shown
 export async function updateAccount(userData){
   let data = userData || {};
   try{
+    // if referralCode missing or critical fields missing, fetch fresh doc for current user
     if(!data.referralCode && auth.currentUser){
       const snap = await getDoc(doc(db,"users",auth.currentUser.uid));
       if(snap.exists()) data = snap.data();
@@ -15,42 +18,36 @@ export async function updateAccount(userData){
     console.error("Failed to refresh account data:", err);
   }
 
-  if (accountInfo) {
-      accountInfo.innerHTML = `
-        <div class="flex items-center gap-4">
-            <div class="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-2xl">👤</div>
-            <div>
-                <h3 id="accountName" class="text-xl font-bold">${data?.firstName||""} ${data?.lastName||""}</h3>
-                <p id="accountEmail" class="text-slate-400">${auth.currentUser?.email || ""}</p>
-            </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
-            <div class="bg-slate-800/50 p-4 rounded-xl">
-                <div class="text-xs text-slate-400 uppercase">Current Credits</div>
-                <div id="accountCredits" class="text-2xl font-bold text-yellow-500">${data?.credits || 0}</div>
-            </div>
-            <div class="bg-slate-800/50 p-4 rounded-xl">
-                <div class="text-xs text-slate-400 uppercase">Referral Code</div>
-                <div id="accountRefCode" class="text-xl font-mono font-bold text-indigo-400">${data?.referralCode || "------"}</div>
-            </div>
-        </div>
-        <div class="pt-4 border-t border-slate-800">
-            <div class="text-xs text-slate-400 uppercase mb-1">Grade</div>
-            <div class="text-lg font-semibold">${data?.grade || "Not set"}</div>
-        </div>
-      `;
+  accountInfo.innerHTML = `
+    <div>Name: ${data?.firstName||""} ${data?.lastName||""}</div>
+    <div>Grade: ${data?.grade||""}</div>
+    <div>Total Earned: ${data?.totalEarned||0}</div>
+  `;
+  totalMinutesEl.textContent = data?.totalMinutes || 0;
+
+  // referral display / copy button
+  const code = data?.referralCode || "";
+  if(code){
+    referralArea.innerHTML = `
+      <div class="flex items-center gap-2">
+        <div class="text-sm">Referral code:</div>
+        <div class="text-sm font-mono bg-gray-900 px-2 py-1 rounded">${code}</div>
+        <button id="copyReferral" class="text-xs bg-blue-600 px-2 py-1 rounded">Copy</button>
+      </div>
+      <div class="text-xs text-gray-400 mt-2">Share this code with friends — you'll get rewarded when they sign up.</div>
+    `;
+    const btn = document.getElementById("copyReferral");
+    btn.addEventListener("click", async () => {
+      try{
+        await navigator.clipboard.writeText(code);
+        btn.textContent = "Copied!";
+        setTimeout(()=>btn.textContent = "Copy", 1500);
+      }catch(e){
+        console.error("Copy failed", e);
+        alert("Could not copy automatically. Code: " + code);
+      }
+    });
+  }else{
+    referralArea.innerHTML = `<div class="text-sm text-gray-400">No referral code available.</div>`;
   }
 }
-
-// listen for profile updates so referral/account UI updates immediately
-window.addEventListener("userProfileUpdated", async ()=>{
-  try{
-    const uid = auth.currentUser?.uid;
-    if(!uid) return;
-    const snap = await getDoc(doc(db,"users",uid));
-    const data = snap.exists() ? snap.data() : {};
-    updateAccount(data);
-  }catch(e){
-    console.error("account refresh failed", e);
-  }
-});
