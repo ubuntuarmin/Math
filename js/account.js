@@ -15,101 +15,131 @@ const editFirst = document.getElementById("editFirst");
 const editLast = document.getElementById("editLast");
 const editGrade = document.getElementById("editGrade");
 
+/**
+ * Updates the visual account page with user data
+ */
 export async function updateAccount(userData) {
-  let data = userData || {};
+    let data = userData || {};
 
-  try {
-    if (!data.referralCode && auth.currentUser) {
-      const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
-      if (snap.exists()) data = snap.data();
+    // If data is empty, try to fetch it from the database
+    if (!data.firstName && auth.currentUser) {
+        try {
+            const snap = await getDoc(doc(db, "users", auth.currentUser.uid));
+            if (snap.exists()) data = snap.data();
+        } catch (err) {
+            console.error("Account Refresh Error:", err);
+        }
     }
-  } catch (err) {
-    console.error("Account Refresh Error:", err);
-  }
 
-  // Display view
-  accountInfo.innerHTML = `
-    <div class="text-2xl font-bold text-white">${data.firstName || ""} ${data.lastName || ""}</div>
-    <div class="text-gray-400">Grade: <span class="text-blue-400">${data.grade || "Not Set"}</span></div>
-    <div class="text-sm text-green-500 mt-1">Total Earned: ${data.totalEarned || 0} 🪙</div>
-  `;
+    // Update Header Text
+    if (accountInfo) {
+        accountInfo.innerHTML = `
+            <div class="text-2xl font-bold text-white">${data.firstName || "Student"} ${data.lastName || ""}</div>
+            <div class="text-gray-400">Grade: <span class="text-blue-400">${data.grade || "Not Set"}</span></div>
+            <div class="text-sm text-green-500 mt-1 font-semibold">Total Earned: ${data.totalEarned || 0} 🪙</div>
+        `;
+    }
 
-  if (totalMinutesEl) totalMinutesEl.textContent = data.totalMinutes || 0;
+    if (totalMinutesEl) totalMinutesEl.textContent = data.totalMinutes || 0;
 
-  // Pre-fill inputs for editing
-  if (editFirst) editFirst.value = data.firstName || "";
-  if (editLast) editLast.value = data.lastName || "";
-  if (editGrade) editGrade.value = data.grade || "";
+    // Sync Edit Inputs
+    if (editFirst) editFirst.value = data.firstName || "";
+    if (editLast) editLast.value = data.lastName || "";
+    if (editGrade) editGrade.value = data.grade || "";
 
-  renderReferral(data.referralCode);
+    // IMPORTANT: Render the Link, not just the code
+    renderReferralUI(data.referralCode);
 }
 
-// TOGGLE VISIBILITY LOGIC
+/**
+ * Creates the referral link box with a copy button
+ */
+function renderReferralUI(code) {
+    if (!referralArea) return;
+    if (!code) {
+        referralArea.innerHTML = `<div class="text-sm text-gray-500 italic">Generating referral code...</div>`;
+        return;
+    }
+
+    // Construct the full URL for the student
+    const fullLink = `${window.location.origin}${window.location.pathname}?ref=${code}`;
+
+    referralArea.innerHTML = `
+        <div class="mt-4 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+            <div class="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2">Your Invite Link</div>
+            <div class="flex items-center gap-2">
+                <input readonly value="${fullLink}" class="bg-gray-950 text-xs p-2 rounded border border-gray-800 w-full text-blue-300 font-mono outline-none">
+                <button id="copyRefBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded font-bold transition">Copy</button>
+            </div>
+            <div class="text-[10px] text-gray-500 mt-2">Friends get 50 credits when they join using this link!</div>
+        </div>
+    `;
+
+    const btn = document.getElementById("copyRefBtn");
+    btn.onclick = async () => {
+        try {
+            await navigator.clipboard.writeText(fullLink);
+            btn.textContent = "COPIED!";
+            btn.classList.replace("bg-blue-600", "bg-green-600");
+            setTimeout(() => {
+                btn.textContent = "COPY";
+                btn.classList.replace("bg-green-600", "bg-blue-600");
+            }, 2000);
+        } catch (e) {
+            alert("Referral Link: " + fullLink);
+        }
+    };
+}
+
+// --- Event Listeners ---
+
 if (showEditBtn) {
-  showEditBtn.onclick = () => {
-    editForm.classList.remove("hidden"); // Shows the form
-    showEditBtn.classList.add("hidden"); // Hides the "Edit Profile" link
-  };
+    showEditBtn.onclick = () => {
+        editForm?.classList.remove("hidden");
+        showEditBtn.classList.add("hidden");
+    };
 }
 
 if (cancelEditBtn) {
-  cancelEditBtn.onclick = () => {
-    editForm.classList.add("hidden");    // Hides the form
-    showEditBtn.classList.remove("hidden"); // Shows the "Edit Profile" link
-  };
-}
-
-// SAVE LOGIC
-if (saveProfileBtn) {
-  saveProfileBtn.onclick = async () => {
-    if (!auth.currentUser) return;
-
-    const userRef = doc(db, "users", auth.currentUser.uid);
-    
-    try {
-      saveProfileBtn.disabled = true;
-      saveProfileBtn.textContent = "Saving...";
-
-      await updateDoc(userRef, {
-        firstName: editFirst.value.trim(),
-        lastName: editLast.value.trim(),
-        grade: editGrade.value
-      });
-
-      // Refresh data and close form
-      const updatedSnap = await getDoc(userRef);
-      updateAccount(updatedSnap.data());
-      
-      editForm.classList.add("hidden");
-      showEditBtn.classList.remove("hidden");
-      alert("Profile updated!");
-    } catch (err) {
-      console.error("Update failed:", err);
-      alert("Error saving profile.");
-    } finally {
-      saveProfileBtn.disabled = false;
-      saveProfileBtn.textContent = "Save Changes";
-    }
-  };
-}
-
-function renderReferral(code) {
-  if (!referralArea) return;
-  if (code) {
-    referralArea.innerHTML = `
-      <div class="flex items-center gap-2">
-        <div class="text-sm">Referral code:</div>
-        <div class="text-sm font-mono bg-gray-900 px-2 py-1 rounded border border-gray-700">${code}</div>
-        <button id="copyReferral" class="text-xs bg-blue-600 px-2 py-1 rounded">Copy</button>
-      </div>
-    `;
-    const btn = document.getElementById("copyReferral");
-    btn.onclick = async () => {
-      await navigator.clipboard.writeText(code);
-      btn.textContent = "Copied!";
-      setTimeout(() => btn.textContent = "Copy", 1500);
+    cancelEditBtn.onclick = () => {
+        editForm?.classList.add("hidden");
+        showEditBtn?.classList.remove("hidden");
     };
-  } else {
-    referralArea.innerHTML = `<div class="text-sm text-gray-400">No referral code available.</div>`;
-  }
+}
+
+if (saveProfileBtn) {
+    saveProfileBtn.onclick = async () => {
+        if (!auth.currentUser) return;
+        const userRef = doc(db, "users", auth.currentUser.uid);
+
+        try {
+            saveProfileBtn.disabled = true;
+            saveProfileBtn.textContent = "Saving...";
+
+            const updatedData = {
+                firstName: editFirst.value.trim(),
+                lastName: editLast.value.trim(),
+                grade: editGrade.value
+            };
+
+            await updateDoc(userRef, updatedData);
+
+            // Fetch final doc to ensure all fields are local
+            const snap = await getDoc(userRef);
+            updateAccount(snap.data());
+
+            editForm.classList.add("hidden");
+            showEditBtn.classList.remove("hidden");
+            
+            // Dispatch event so Header and Welcome overlays update names
+            window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: snap.data() }));
+
+        } catch (err) {
+            console.error(err);
+            alert("Error saving profile.");
+        } finally {
+            saveProfileBtn.disabled = false;
+            saveProfileBtn.textContent = "Save Changes";
+        }
+    };
 }
