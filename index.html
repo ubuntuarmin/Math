@@ -67,8 +67,18 @@
   color:#34d399; font-weight:700;
 }
 </style>
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('ref')) sessionStorage.setItem('pendingReferral', urlParams.get('ref'));
+<script>
+  (function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get('ref');
+    if (ref) {
+      sessionStorage.setItem('pendingReferral', ref);
+      // Cleans the URL immediately
+      window.history.replaceState({}, document.title, window.location.pathname);
+      console.log("Referral system: Code captured and stored.");
+    }
+  })();
+</script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
