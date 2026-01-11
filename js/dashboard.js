@@ -1,6 +1,6 @@
 import { db, auth } from "./firebase.js";
 import { doc, updateDoc, increment, setDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { tier } from "./utils.js";
+import { calculateTier } from "./tier.js"; // NEW: Using the central Tier system
 
 const linksEl = document.getElementById("links");
 const creditCount = document.getElementById("creditCount");
@@ -20,24 +20,30 @@ const LINK_GROUPS = [
  */
 export async function updateUI(userData) {
     if (creditCount) creditCount.textContent = userData?.credits || 0;
-    if (tierLabel) tierLabel.textContent = tier(userData?.totalEarned || 0);
+    
+    // NEW: Apply Tier Label and Color
+    if (tierLabel) {
+        const userTier = calculateTier(userData?.totalEarned || 0);
+        tierLabel.textContent = userTier.name;
+        tierLabel.style.color = userTier.color;
+    }
+
     if (linksEl) renderLinks(userData);
 }
 
 /**
- * Renders the dashboard link grid and dropdowns
+ * Renders the dashboard link grid
  */
 async function renderLinks(userData) {
     if (!linksEl) return;
     linksEl.innerHTML = "";
 
     const unlocked = userData?.unlockedLinks || [];
-    const usage = userData?.dailyLinkUsage || 0;
-    const rank = tier(userData?.totalEarned || 0);
+    const usageInSeconds = userData?.dailyLinkUsage || 0;
     
-    // Limits based on Rank
-    const limits = { "Diamond": 120, "Platinum": 90, "Gold": 60, "Silver": 50, "Basic": 45 };
-    const maxMinutes = limits[rank] || 45;
+    // NEW: Get limits from Tier.js
+    const userTier = calculateTier(userData?.totalEarned || 0);
+    const maxMinutes = userTier.limitMinutes;
     const maxSeconds = maxMinutes * 60;
 
     try {
@@ -47,7 +53,7 @@ async function renderLinks(userData) {
 
         LINK_GROUPS.forEach(group => {
             if (group.isDropdown) {
-                // Create VIP Dropdown Container
+                // VIP Dropdown
                 const dropHeader = document.createElement("div");
                 dropHeader.className = "col-span-full bg-gradient-to-r from-purple-900 to-indigo-900 p-3 rounded-lg cursor-pointer flex justify-between items-center border border-purple-500 mt-4 mb-2 shadow-lg";
                 dropHeader.innerHTML = `<span class="font-bold text-purple-200 uppercase tracking-tighter">💎 VIP Exclusive Section</span> <span id="vipArrow" class="text-xs">▼</span>`;
@@ -61,11 +67,11 @@ async function renderLinks(userData) {
                     document.getElementById("vipArrow").textContent = isHidden ? "▼" : "▲";
                 };
 
-                group.links.forEach(num => createLinkCard(num, group, unlocked, usage, maxSeconds, votes, dropContent, userData));
+                group.links.forEach(num => createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, dropContent, userData));
                 linksEl.appendChild(dropHeader);
                 linksEl.appendChild(dropContent);
             } else {
-                group.links.forEach(num => createLinkCard(num, group, unlocked, usage, maxSeconds, votes, linksEl, userData));
+                group.links.forEach(num => createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, linksEl, userData));
             }
         });
     } catch (err) {
@@ -76,10 +82,10 @@ async function renderLinks(userData) {
 /**
  * Helper to create individual link cards
  */
-function createLinkCard(num, group, unlocked, usage, maxSeconds, votes, container, userData) {
+function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData) {
     const linkId = `link${num}`;
     const isBought = group.cost === 0 || unlocked.includes(linkId) || (unlocked.includes(group.id) && !group.individual);
-    const isOverLimit = usage >= maxSeconds;
+    const isOverLimit = usageInSeconds >= maxSeconds;
     const v = votes[linkId] || { yes: 0, no: 0 };
 
     const card = document.createElement("div");
@@ -99,23 +105,24 @@ function createLinkCard(num, group, unlocked, usage, maxSeconds, votes, containe
 
     card.onclick = () => {
         if (!isBought) handleUnlock(group, linkId, userData);
-        else if (!isOverLimit) openIframe(linkId, userData, usage, maxSeconds);
-        else alert(`Daily limit of ${maxSeconds/60} minutes reached! Wait until tomorrow.`);
+        else if (!isOverLimit) openIframe(linkId, userData, usageInSeconds, maxSeconds);
+        else alert(`Daily limit of ${maxSeconds/60} minutes reached for your tier!`);
     };
     container.appendChild(card);
 }
 
 /**
- * The Iframe viewer with Time Tracking, Voting, and Auto-Kick
+ * The Iframe viewer
  */
 function openIframe(linkId, userData, currentUsage, maxSeconds) {
     const overlay = document.createElement("div");
     overlay.className = "fixed inset-0 bg-black z-50 flex flex-col";
     overlay.innerHTML = `
         <div class="bg-gray-900 p-2 border-b border-gray-700 flex flex-col gap-1">
-            <div class="flex justify-between items-center">
-                <span class="text-[10px] text-blue-400 font-mono" id="usageStatus tracking-tighter">Preparing...</span>
-                <div id="promptArea" class="hidden text-sm font-bold text-yellow-400">Did the link work? 
+            <div class="flex justify-between items-center px-2">
+                <span class="text-[10px] text-blue-400 font-mono" id="usageStatus">Preparing...</span>
+                <div id="promptArea" class="hidden text-sm font-bold text-yellow-400">
+                    Did it work? 
                     <button id="vYes" class="bg-green-600 px-3 rounded mx-1 text-white hover:bg-green-500">Yes</button>
                     <button id="vNo" class="bg-red-600 px-3 rounded text-white hover:bg-red-500">No</button>
                 </div>
@@ -133,7 +140,6 @@ function openIframe(linkId, userData, currentUsage, maxSeconds) {
     const usageStatus = document.getElementById("usageStatus");
     const startTime = Date.now();
     
-    // --- REAL-TIME WATCHER & AUTO-KICK ---
     const autoKickInterval = setInterval(() => {
         const sessionSeconds = Math.floor((Date.now() - startTime) / 1000);
         const totalUsed = currentUsage + sessionSeconds;
@@ -144,7 +150,7 @@ function openIframe(linkId, userData, currentUsage, maxSeconds) {
 
         if (totalUsed >= maxSeconds) {
             clearInterval(autoKickInterval);
-            alert("🚨 TIME EXPIRED! You have used your daily limit.");
+            alert("🚨 TIME EXPIRED! You have used your daily tier limit.");
             saveTimeAndClose(sessionSeconds);
         }
     }, 1000);
@@ -165,8 +171,7 @@ function openIframe(linkId, userData, currentUsage, maxSeconds) {
     };
 
     document.getElementById("activeFrame").onload = () => {
-        // Prompt after 2 seconds
-        setTimeout(() => document.getElementById("promptArea")?.classList.remove("hidden"), 2000);
+        setTimeout(() => document.getElementById("promptArea")?.classList.remove("hidden"), 3000);
     };
 
     document.getElementById("vYes").onclick = () => castVote(linkId, 'yes');
@@ -176,16 +181,11 @@ function openIframe(linkId, userData, currentUsage, maxSeconds) {
         try {
             const voteRef = doc(db, "linkVotes", id);
             await setDoc(voteRef, { [type]: increment(1) }, { merge: true });
-            const area = document.getElementById("promptArea");
-            area.innerHTML = "<span class='text-green-400'>Thanks for voting!</span>";
-            setTimeout(() => area?.classList.add("hidden"), 3000);
-        } catch (e) { console.error("Voting failed:", e); }
+            document.getElementById("promptArea").innerHTML = "<span class='text-green-400'>Vote Saved!</span>";
+        } catch (e) { console.error(e); }
     }
 }
 
-/**
- * Logic for purchasing locked links/sections
- */
 async function handleUnlock(group, linkId, userData) {
     const cost = group.cost;
     const userCredits = userData?.credits || 0;
@@ -195,9 +195,7 @@ async function handleUnlock(group, linkId, userData) {
         return;
     }
 
-    const message = group.individual ? `Unlock this link for ${cost} credits?` : `Unlock the ${group.name} section for ${cost} credits?`;
-    
-    if (confirm(message)) {
+    if (confirm(`Unlock ${group.individual ? 'this link' : group.name + ' section'} for ${cost} credits?`)) {
         const userRef = doc(db, "users", auth.currentUser.uid);
         const unlockKey = group.individual ? linkId : group.id;
         
@@ -206,10 +204,8 @@ async function handleUnlock(group, linkId, userData) {
                 credits: increment(-cost),
                 unlockedLinks: [unlockKey, ...(userData.unlockedLinks || [])]
             });
-            alert("Unlocked successfully!");
+            alert("Unlocked!");
             location.reload();
-        } catch (e) {
-            console.error("Unlock failed:", e);
-        }
+        } catch (e) { console.error(e); }
     }
 }
