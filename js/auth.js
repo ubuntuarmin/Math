@@ -26,21 +26,33 @@ try {
 
 /**
  * Handles the logic for incrementing the daily streak.
+ * Day 1 is granted automatically if streak is 0.
  */
 async function handleDailyStreak(uid, userData) {
   const DAY_IN_MS = 24 * 60 * 60 * 1000;
   const lastUpdate = userData.lastStreakUpdate?.toMillis() || 0;
+  const currentStreak = userData.streak || 0;
   const now = Date.now();
 
-  // If 24 hours have passed since the last streak increase
+  const userRef = doc(db, "users", uid);
+
+  // BUG AVOIDANCE: If streak is 0, initialize Day 1 immediately
+  if (currentStreak === 0) {
+    await updateDoc(userRef, {
+      streak: 1,
+      lastStreakUpdate: serverTimestamp()
+    });
+    const snap = await getDoc(userRef);
+    return snap.data();
+  }
+
+  // Standard Logic: Increment if 24 hours passed since last update
   if (now - lastUpdate >= DAY_IN_MS) {
-    const userRef = doc(db, "users", uid);
     try {
       await updateDoc(userRef, {
         streak: increment(1),
         lastStreakUpdate: serverTimestamp()
       });
-      // Fetch updated data to return to the UI
       const snap = await getDoc(userRef);
       return snap.data();
     } catch (err) {
@@ -68,12 +80,14 @@ onAuthStateChanged(auth, async user => {
   try {
     const userRef = doc(db, "users", user.uid);
     const snap = await getDoc(userRef);
-    currentUserData = snap.exists() ? snap.data() : {};
-
-    // Check streak progression for returning users
-    const justSignedUp = sessionStorage.getItem("justSignedUp");
-    if (!justSignedUp && snap.exists()) {
-      currentUserData = await handleDailyStreak(user.uid, currentUserData);
+    
+    if (snap.exists()) {
+      currentUserData = snap.data();
+      // Process streak logic (Initializes Day 1 or increments others)
+      const justSignedUp = sessionStorage.getItem("justSignedUp");
+      if (!justSignedUp) {
+        currentUserData = await handleDailyStreak(user.uid, currentUserData);
+      }
     }
   } catch (err) {
     console.error("Failed to fetch user doc:", err);
