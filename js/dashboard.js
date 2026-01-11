@@ -1,11 +1,12 @@
 import { db, auth } from "./firebase.js";
-import { doc, updateDoc, increment, setDoc, getDocs, collection, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, updateDoc, increment, setDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
 
 const linksEl = document.getElementById("links");
 const creditCount = document.getElementById("creditCount");
 const tierLabel = document.getElementById("tierLabel");
 
+// Configuration for all link categories
 const LINK_GROUPS = [
     { id: 'general', name: 'General', links: [1, 2, 3], cost: 0 },
     { id: 'extra', name: 'Extra', links: [4, 5], cost: 100, individual: true },
@@ -14,16 +15,24 @@ const LINK_GROUPS = [
     { id: 'vip', name: 'VIP', links: [14, 15, 16], cost: 1000, isDropdown: true }
 ];
 
+/**
+ * Main entry point called by auth.js
+ */
 export async function updateUI(userData) {
     if (creditCount) creditCount.textContent = userData?.credits || 0;
+    
     if (tierLabel) {
         const userTier = calculateTier(userData?.totalEarned || 0);
         tierLabel.textContent = userTier.name;
         tierLabel.style.color = userTier.color;
     }
+
     if (linksEl) renderLinks(userData);
 }
 
+/**
+ * Renders the dashboard link grid
+ */
 async function renderLinks(userData) {
     if (!linksEl) return;
     linksEl.innerHTML = "";
@@ -34,7 +43,7 @@ async function renderLinks(userData) {
     const maxSeconds = userTier.limitMinutes * 60;
 
     try {
-        // Fetch Votes and Destinations in parallel
+        // Fetch Votes and Destinations from Firestore
         const [voteSnap, destSnap] = await Promise.all([
             getDocs(collection(db, "linkVotes")),
             getDocs(collection(db, "linkDestinations"))
@@ -48,10 +57,12 @@ async function renderLinks(userData) {
 
         LINK_GROUPS.forEach(group => {
             const container = group.isDropdown ? createDropdown(group) : linksEl;
+            
             group.links.forEach(num => {
                 const linkId = `link${num}`;
-                const url = destinations[linkId] || "https://www.wikipedia.org"; // Fallback
-                createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, url);
+                // This 'content' could be a URL or raw HTML code
+                const content = destinations[linkId] || "https://www.wikipedia.org";
+                createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, content);
             });
         });
     } catch (err) {
@@ -59,6 +70,9 @@ async function renderLinks(userData) {
     }
 }
 
+/**
+ * Creates VIP Dropdown structure
+ */
 function createDropdown(group) {
     const dropHeader = document.createElement("div");
     dropHeader.className = "col-span-full bg-gradient-to-r from-purple-900 to-indigo-900 p-3 rounded-lg cursor-pointer flex justify-between items-center border border-purple-500 mt-4 mb-2 shadow-lg";
@@ -78,7 +92,10 @@ function createDropdown(group) {
     return dropContent;
 }
 
-function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, destinationUrl) {
+/**
+ * Creates individual link cards
+ */
+function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, content) {
     const linkId = `link${num}`;
     const isBought = group.cost === 0 || unlocked.includes(linkId) || (unlocked.includes(group.id) && !group.individual);
     const isOverLimit = usageInSeconds >= maxSeconds;
@@ -101,21 +118,39 @@ function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes,
 
     card.onclick = () => {
         if (!isBought) handleUnlock(group, linkId, userData);
-        else if (!isOverLimit) openIframe(linkId, userData, usageInSeconds, maxSeconds, destinationUrl);
-        else alert(`Daily limit reached! Upgrade your tier for more time.`);
+        else if (!isOverLimit) openIframe(linkId, userData, usageInSeconds, maxSeconds, content);
+        else alert(`Daily limit reached! Earn more credits to rank up.`);
     };
     container.appendChild(card);
 }
 
-function openIframe(linkId, userData, currentUsage, maxSeconds, url) {
+/**
+ * The Iframe viewer - Smart Detection for URLs vs HTML Code
+ */
+function openIframe(linkId, userData, currentUsage, maxSeconds, content) {
     const overlay = document.createElement("div");
     overlay.className = "fixed inset-0 bg-black z-50 flex flex-col";
+    
+    // --- SMART DETECTION ---
+    let finalSrc = content;
+    let isApp = false;
+
+    // Detect if content is HTML code (starts with <)
+    if (content.trim().startsWith('<')) {
+        isApp = true;
+        const blob = new Blob([content], { type: 'text/html' });
+        finalSrc = URL.createObjectURL(blob);
+    }
+
     overlay.innerHTML = `
         <div class="bg-gray-900 p-2 border-b border-gray-700 flex flex-col gap-1">
             <div class="flex justify-between items-center px-2">
-                <span class="text-[10px] text-blue-400 font-mono" id="usageStatus">Preparing...</span>
+                <span class="text-[10px] text-blue-400 font-mono" id="usageStatus">
+                    ${isApp ? '🚀 Launching App...' : '🌐 Loading Link...'}
+                </span>
                 <div id="promptArea" class="hidden text-sm font-bold text-yellow-400">
-                    Working? <button id="vYes" class="bg-green-600 px-3 rounded mx-1 text-white hover:bg-green-500">Yes</button>
+                    Working? 
+                    <button id="vYes" class="bg-green-600 px-3 rounded mx-1 text-white hover:bg-green-500">Yes</button>
                     <button id="vNo" class="bg-red-600 px-3 rounded text-white hover:bg-red-500">No</button>
                 </div>
                 <button id="closeIframe" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs text-white font-bold transition">Close X</button>
@@ -124,7 +159,7 @@ function openIframe(linkId, userData, currentUsage, maxSeconds, url) {
                 <div id="usageBar" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
             </div>
         </div>
-        <iframe id="activeFrame" src="${url}" class="flex-1 w-full border-none bg-white"></iframe>
+        <iframe id="activeFrame" src="${finalSrc}" class="flex-1 w-full border-none bg-white shadow-2xl"></iframe>
     `;
     document.body.appendChild(overlay);
 
@@ -142,18 +177,25 @@ function openIframe(linkId, userData, currentUsage, maxSeconds, url) {
 
         if (totalUsed >= maxSeconds) {
             clearInterval(autoKickInterval);
+            alert("🚨 DAILY TIME EXPIRED!");
             saveTimeAndClose(sessionSeconds);
         }
     }, 1000);
 
     const saveTimeAndClose = async (sessionSeconds) => {
         clearInterval(autoKickInterval);
+        
+        // Cleanup Blob URL if it was an app
+        if (isApp) URL.revokeObjectURL(finalSrc);
+
         try {
-            await updateDoc(doc(db, "users", auth.currentUser.uid), { 
+            const userRef = doc(db, "users", auth.currentUser.uid);
+            await updateDoc(userRef, { 
                 dailyLinkUsage: increment(sessionSeconds),
                 totalMinutes: increment(Math.floor(sessionSeconds / 60))
             });
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Save error:", e); }
+        
         overlay.remove();
         location.reload(); 
     };
@@ -166,18 +208,22 @@ function openIframe(linkId, userData, currentUsage, maxSeconds, url) {
     async function castVote(id, type) {
         try {
             await setDoc(doc(db, "linkVotes", id), { [type]: increment(1) }, { merge: true });
-            document.getElementById("promptArea").innerHTML = "<span class='text-green-400'>Success!</span>";
+            document.getElementById("promptArea").innerHTML = "<span class='text-green-400'>Vote Recorded!</span>";
         } catch (e) { console.error(e); }
     }
 }
 
+/**
+ * Handle purchasing links
+ */
 async function handleUnlock(group, linkId, userData) {
     const cost = group.cost;
-    if ((userData?.credits || 0) < cost) return alert("Not enough credits!");
+    if ((userData?.credits || 0) < cost) return alert("You need more credits!");
 
-    if (confirm(`Unlock ${group.individual ? 'link' : group.name} for ${cost} credits?`)) {
+    if (confirm(`Unlock ${group.individual ? 'this link' : group.name + ' section'} for ${cost} credits?`)) {
         try {
-            await updateDoc(doc(db, "users", auth.currentUser.uid), {
+            const userRef = doc(db, "users", auth.currentUser.uid);
+            await updateDoc(userRef, {
                 credits: increment(-cost),
                 unlockedLinks: [group.individual ? linkId : group.id, ...(userData.unlockedLinks || [])]
             });
