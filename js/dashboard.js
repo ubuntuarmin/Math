@@ -1,12 +1,11 @@
 import { db, auth } from "./firebase.js";
-import { doc, updateDoc, increment, setDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { calculateTier } from "./tier.js"; // NEW: Using the central Tier system
+import { doc, updateDoc, increment, setDoc, getDocs, collection, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { calculateTier } from "./tier.js";
 
 const linksEl = document.getElementById("links");
 const creditCount = document.getElementById("creditCount");
 const tierLabel = document.getElementById("tierLabel");
 
-// Configuration for all link categories
 const LINK_GROUPS = [
     { id: 'general', name: 'General', links: [1, 2, 3], cost: 0 },
     { id: 'extra', name: 'Extra', links: [4, 5], cost: 100, individual: true },
@@ -15,74 +14,71 @@ const LINK_GROUPS = [
     { id: 'vip', name: 'VIP', links: [14, 15, 16], cost: 1000, isDropdown: true }
 ];
 
-/**
- * Main entry point called by auth.js
- */
 export async function updateUI(userData) {
     if (creditCount) creditCount.textContent = userData?.credits || 0;
-    
-    // NEW: Apply Tier Label and Color
     if (tierLabel) {
         const userTier = calculateTier(userData?.totalEarned || 0);
         tierLabel.textContent = userTier.name;
         tierLabel.style.color = userTier.color;
     }
-
     if (linksEl) renderLinks(userData);
 }
 
-/**
- * Renders the dashboard link grid
- */
 async function renderLinks(userData) {
     if (!linksEl) return;
     linksEl.innerHTML = "";
 
     const unlocked = userData?.unlockedLinks || [];
     const usageInSeconds = userData?.dailyLinkUsage || 0;
-    
-    // NEW: Get limits from Tier.js
     const userTier = calculateTier(userData?.totalEarned || 0);
-    const maxMinutes = userTier.limitMinutes;
-    const maxSeconds = maxMinutes * 60;
+    const maxSeconds = userTier.limitMinutes * 60;
 
     try {
-        const snap = await getDocs(collection(db, "linkVotes"));
+        // Fetch Votes and Destinations in parallel
+        const [voteSnap, destSnap] = await Promise.all([
+            getDocs(collection(db, "linkVotes")),
+            getDocs(collection(db, "linkDestinations"))
+        ]);
+
         const votes = {};
-        snap.forEach(d => votes[d.id] = d.data());
+        voteSnap.forEach(d => votes[d.id] = d.data());
+
+        const destinations = {};
+        destSnap.forEach(d => destinations[d.id] = d.data().url);
 
         LINK_GROUPS.forEach(group => {
-            if (group.isDropdown) {
-                // VIP Dropdown
-                const dropHeader = document.createElement("div");
-                dropHeader.className = "col-span-full bg-gradient-to-r from-purple-900 to-indigo-900 p-3 rounded-lg cursor-pointer flex justify-between items-center border border-purple-500 mt-4 mb-2 shadow-lg";
-                dropHeader.innerHTML = `<span class="font-bold text-purple-200 uppercase tracking-tighter">💎 VIP Exclusive Section</span> <span id="vipArrow" class="text-xs">▼</span>`;
-                
-                const dropContent = document.createElement("div");
-                dropContent.id = "vipContent";
-                dropContent.className = "col-span-full hidden grid grid-cols-1 md:grid-cols-3 gap-4 mb-6";
-                
-                dropHeader.onclick = () => {
-                    const isHidden = dropContent.classList.toggle("hidden");
-                    document.getElementById("vipArrow").textContent = isHidden ? "▼" : "▲";
-                };
-
-                group.links.forEach(num => createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, dropContent, userData));
-                linksEl.appendChild(dropHeader);
-                linksEl.appendChild(dropContent);
-            } else {
-                group.links.forEach(num => createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, linksEl, userData));
-            }
+            const container = group.isDropdown ? createDropdown(group) : linksEl;
+            group.links.forEach(num => {
+                const linkId = `link${num}`;
+                const url = destinations[linkId] || "https://www.wikipedia.org"; // Fallback
+                createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, url);
+            });
         });
     } catch (err) {
         console.error("Dashboard render error:", err);
     }
 }
 
-/**
- * Helper to create individual link cards
- */
-function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData) {
+function createDropdown(group) {
+    const dropHeader = document.createElement("div");
+    dropHeader.className = "col-span-full bg-gradient-to-r from-purple-900 to-indigo-900 p-3 rounded-lg cursor-pointer flex justify-between items-center border border-purple-500 mt-4 mb-2 shadow-lg";
+    dropHeader.innerHTML = `<span class="font-bold text-purple-200 uppercase tracking-tighter">💎 VIP Exclusive Section</span> <span id="vipArrow" class="text-xs">▼</span>`;
+    
+    const dropContent = document.createElement("div");
+    dropContent.id = "vipContent";
+    dropContent.className = "col-span-full hidden grid grid-cols-1 md:grid-cols-3 gap-4 mb-6";
+    
+    dropHeader.onclick = () => {
+        const isHidden = dropContent.classList.toggle("hidden");
+        document.getElementById("vipArrow").textContent = isHidden ? "▼" : "▲";
+    };
+
+    linksEl.appendChild(dropHeader);
+    linksEl.appendChild(dropContent);
+    return dropContent;
+}
+
+function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, destinationUrl) {
     const linkId = `link${num}`;
     const isBought = group.cost === 0 || unlocked.includes(linkId) || (unlocked.includes(group.id) && !group.individual);
     const isOverLimit = usageInSeconds >= maxSeconds;
@@ -105,16 +101,13 @@ function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes,
 
     card.onclick = () => {
         if (!isBought) handleUnlock(group, linkId, userData);
-        else if (!isOverLimit) openIframe(linkId, userData, usageInSeconds, maxSeconds);
-        else alert(`Daily limit of ${maxSeconds/60} minutes reached for your tier!`);
+        else if (!isOverLimit) openIframe(linkId, userData, usageInSeconds, maxSeconds, destinationUrl);
+        else alert(`Daily limit reached! Upgrade your tier for more time.`);
     };
     container.appendChild(card);
 }
 
-/**
- * The Iframe viewer
- */
-function openIframe(linkId, userData, currentUsage, maxSeconds) {
+function openIframe(linkId, userData, currentUsage, maxSeconds, url) {
     const overlay = document.createElement("div");
     overlay.className = "fixed inset-0 bg-black z-50 flex flex-col";
     overlay.innerHTML = `
@@ -122,8 +115,7 @@ function openIframe(linkId, userData, currentUsage, maxSeconds) {
             <div class="flex justify-between items-center px-2">
                 <span class="text-[10px] text-blue-400 font-mono" id="usageStatus">Preparing...</span>
                 <div id="promptArea" class="hidden text-sm font-bold text-yellow-400">
-                    Did it work? 
-                    <button id="vYes" class="bg-green-600 px-3 rounded mx-1 text-white hover:bg-green-500">Yes</button>
+                    Working? <button id="vYes" class="bg-green-600 px-3 rounded mx-1 text-white hover:bg-green-500">Yes</button>
                     <button id="vNo" class="bg-red-600 px-3 rounded text-white hover:bg-red-500">No</button>
                 </div>
                 <button id="closeIframe" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs text-white font-bold transition">Close X</button>
@@ -132,7 +124,7 @@ function openIframe(linkId, userData, currentUsage, maxSeconds) {
                 <div id="usageBar" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
             </div>
         </div>
-        <iframe id="activeFrame" src="https://en.wikipedia.org" class="flex-1 w-full border-none bg-white"></iframe>
+        <iframe id="activeFrame" src="${url}" class="flex-1 w-full border-none bg-white"></iframe>
     `;
     document.body.appendChild(overlay);
 
@@ -150,61 +142,45 @@ function openIframe(linkId, userData, currentUsage, maxSeconds) {
 
         if (totalUsed >= maxSeconds) {
             clearInterval(autoKickInterval);
-            alert("🚨 TIME EXPIRED! You have used your daily tier limit.");
             saveTimeAndClose(sessionSeconds);
         }
     }, 1000);
 
     const saveTimeAndClose = async (sessionSeconds) => {
         clearInterval(autoKickInterval);
-        const userRef = doc(db, "users", auth.currentUser.uid);
         try {
-            await updateDoc(userRef, { dailyLinkUsage: increment(sessionSeconds) });
-        } catch (e) { console.error("Error saving time:", e); }
+            await updateDoc(doc(db, "users", auth.currentUser.uid), { 
+                dailyLinkUsage: increment(sessionSeconds),
+                totalMinutes: increment(Math.floor(sessionSeconds / 60))
+            });
+        } catch (e) { console.error(e); }
         overlay.remove();
         location.reload(); 
     };
 
-    document.getElementById("closeIframe").onclick = () => {
-        const sessionSeconds = Math.floor((Date.now() - startTime) / 1000);
-        saveTimeAndClose(sessionSeconds);
-    };
-
-    document.getElementById("activeFrame").onload = () => {
-        setTimeout(() => document.getElementById("promptArea")?.classList.remove("hidden"), 3000);
-    };
-
+    document.getElementById("closeIframe").onclick = () => saveTimeAndClose(Math.floor((Date.now() - startTime) / 1000));
+    document.getElementById("activeFrame").onload = () => setTimeout(() => document.getElementById("promptArea")?.classList.remove("hidden"), 3000);
     document.getElementById("vYes").onclick = () => castVote(linkId, 'yes');
     document.getElementById("vNo").onclick = () => castVote(linkId, 'no');
 
     async function castVote(id, type) {
         try {
-            const voteRef = doc(db, "linkVotes", id);
-            await setDoc(voteRef, { [type]: increment(1) }, { merge: true });
-            document.getElementById("promptArea").innerHTML = "<span class='text-green-400'>Vote Saved!</span>";
+            await setDoc(doc(db, "linkVotes", id), { [type]: increment(1) }, { merge: true });
+            document.getElementById("promptArea").innerHTML = "<span class='text-green-400'>Success!</span>";
         } catch (e) { console.error(e); }
     }
 }
 
 async function handleUnlock(group, linkId, userData) {
     const cost = group.cost;
-    const userCredits = userData?.credits || 0;
+    if ((userData?.credits || 0) < cost) return alert("Not enough credits!");
 
-    if (userCredits < cost) {
-        alert("You need more credits! Earn them by doing math or daily streaks.");
-        return;
-    }
-
-    if (confirm(`Unlock ${group.individual ? 'this link' : group.name + ' section'} for ${cost} credits?`)) {
-        const userRef = doc(db, "users", auth.currentUser.uid);
-        const unlockKey = group.individual ? linkId : group.id;
-        
+    if (confirm(`Unlock ${group.individual ? 'link' : group.name} for ${cost} credits?`)) {
         try {
-            await updateDoc(userRef, {
+            await updateDoc(doc(db, "users", auth.currentUser.uid), {
                 credits: increment(-cost),
-                unlockedLinks: [unlockKey, ...(userData.unlockedLinks || [])]
+                unlockedLinks: [group.individual ? linkId : group.id, ...(userData.unlockedLinks || [])]
             });
-            alert("Unlocked!");
             location.reload();
         } catch (e) { console.error(e); }
     }
