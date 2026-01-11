@@ -67,6 +67,8 @@
   color:#34d399; font-weight:700;
 }
 </style>
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('ref')) sessionStorage.setItem('pendingReferral', urlParams.get('ref'));
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
 
