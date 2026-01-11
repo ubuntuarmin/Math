@@ -46,20 +46,18 @@ export async function renderDaily(userData) {
     const isNextDay = i === streak + 1;
 
     const wrapper = document.createElement("div");
-    wrapper.className = "day-card bg-gray-800 p-2 rounded flex flex-col items-center gap-2 relative";
-    wrapper.style.minHeight = "72px";
+    wrapper.className = "day-card bg-gray-800 p-2 rounded flex flex-col items-center gap-2 relative min-h-[100px]";
 
     const box = document.createElement("div");
-    box.className = `h-12 w-full rounded flex items-center justify-center transition-all ${
-      isEligible ? "bg-gradient-to-r from-green-400 to-green-500" : "bg-gray-700"
+    box.className = `h-10 w-full rounded flex items-center justify-center transition-all ${
+      isEligible ? "bg-gradient-to-r from-green-400 to-green-500 shadow-md" : "bg-gray-700"
     }`;
-    box.innerHTML = `<div class="font-semibold">${i}</div>`;
+    box.innerHTML = `<div class="font-bold text-sm">${i}</div>`;
     wrapper.appendChild(box);
 
     const info = document.createElement("div");
-    info.className = "text-[10px] text-gray-300 text-center uppercase font-bold";
+    info.className = "text-[10px] text-gray-300 text-center uppercase font-bold tracking-tighter";
     
-    // Status Logic
     if (isRedeemed) {
       info.textContent = "Claimed";
       info.classList.add("opacity-50");
@@ -67,12 +65,12 @@ export async function renderDaily(userData) {
       info.textContent = "Available";
       info.classList.add("text-green-400");
     } else if (isNextDay) {
-      if (isWaitPeriodOver) {
-        info.textContent = "Unlocked!";
+      if (isWaitPeriodOver || streak === 0) {
+        info.textContent = "Unlock Now";
         info.classList.add("text-blue-400");
       } else {
         info.id = `timer-${i}`;
-        info.textContent = "Waiting...";
+        info.textContent = "Locked";
       }
     } else {
       info.textContent = "Locked";
@@ -81,14 +79,13 @@ export async function renderDaily(userData) {
     wrapper.appendChild(info);
 
     const btn = document.createElement("button");
-    btn.className = "redeem-btn w-full";
-    btn.textContent = isRedeemed ? "Done" : (isEligible ? "Claim +10" : "Locked");
+    btn.className = "redeem-btn w-full mt-auto";
+    btn.textContent = isRedeemed ? "Done" : (isEligible ? "Claim" : "Locked");
     btn.disabled = !isEligible || isRedeemed || !uid;
     wrapper.appendChild(btn);
 
     btn.addEventListener("click", async () => {
       if (!uid || btn.disabled) return;
-      
       btn.disabled = true;
       btn.textContent = "...";
 
@@ -99,8 +96,6 @@ export async function renderDaily(userData) {
           credits: increment(10),
           totalEarned: increment(10)
         });
-
-        // Instant UI update
         showFloating(wrapper, "+10");
         window.dispatchEvent(new CustomEvent("userProfileUpdated"));
       } catch (err) {
@@ -112,7 +107,7 @@ export async function renderDaily(userData) {
 
     dailyTracker.appendChild(wrapper);
 
-    // Only start a timer for the actual next day in line
+    // Timer for the next day
     if (isNextDay && !isWaitPeriodOver && lastUpdate > 0) {
       const timerEl = document.getElementById(`timer-${i}`);
       const interval = setInterval(() => {
@@ -127,15 +122,12 @@ export async function renderDaily(userData) {
     }
   }
 
-  // Top Reward Status text
+  // Update Top Banner
   if (streak < 30) {
     if (isWaitPeriodOver || streak === 0) {
-      nextReward.textContent = "New day available! Refresh to progress your streak.";
+      nextReward.textContent = "New day available! Refresh to update your streak.";
     } else {
-      const remaining = DAY_IN_MS - timeSinceLast;
-      nextReward.textContent = `Next update in: ${formatTime(remaining)}`;
+      nextReward.textContent = `Next update in: ${formatTime(DAY_IN_MS - timeSinceLast)}`;
     }
-  } else {
-    nextReward.textContent = "Monthly streak complete!";
   }
 }
