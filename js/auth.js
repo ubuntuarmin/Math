@@ -15,107 +15,63 @@ const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
 const logoutBtn = document.getElementById("logoutBtn");
 
-/**
- * Helper to fetch user data and refresh all UI components.
- * Wrapped in try/catch to ensure one failure doesn't stop the whole app.
- */
-async function refreshUserUI(uid) {
-    if (!uid) return;
-    try {
-        const snap = await getDoc(doc(db, "users", uid));
-        const userData = snap.exists() ? snap.data() : {};
+// Force sign-out on page reload (existing behavior)
+try{
+  const nav = performance.getEntriesByType?.('navigation')?.[0];
+  const isReload = nav ? nav.type === 'reload' : (performance?.navigation?.type === 1);
+  if(isReload){
+    signOut(auth).catch(()=>{});
+  }
+}catch(e){}
 
-        // Run UI updates in parallel-safe blocks
-        const runUpdate = (fn, name) => {
-            try { fn(userData); } catch (e) { console.error(`${name} failed:`, e); }
-        };
+onAuthStateChanged(auth, async user => {
+  console.log("Auth state changed:", user ? `signed in (${user.uid})` : "signed out");
 
-        runUpdate(updateUI, "Dashboard");
-        runUpdate(renderDaily, "Daily Tracker");
-        runUpdate(updateAccount, "Account");
-        runUpdate(renderLeaderboard, "Leaderboard");
+  if(!user){
+    header.classList.add("hidden");
+    appContainer.classList.add("hidden");
+    showLogin();
+    return;
+  }
 
-        return userData;
-    } catch (err) {
-        console.error("Critical error fetching user data:", err);
-    }
-}
+  // hide login modal and show main UI
+  hideLogin();
+  header.classList.remove("hidden");
+  appContainer.classList.remove("hidden");
 
-/**
- * Main Auth Observer
- */
-onAuthStateChanged(auth, async (user) => {
-    console.log("Auth state change detected:", user ? `User: ${user.email}` : "Logged Out");
+  // Fetch the user doc fresh
+  let currentUserData = {};
+  try{
+    const snap = await getDoc(doc(db,"users",user.uid));
+    currentUserData = snap.exists()?snap.data():{};
+  }catch(err){
+    console.error("Failed to fetch user doc:", err);
+    currentUserData = {};
+  }
 
-    if (!user) {
-        // 1. Hide the app and show the login screen
-        if (header) header.classList.add("hidden");
-        if (appContainer) appContainer.classList.add("hidden");
-        
-        // Hide all page sections to prevent lingering state
-        const sections = ["dashboard", "tokens", "account", "leaderboard", "referral"];
-        sections.forEach(s => {
-            const el = document.getElementById(s + "Page");
-            if (el) el.classList.add("hidden");
-        });
+  // Update modules
+  try{ updateUI(currentUserData); }catch(e){ console.error("updateUI error:", e); }
+  try{ renderDaily(currentUserData); }catch(e){ console.error("renderDaily error:", e); }
+  try{ updateAccount(currentUserData); }catch(e){ console.error("updateAccount error:", e); }
+  try{ renderLeaderboard(currentUserData); }catch(e){ console.error("renderLeaderboard error:", e); }
 
-        showLogin();
-        return;
-    }
+  // Decide whether to show onboarding (just signed up) or welcome (returning)
+  const justSignedUp = sessionStorage.getItem("justSignedUp");
+  if(justSignedUp){
+    // show onboarding modal (collect name/grade)
+    showOnboarding();
+    return;
+  }
 
-    // 2. User is authenticated. FORCIBLY clear the login UI.
-    try {
-        // hideLogin clears inputs and hides the modal
-        hideLogin(); 
-        
-        // Final fallback: Ensure the modal is gone if hideLogin fails
-        const modal = document.getElementById("loginModal");
-        if (modal) {
-            modal.classList.add("hidden");
-            modal.style.display = "none"; 
-        }
-
-        // 3. Reveal the main application
-        if (header) header.classList.remove("hidden");
-        if (appContainer) appContainer.classList.remove("hidden");
-
-        // 4. Load the user's data
-        const userData = await refreshUserUI(user.uid);
-
-        // 5. Determine if we show Onboarding or Welcome
-        const justSignedUp = sessionStorage.getItem("justSignedUp");
-        
-        if (justSignedUp === "1") {
-            showOnboarding();
-        } else {
-            // Show welcome for returning users. Fallback to "Learner" if name is missing.
-            const name = userData?.firstName || user.displayName || "Learner";
-            showWelcome(name);
-        }
-
-    } catch (err) {
-        console.error("Error during UI transition:", err);
-    }
+  // returning user: show full-screen welcome once
+  try{
+    const displayName = user.displayName || (currentUserData.firstName ? currentUserData.firstName : null);
+    showWelcome(displayName);
+  }catch(e){
+    console.error("welcome animation error:", e);
+  }
 });
 
-/**
- * Handle Profile Updates (e.g., from Onboarding)
- */
-window.addEventListener("userProfileUpdated", async () => {
-    const uid = auth.currentUser?.uid;
-    if (uid) await refreshUserUI(uid);
-});
-
-/**
- * Logout Handler
- */
-logoutBtn?.addEventListener("click", async () => {
-    try {
-        // Clear session flags so we don't accidentally trigger onboarding on next login
-        sessionStorage.removeItem("justSignedUp");
-        await signOut(auth);
-        // Page will refresh/update via onAuthStateChanged
-    } catch (err) {
-        console.error("Logout failed:", err);
-    }
+logoutBtn.addEventListener("click", async () => {
+  if(auth.currentUser) await signOut(auth);
 });
