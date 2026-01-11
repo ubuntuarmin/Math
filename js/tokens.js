@@ -50,46 +50,46 @@ export async function renderDaily(userData) {
     wrapper.style.minHeight = "72px";
 
     const box = document.createElement("div");
-    box.className = `h-12 w-full rounded flex items-center justify-center ${
+    box.className = `h-12 w-full rounded flex items-center justify-center transition-all ${
       isEligible ? "bg-gradient-to-r from-green-400 to-green-500" : "bg-gray-700"
     }`;
     box.innerHTML = `<div class="font-semibold">${i}</div>`;
     wrapper.appendChild(box);
 
     const info = document.createElement("div");
-    info.className = "text-xs text-gray-300 text-center";
+    info.className = "text-[10px] text-gray-300 text-center uppercase font-bold";
     
-    // Set status text/timer
+    // Status Logic
     if (isRedeemed) {
-      info.textContent = "Redeemed";
+      info.textContent = "Claimed";
+      info.classList.add("opacity-50");
     } else if (isEligible) {
-      info.textContent = (i === streak) ? "Today" : "Available";
+      info.textContent = "Available";
+      info.classList.add("text-green-400");
     } else if (isNextDay) {
       if (isWaitPeriodOver) {
-        info.textContent = "Ready!";
+        info.textContent = "Unlocked!";
+        info.classList.add("text-blue-400");
       } else {
         info.id = `timer-${i}`;
         info.textContent = "Waiting...";
       }
     } else {
       info.textContent = "Locked";
+      info.classList.add("opacity-30");
     }
     wrapper.appendChild(info);
 
     const btn = document.createElement("button");
-    btn.className = "redeem-btn";
-    btn.textContent = isRedeemed ? "Redeemed" : (isEligible ? "Redeem +10" : "Locked");
+    btn.className = "redeem-btn w-full";
+    btn.textContent = isRedeemed ? "Done" : (isEligible ? "Claim +10" : "Locked");
     btn.disabled = !isEligible || isRedeemed || !uid;
     wrapper.appendChild(btn);
 
-    // Click behavior
     btn.addEventListener("click", async () => {
       if (!uid || btn.disabled) return;
-      const confirmMsg = `Redeem day ${i} for +10 coins?`;
-      if (!confirm(confirmMsg)) return;
-
+      
       btn.disabled = true;
-      const prevText = btn.textContent;
       btn.textContent = "...";
 
       try {
@@ -100,28 +100,25 @@ export async function renderDaily(userData) {
           totalEarned: increment(10)
         });
 
-        info.textContent = "Redeemed";
-        btn.textContent = "Redeemed";
-        btn.disabled = true;
+        // Instant UI update
         showFloating(wrapper, "+10");
         window.dispatchEvent(new CustomEvent("userProfileUpdated"));
       } catch (err) {
         console.error("Redeem failed:", err);
         btn.disabled = false;
-        btn.textContent = prevText;
-        alert("Failed to redeem. Try again.");
+        btn.textContent = "Retry";
       }
     });
 
     dailyTracker.appendChild(wrapper);
 
-    // Live countdown for the next day
-    if (isNextDay && !isWaitPeriodOver) {
+    // Only start a timer for the actual next day in line
+    if (isNextDay && !isWaitPeriodOver && lastUpdate > 0) {
       const timerEl = document.getElementById(`timer-${i}`);
       const interval = setInterval(() => {
         const remaining = DAY_IN_MS - (Date.now() - lastUpdate);
         if (remaining <= 0) {
-          if (timerEl) timerEl.textContent = "Available!";
+          if (timerEl) timerEl.textContent = "Ready!";
           clearInterval(interval);
         } else if (timerEl) {
           timerEl.textContent = formatTime(remaining);
@@ -130,14 +127,15 @@ export async function renderDaily(userData) {
     }
   }
 
-  // Update Top Banner text
+  // Top Reward Status text
   if (streak < 30) {
-    if (isWaitPeriodOver) {
-      nextReward.textContent = "Next day unlocked! Log in to progress.";
+    if (isWaitPeriodOver || streak === 0) {
+      nextReward.textContent = "New day available! Refresh to progress your streak.";
     } else {
-      nextReward.textContent = `Next streak update in: ${formatTime(DAY_IN_MS - timeSinceLast)}`;
+      const remaining = DAY_IN_MS - timeSinceLast;
+      nextReward.textContent = `Next update in: ${formatTime(remaining)}`;
     }
   } else {
-    nextReward.textContent = "Max streak reached!";
+    nextReward.textContent = "Monthly streak complete!";
   }
 }
