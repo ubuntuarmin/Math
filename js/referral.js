@@ -24,17 +24,28 @@ export async function renderReferral(){
     const referredBy = data.referredBy || null;
 
     referralContent.innerHTML = `
-      <div class="space-y-3">
-        <div class="flex items-center gap-3">
-          <div class="text-sm">Your referral code:</div>
-          <div class="font-mono bg-gray-900 px-3 py-1 rounded">${code}</div>
-          <button id="copyReferralBtn" class="text-xs bg-blue-600 px-2 py-1 rounded">Copy</button>
-          <button id="shareReferralBtn" class="text-xs bg-green-600 px-2 py-1 rounded">Share</button>
+      <div class="space-y-6">
+        <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+          <div class="text-sm text-slate-400 mb-2 uppercase tracking-wider font-semibold">Your Referral Link</div>
+          <div class="flex items-center gap-2 bg-slate-900 p-3 rounded-xl border border-slate-700">
+            <input readonly value="${location.origin}${location.pathname}?ref=${code}" class="bg-transparent border-none text-sm w-full outline-none text-slate-300" />
+            <button id="copyReferralBtn" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-sm font-bold transition">Copy</button>
+          </div>
         </div>
-        <div class="text-sm text-gray-400">Your credits: <span class="font-semibold text-white">${credits}</span></div>
-        <div class="pt-3">
-          <div class="text-sm font-semibold">Referrals (${referrals.length})</div>
-          <ul id="refList" class="text-sm text-gray-300 mt-2"></ul>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+                <div class="text-sm text-slate-400 mb-1 uppercase tracking-wider font-semibold">Referral Code</div>
+                <div class="text-2xl font-mono font-bold text-indigo-400">${code}</div>
+            </div>
+            <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 flex flex-col justify-center">
+                <button id="shareReferralBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold transition">Share with Friends</button>
+            </div>
+        </div>
+
+        <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
+          <div class="text-sm text-slate-400 mb-4 uppercase tracking-wider font-semibold">Your Referrals (${referrals.length})</div>
+          <div id="refList" class="space-y-2"></div>
         </div>
       </div>
     `;
@@ -62,9 +73,14 @@ export async function renderReferral(){
     });
 
     if(referrals.length){
-      refList.innerHTML = referrals.map(r=>`<li class="py-1">• ${r}</li>`).join("");
+      refList.innerHTML = referrals.map(r=>`<div class="flex items-center gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-700/50">
+        <div class="w-8 h-8 bg-indigo-600/20 text-indigo-400 rounded-full flex items-center justify-center text-xs font-bold">👤</div>
+        <div class="text-sm text-slate-300 font-medium">${r}</div>
+      </div>`).join("");
     }else{
-      refList.innerHTML = `<li class="text-sm text-gray-500">No referrals yet. Share your code!</li>`;
+      refList.innerHTML = `<div class="text-center py-4 bg-slate-900/30 rounded-xl border border-dashed border-slate-700">
+        <div class="text-slate-500 text-sm">No referrals yet. Share your link!</div>
+      </div>`;
     }
   }catch(err){
     console.error("Failed to load referral data:", err);

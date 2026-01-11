@@ -2,8 +2,9 @@ import { db } from "./firebase.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 const leaderboard = document.getElementById("leaderboard");
 
-export async function renderLeaderboard(userData){
-  leaderboard.innerHTML = "";
+export async function renderLeaderboard(userData) {
+    if (!leaderboard) return;
+    leaderboard.innerHTML = "";
   try{
     const snap = await getDocs(collection(db,"users"));
     const arr=[];

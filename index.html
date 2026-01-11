@@ -10,6 +10,20 @@
         .token-spin { animation: spin 3s linear infinite; display: inline-block; }
         @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
 
+        /* Floating Credit Animation */
+        @keyframes floatUp {
+            0% { transform: translate(-50%, 0); opacity: 1; }
+            100% { transform: translate(-50%, -80px); opacity: 0; }
+        }
+        .floating-credit {
+            position: absolute;
+            color: #fbbf24;
+            font-weight: bold;
+            pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
+            z-index: 100;
+        }
+
         /* Login animated background */
         .login-bg {
             position: fixed; inset: 0; z-index: -1; 

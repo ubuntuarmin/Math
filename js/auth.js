@@ -51,6 +51,14 @@ onAuthStateChanged(auth, async (user) => {
         // 1. Hide the app and show the login screen
         if (header) header.classList.add("hidden");
         if (appContainer) appContainer.classList.add("hidden");
+        
+        // Hide all page sections to prevent lingering state
+        const sections = ["dashboard", "tokens", "account", "leaderboard", "referral"];
+        sections.forEach(s => {
+            const el = document.getElementById(s + "Page");
+            if (el) el.classList.add("hidden");
+        });
+
         showLogin();
         return;
     }

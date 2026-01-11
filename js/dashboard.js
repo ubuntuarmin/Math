@@ -6,10 +6,10 @@ const linksEl = document.getElementById("links");
 const creditCount = document.getElementById("creditCount");
 const tierLabel = document.getElementById("tierLabel");
 
-export function updateUI(userData){
-  creditCount.textContent = userData?.credits || 0;
-  tierLabel.textContent = tier(userData?.totalEarned || 0);
-  renderLinks();
+export function updateUI(userData) {
+    if (creditCount) creditCount.textContent = userData?.credits || 0;
+    if (tierLabel) tierLabel.textContent = tier(userData?.totalEarned || 0);
+    if (linksEl) renderLinks();
 }
 
 async function renderLinks(){
