@@ -1,6 +1,7 @@
 import { auth, db } from "./firebase.js";
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { calculateTier, getNextTierInfo } from "./tier.js"; // Import tier brain
+import { calculateTier, getNextTierInfo } from "./tier.js"; 
+import { handleDeleteAccount } from "./deleteAccount.js"; // Moved to top
 
 const accountInfo = document.getElementById("accountInfo");
 const totalMinutesEl = document.getElementById("totalMinutes");
@@ -11,6 +12,7 @@ const editForm = document.getElementById("editProfileForm");
 const showEditBtn = document.getElementById("showEditBtn");
 const saveProfileBtn = document.getElementById("saveProfileBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
+const deleteBtn = document.getElementById("deleteAccountBtn"); // Target the new button
 
 const editFirst = document.getElementById("editFirst");
 const editLast = document.getElementById("editLast");
@@ -39,7 +41,6 @@ export async function updateAccount(userData) {
     // Calculate progress bar percentage
     let progressPct = 0;
     if (nextTier.remaining > 0) {
-        // Find the "floor" of the current tier to make the bar represent progress BETWEEN tiers
         const goal = currentCredits + nextTier.remaining;
         progressPct = Math.min((currentCredits / goal) * 100, 100);
     } else {
@@ -66,9 +67,9 @@ export async function updateAccount(userData) {
                     </div>
                 </div>
 
-                <div class="w-full bg-gray-800 h-3 rounded-full overflow-hidden border border-gray-700">
+                <div class="w-full bg-gray-800 h-3 rounded-full overflow-hidden border border-gray-700 shadow-inner">
                     <div class="h-full transition-all duration-1000 ease-out" 
-                         style="width: ${progressPct}%; background-color: ${tier.color}; box-shadow: 0 0 10px ${tier.color}44;">
+                         style="width: ${progressPct}%; background-color: ${tier.color}; box-shadow: 0 0 12px ${tier.color}66;">
                     </div>
                 </div>
                 
@@ -185,4 +186,9 @@ if (saveProfileBtn) {
             saveProfileBtn.textContent = "Save Changes";
         }
     };
+}
+
+// Danger Zone Listener
+if (deleteBtn) {
+    deleteBtn.onclick = () => handleDeleteAccount();
 }
