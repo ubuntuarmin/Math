@@ -1,8 +1,8 @@
-// Login + sign-up. Sets a session flag when user signs up so onboarding is shown.
 import { auth, db } from "./firebase.js";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, setDoc, collection, query, where, getDocs, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
+// DOM Elements
 const loginModal = document.getElementById("loginModal");
 const emailInput = document.getElementById("email");
 const passwordInput = document.getElementById("password");
@@ -11,91 +11,127 @@ const signInBtn = document.getElementById("signInBtn");
 const signUpBtn = document.getElementById("signUpBtn");
 const loginError = document.getElementById("loginError");
 
-export function showLogin(message){
-  loginError.textContent = message || "";
-  loginModal.classList.remove("hidden");
-  loginModal.setAttribute("aria-hidden", "false");
+/**
+ * UI Controls
+ */
+export function showLogin(message) {
+    if (loginError) loginError.textContent = message || "";
+    loginModal.classList.remove("hidden");
+    loginModal.setAttribute("aria-hidden", "false");
 }
 
-export function hideLogin(){
-  loginError.textContent = "";
-  emailInput.value = "";
-  passwordInput.value = "";
-  referralInput.value = "";
-  loginModal.classList.add("hidden");
-  loginModal.setAttribute("aria-hidden", "true");
+export function hideLogin() {
+    if (loginError) loginError.textContent = "";
+    emailInput.value = "";
+    passwordInput.value = "";
+    referralInput.value = "";
+    loginModal.classList.add("hidden");
+    loginModal.setAttribute("aria-hidden", "true");
 }
 
-// sign in
+/**
+ * Sign In Logic
+ */
 signInBtn.addEventListener("click", async () => {
-  loginError.textContent = "";
-  sessionStorage.removeItem("justSignedUp"); // ensure flag cleared on explicit sign-in
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-  if(!email || !password){ loginError.textContent = "Email and password required."; return; }
-  try{
-    await signInWithEmailAndPassword(auth, email, password);
-  }catch(err){
-    console.error("Sign in error:", err);
-    loginError.textContent = err.message || "Sign in failed.";
-  }
-});
+    loginError.textContent = "";
+    // Clear flag on explicit sign-in to avoid accidental onboarding
+    sessionStorage.removeItem("justSignedUp"); 
+    
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
 
-// sign up
-signUpBtn.addEventListener("click", async () => {
-  loginError.textContent = "";
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-  const referral = referralInput.value.trim();
-  if(!email || !password){ loginError.textContent = "Email and password required."; return; }
-  try{
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const uid = cred.user.uid;
-    // generate short referral code and create user doc
-    const referralCode = uid.slice(0,6).toUpperCase();
-    const userDocRef = doc(db, "users", uid);
-    await setDoc(userDocRef, {
-      firstName: "",
-      lastName: "",
-      grade: "",
-      credits: 0,
-      totalEarned: 0,
-      totalMinutes: 0,
-      streak: 0,
-      redeemedDays: [],
-      referralCode
-    });
-
-    // process referral (best effort)
-    if(referral){
-      try{
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("referralCode", "==", referral));
-        const snap = await getDocs(q);
-        if(!snap.empty){
-          const refDoc = snap.docs[0];
-          const refUid = refDoc.id;
-          await updateDoc(doc(db,"users",refUid), {
-            credits: increment(50),
-            totalEarned: increment(50),
-            referrals: arrayUnion(uid)
-          });
-          await updateDoc(userDocRef, {
-            credits: increment(20),
-            totalEarned: increment(20),
-            referredBy: refUid
-          });
-        }
-      }catch(err){
-        console.error("Referral processing failed:", err);
-      }
+    if (!email || !password) {
+        loginError.textContent = "Email and password required.";
+        return;
     }
 
-    // set a session flag so auth.js knows we just signed up and should show onboarding
-    sessionStorage.setItem("justSignedUp", "1");
-    // onAuthStateChanged will fire and handle the rest (onboarding)
-  }catch(err){
-    console.error("Sign up error:", err);
-    loginError.textContent = err.message || "Sign up failed.";
-  }
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+        console.error("Sign in error:", err);
+        loginError.textContent = "Invalid email or password.";
+    }
+});
+
+/**
+ * Sign Up Logic (With Referral & Timer Support)
+ */
+signUpBtn.addEventListener("click", async () => {
+    if (loginError) loginError.textContent = "";
+    
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    
+    // Check for a typed code OR an automatic code caught from a link
+    const referralCode = referralInput.value.trim() || sessionStorage.getItem("pendingReferral");
+
+    if (!email || !password) {
+        loginError.textContent = "Email and password required.";
+        return;
+    }
+
+    try {
+        // 1. Create the Auth Account
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const uid = cred.user.uid;
+        const userDocRef = doc(db, "users", uid);
+
+        // 2. Prepare User Data Object with ALL required fields
+        const userData = {
+            uid: uid,
+            firstName: "",
+            lastName: "",
+            grade: "",
+            credits: 20,         // Basic starter credits
+            totalEarned: 20,
+            totalMinutes: 0,
+            weekMinutes: 0,      // Required for Leaderboard
+            dailyLinkUsage: 0,   // Required for 45-min link timer
+            streak: 0,
+            redeemedDays: [],
+            unlockedLinks: [],   // Required for Dashboard state
+            referralCode: uid.slice(0, 6).toUpperCase(),
+            lastVisitDate: new Date().toDateString(),
+            createdAt: new Date()
+        };
+
+        // 3. Process Referral logic if a code exists
+        if (referralCode) {
+            try {
+                const q = query(collection(db, "users"), where("referralCode", "==", referralCode));
+                const snap = await getDocs(q);
+
+                if (!snap.empty) {
+                    const referrerDoc = snap.docs[0];
+                    const referrerUid = referrerDoc.id;
+
+                    // Reward the Referrer (Give 50 credits)
+                    await updateDoc(doc(db, "users", referrerUid), {
+                        credits: increment(50),
+                        totalEarned: increment(50),
+                        referrals: arrayUnion(uid)
+                    });
+
+                    // Reward the New User (Add 30 more for 50 total)
+                    userData.credits += 30;
+                    userData.totalEarned += 30;
+                    userData.referredBy = referrerUid;
+                    console.log("Referral rewards successfully processed.");
+                }
+            } catch (refErr) {
+                console.warn("Referral processing failed, but account creation continued:", refErr);
+            }
+        }
+
+        // 4. Save the User Document
+        await setDoc(userDocRef, userData);
+
+        // 5. Success: Trigger Onboarding via session flag
+        sessionStorage.setItem("justSignedUp", "1");
+        sessionStorage.removeItem("pendingReferral"); // Clean up the used link code
+
+    } catch (err) {
+        console.error("Sign up error:", err);
+        loginError.textContent = err.message || "Sign up failed.";
+    }
 });
