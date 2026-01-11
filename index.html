@@ -1,190 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Katy Math | Gamified Learning</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Spinning token */
-        .token-spin { animation: spin 3s linear infinite; display: inline-block; }
-        @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+<meta charset="UTF-8">
+<title>Katy Math</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+/* Spinning token */
+.token-spin { animation: spin 3s linear infinite; }
+@keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
 
-        /* Floating Credit Animation */
-        @keyframes floatUp {
-            0% { transform: translate(-50%, 0); opacity: 1; }
-            100% { transform: translate(-50%, -80px); opacity: 0; }
-        }
-        .floating-credit {
-            position: absolute;
-            color: #fbbf24;
-            font-weight: bold;
-            pointer-events: none;
-            animation: floatUp 0.8s ease-out forwards;
-            z-index: 100;
-        }
+/* Loader */
+.loader { width:64px; height:64px; border-radius:50%; border:6px solid #1f2937; border-top:6px solid #22c55e; animation: spin 1s linear infinite; }
 
-        /* Login animated background */
-        .login-bg {
-            position: fixed; inset: 0; z-index: -1; 
-            background: radial-gradient(circle at 10% 20%, rgba(124,58,237,0.12), transparent 20%),
-                        radial-gradient(circle at 80% 80%, rgba(14,165,164,0.10), transparent 25%),
-                        linear-gradient(135deg, #020617, #0f172a);
-        }
-        .login-bg .b { position:absolute; border-radius:50%; filter:blur(60px); opacity:0.6; }
-        .login-bg .b.a{ width:400px; height:400px; left:5%; top:10%; background:linear-gradient(135deg,#7c3aed,#06b6d4); animation: floaty 9s ease-in-out infinite; }
-        .login-bg .b.b{ width:500px; height:500px; right:5%; bottom:5%; background:linear-gradient(135deg,#0ea5e9,#34d399); animation: floaty 12s ease-in-out infinite; }
-        @keyframes floaty { 0%, 100%{ transform: translateY(0) scale(1) } 50%{ transform: translateY(-40px) scale(1.05) } }
+/* Pulse effect */
+.pulse { animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
 
-        /* Custom Input Styling */
-        .glass-input {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: white;
-            padding: 0.75rem 1rem;
-            border-radius: 0.5rem;
-            width: 100%;
-            transition: all 0.2s;
-            margin-bottom: 1rem;
-        }
-        .glass-input:focus {
-            outline: none;
-            border-color: #7c3aed;
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.3);
-        }
+/* Login modal */
+#loginModal { position:fixed; inset:0; z-index:50; }
+#loginModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
+#loginModal .panel { width:320px; background:#0f172a; padding:18px; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); }
+#loginModal input { width:100%; margin-top:8px; padding:8px; background:#0b1220; border:1px solid #1f2937; color:#e5e7eb; border-radius:6px; }
+#loginModal button { margin-top:12px; width:100%; }
 
-        /* Modal fixes */
-        .modal-overlay {
-            background: rgba(2, 6, 23, 0.85);
-            backdrop-filter: blur(8px);
-        }
-    </style>
+/* Fullscreen welcome overlay */
+#welcomeOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index:60; pointer-events:none; }
+#welcomeOverlay.show { display:flex; pointer-events:auto; }
+.welcome-full {
+  width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  background: linear-gradient(180deg, rgba(2,6,23,0.95), rgba(2,6,23,0.85));
+  backdrop-filter: blur(6px);
+}
+.welcome-card {
+  background: linear-gradient(135deg,#0ea5a4,#7c3aed);
+  color:white; padding:30px 36px; border-radius:18px; box-shadow:0 20px 60px rgba(2,6,23,0.7);
+  transform: translateY(20px) scale(.96); opacity: 0; display:flex; gap:18px; align-items:center;
+  max-width:920px; width:90%;
+}
+.welcome-logo { width:88px; height:88px; border-radius:16px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:36px; transform-origin:center; }
+@keyframes welcome-pop {
+  0% { transform: translateY(30px) scale(.94); opacity:0; }
+  60% { transform: translateY(-8px) scale(1.03); opacity:1; }
+  100% { transform: translateY(0) scale(1); opacity:1; }
+}
+@keyframes logo-bounce {
+  0% { transform: translateY(0) rotate(-6deg) }
+  50% { transform: translateY(-6px) rotate(8deg) }
+  100% { transform: translateY(0) rotate(0deg) }
+}
+.welcome-card.animate { animation: welcome-pop 700ms cubic-bezier(.2,.9,.3,1) forwards; }
+.welcome-logo.animate { animation: logo-bounce 900ms cubic-bezier(.2,.9,.3,1) forwards; }
+
+/* Onboarding modal */
+#onboardModal { position:fixed; inset:0; z-index:70; }
+#onboardModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
+#onboardModal .panel { width:420px; background:#071024; padding:20px; border-radius:12px; color:#e6eef8; }
+
+/* daily streak interactive styles */
+.day-card { transition: transform .14s ease, box-shadow .14s ease; cursor: pointer; }
+.day-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(2,6,23,0.6); }
+.redeem-btn { background:#065f46; color:white; padding:6px 8px; border-radius:8px; font-size:12px; border:none; }
+.redeem-btn[disabled] { background:#334155; opacity:.7; cursor:not-allowed; }
+.floating-credit {
+  position: absolute; pointer-events:none; transform: translateY(0); opacity:1;
+  transition: transform 700ms cubic-bezier(.2,.9,.3,1), opacity 700ms;
+  color:#34d399; font-weight:700;
+}
+</style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
+<body class="bg-gray-900 text-gray-100 min-h-screen">
 
-<div class="login-bg" aria-hidden="true">
-    <div class="b a"></div>
-    <div class="b b"></div>
-</div>
-
-<header id="header" class="hidden fixed top-0 w-full bg-slate-900/80 backdrop-blur-md border-b border-slate-800 z-40">
-    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-        <div class="flex items-center gap-6">
-            <div class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-                <div class="token-spin text-yellow-400">🪙</div>
-                <span id="creditCount" class="font-bold text-yellow-500">0</span>
-            </div>
-            <button id="tierBtn" class="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition">
-                Tier: <span id="tierLabel">Basic</span>
-            </button>
-        </div>
-        <nav class="flex gap-6 text-sm font-medium text-slate-400">
-            <button class="hover:text-white transition" onclick="navigate('dashboard')">Dashboard</button>
-            <button class="hover:text-white transition" onclick="navigate('tokens')">Tokens</button>
-            <button class="hover:text-white transition" onclick="navigate('leaderboard')">Leaderboard</button>
-            <button class="hover:text-white transition" onclick="navigate('referral')">Referral</button>
-            <button id="logoutBtn" class="bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white px-4 py-1 rounded-lg transition">Logout</button>
-        </nav>
+<!-- HEADER -->
+<header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow">
+  <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div class="token-spin text-yellow-400 text-xl">🪙</div>
+        <span id="creditCount">0</span>
+      </div>
+      <button id="tierBtn" class="text-sm text-blue-400 underline">Tier: <span id="tierLabel">Basic</span></button>
     </div>
+    <div class="flex gap-4">
+      <button onclick="navigate('dashboard')">Dashboard</button>
+      <button onclick="navigate('tokens')">Tokens</button>
+      <button onclick="navigate('leaderboard')">Leaderboard</button>
+      <button onclick="navigate('account')">Account</button>
+      <button id="logoutBtn" class="bg-red-600 px-3 py-1 rounded">Logout</button>
+    </div>
+  </div>
 </header>
 
-    <main id="appContainer" class="pt-28 max-w-6xl mx-auto p-6">
-        <section id="dashboardPage">
-            <h2 class="text-2xl font-bold mb-6">Learning Path</h2>
-            <div id="links" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
-        </section>
+<!-- MAIN -->
+<main id="appContainer" class="pt-24 max-w-6xl mx-auto p-4">
+  <!-- Dashboard -->
+  <section id="dashboardPage">
+    <h2 class="text-xl mb-4">General Links</h2>
+    <div id="links" class="grid grid-cols-3 gap-4"></div>
+  </section>
 
-        <!-- Tokens Page -->
-        <section id="tokensPage" class="hidden">
-            <h2 class="text-2xl font-bold mb-6">Daily Rewards</h2>
-            <div id="dailyTracker" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-4"></div>
-            <p id="nextReward" class="mt-6 text-slate-400"></p>
-        </section>
-
-        <!-- Leaderboard Page -->
-        <section id="leaderboardPage" class="hidden">
-            <h2 class="text-2xl font-bold mb-6">Top Learners</h2>
-            <div id="leaderboard" class="space-y-4 bg-slate-900 p-6 rounded-2xl border border-slate-800"></div>
-        </section>
-
-        <!-- Referral Page -->
-        <section id="referralPage" class="hidden">
-            <h2 class="text-2xl font-bold mb-6">Invite Friends</h2>
-            <div id="referralContent" class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl"></div>
-        </section>
-
-        <!-- Account Page -->
-        <section id="accountPage" class="hidden">
-            <h2 class="text-2xl font-bold mb-6">Account Settings</h2>
-            <div id="accountInfo" class="space-y-6 bg-slate-900 p-8 rounded-2xl border border-slate-800">
-                <div class="flex items-center gap-4">
-                    <div class="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-2xl">👤</div>
-                    <div>
-                        <h3 id="accountName" class="text-xl font-bold">Learner</h3>
-                        <p id="accountEmail" class="text-slate-400"></p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-4 pt-4 border-t border-slate-800">
-                    <div class="bg-slate-800/50 p-4 rounded-xl">
-                        <div class="text-xs text-slate-400 uppercase">Current Credits</div>
-                        <div id="accountCredits" class="text-2xl font-bold text-yellow-500">0</div>
-                    </div>
-                    <div class="bg-slate-800/50 p-4 rounded-xl">
-                        <div class="text-xs text-slate-400 uppercase">Referral Code</div>
-                        <div id="accountRefCode" class="text-xl font-mono font-bold text-indigo-400">------</div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-<div id="loginModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl" id="loginPanel">
-        <div class="text-center mb-8">
-            <div class="text-4xl mb-2">✨</div>
-            <h3 class="text-2xl font-bold text-white">Katy Math</h3>
-            <p class="text-slate-400 text-sm mt-1">Level up your math skills today.</p>
+  <!-- Tokens -->
+  <section id="tokensPage" class="hidden space-y-6">
+    <div class="bg-gray-800 p-6 rounded">
+      <div class="flex items-center gap-4">
+        <div class="token-spin text-4xl">🪙</div>
+        <div>
+          <div class="font-semibold">Next Reward</div>
+          <div id="nextReward" class="text-green-400 text-sm"></div>
         </div>
-
-        <div id="loginError" class="text-red-400 text-xs bg-red-400/10 border border-red-400/20 p-3 rounded-lg mb-4 empty:hidden"></div>
-        
-        <div class="space-y-1">
-            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Email Address</label>
-            <input id="email" type="email" class="glass-input" placeholder="name@example.com" />
-            
-            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Password</label>
-            <input id="password" type="password" class="glass-input" placeholder="••••••••" />
-            
-            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Referral Code (Optional)</label>
-            <input id="referralCodeInput" type="text" class="glass-input" placeholder="ABC123" />
-        </div>
-
-        <div class="grid grid-cols-2 gap-4 mt-4">
-            <button id="signInBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-600/20">Sign In</button>
-            <button id="signUpBtn" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition">Join Now</button>
-        </div>
+      </div>
     </div>
+    <div class="bg-gray-800 p-6 rounded">
+      <h3 class="font-semibold mb-3">Daily Streak</h3>
+      <div id="dailyTracker" class="grid grid-cols-10 gap-3"></div>
+    </div>
+  </section>
+
+  <!-- Leaderboard -->
+  <section id="leaderboardPage" class="hidden">
+    <h2 class="text-xl mb-4">Weekly Leaderboard</h2>
+    <div id="leaderboard" class="bg-gray-800 p-4 rounded space-y-2"></div>
+  </section>
+
+  <!-- Account -->
+  <section id="accountPage" class="hidden">
+    <div class="bg-gray-800 p-6 rounded space-y-2">
+      <div id="accountInfo"></div>
+      <div class="text-sm text-gray-400">Total Minutes on Site: <span id="totalMinutes">0</span></div>
+      <div id="referralArea" class="mt-3 text-sm"></div>
+    </div>
+  </section>
+</main>
+
+<!-- LOGIN MODAL -->
+<div id="loginModal" class="hidden" aria-hidden="true">
+  <div class="panel">
+    <h3 class="text-lg font-semibold">Sign in to Katy Math</h3>
+    <div id="loginError" class="text-red-400 text-sm mt-2"></div>
+    <input id="email" type="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="Password" />
+    <input id="referralCodeInput" type="text" placeholder="Referral code (optional)" />
+    <div class="flex gap-2">
+      <button id="signInBtn" class="bg-blue-600 px-3 py-2 rounded">Sign In</button>
+      <button id="signUpBtn" class="bg-green-600 px-3 py-2 rounded">Create Account</button>
+    </div>
+    <div class="text-xs text-gray-400 mt-3">You must be signed in to use the site.</div>
+  </div>
 </div>
 
-<div id="onboardModal" class="hidden modal-overlay fixed inset-0 z-[70] flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl" id="onboardPanel">
-        <h3 class="text-xl font-bold mb-4">Complete Your Profile</h3>
-        <div id="onboardError" class="text-red-400 text-sm mb-2"></div>
-        <input id="onboardFirst" type="text" class="glass-input" placeholder="First Name" />
-        <input id="onboardLast" type="text" class="glass-input" placeholder="Last Name" />
-        <select id="onboardGrade" class="glass-input bg-slate-800">
-            <option value="" disabled selected>Select your grade</option>
-            <option>Kindergarten</option>
-            <option value="1">1st Grade</option>
-            <option value="2">2nd Grade</option>
-            </select>
-        <button id="onboardSave" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition">Save & Start Learning</button>
+<!-- ONBOARDING MODAL (shown immediately after sign-up) -->
+<div id="onboardModal" class="hidden" aria-hidden="true">
+  <div class="panel">
+    <h3 class="text-lg font-semibold">Welcome! Tell us about you</h3>
+    <div id="onboardError" class="text-red-400 text-sm mt-2"></div>
+    <input id="onboardFirst" type="text" placeholder="First name" />
+    <input id="onboardLast" type="text" placeholder="Last name" />
+    <select id="onboardGrade" class="mt-2">
+      <option value="">Select grade</option>
+      <option>Kindergarten</option>
+      <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+      <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+      <option>11</option><option>12</option>
+    </select>
+    <div class="flex gap-2 mt-3">
+      <button id="onboardSave" class="bg-blue-600 px-3 py-2 rounded">Save & Continue</button>
     </div>
+  </div>
 </div>
+
+<!-- FULLSCREEN WELCOME (returning users) -->
+<div id="welcomeOverlay" aria-hidden="true">
+  <div class="welcome-full">
+    <div class="welcome-card" id="welcomeCard">
+      <div class="welcome-logo" id="welcomeLogo">✨</div>
+      <div>
+        <div id="welcomeTitle" class="text-3xl font-bold">Welcome</div>
+        <div id="welcomeSub" class="text-lg opacity-90 mt-1">Great to see you — let's learn some math!</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODULE SCRIPTS -->
+<script type="module" src="./js/blockExtensions.js"></script>
+<script type="module" src="./js/utils.js?v=5"></script>
 
 <script type="module" src="./js/firebase.js"></script>
-<script type="module" src="./js/auth.js"></script>
-<script type="module" src="./js/login.js"></script>
+<script type="module" src="./js/login.js?v=8"></script>
+<script type="module" src="./js/onboarding.js?v=1"></script>
+<script type="module" src="./js/auth.js?v=8"></script>
+
+<script type="module" src="./js/dashboard.js?v=6"></script>
+<script type="module" src="./js/tokens.js?v=8"></script>
+<script type="module" src="./js/leaderboard.js?v=6"></script>
+<script type="module" src="./js/account.js?v=8"></script>
+<script type="module" src="./js/welcome.js?v=2"></script>
+
+<script>
+console.log("Debug: index.html loaded.");
+</script>
+
 </body>
 </html>
