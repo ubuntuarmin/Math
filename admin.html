@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Katy Math | Admin Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+            <h1 class="text-3xl font-black text-red-500 tracking-tighter uppercase">Admin Control Panel</h1>
+            <div class="flex gap-4">
+                <button id="resetLeaderboardBtn" class="bg-orange-600 hover:bg-orange-500 px-4 py-2 rounded font-bold text-sm transition">
+                    🔄 Reset Weekly Leaderboard
+                </button>
+                <a href="index.html" class="bg-slate-800 px-4 py-2 rounded text-sm">Back to Site</a>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-800 text-slate-400 text-xs uppercase tracking-widest">
+                    <tr>
+                        <th class="p-4">Name</th>
+                        <th class="p-4">Grade</th>
+                        <th class="p-4">Credits</th>
+                        <th class="p-4">Total Mins</th>
+                        <th class="p-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="adminUserList">
+                    <tr><td colspan="5" class="p-10 text-center animate-pulse">Fetching database...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module" src="./js/admin.js"></script>
+</body>
+</html>
