@@ -42,10 +42,12 @@ signInBtn.addEventListener("click", async () => {
     }
 
     try {
+        signInBtn.disabled = true; // Prevent double sign-in
         await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
         console.error("Sign in error:", err);
         loginError.textContent = "Invalid email or password.";
+        signInBtn.disabled = false;
     }
 });
 
@@ -58,7 +60,7 @@ signUpBtn.addEventListener("click", async () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     
-    // BUG FIX: Look in localStorage where we saved the link data
+    // Look in localStorage where we saved the link data
     const referralCode = referralInput.value.trim() || localStorage.getItem("pendingReferral");
 
     if (!email || !password) {
@@ -67,25 +69,30 @@ signUpBtn.addEventListener("click", async () => {
     }
 
     try {
+        // SAFETY: Disable button during processing
+        signUpBtn.disabled = true;
+        signUpBtn.textContent = "Creating Account...";
+
         // 1. Create the Auth Account
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         const userDocRef = doc(db, "users", uid);
 
-        // 2. Prepare User Data (Added 'email' for the Admin Panel)
+        // 2. Prepare User Data 
         const userData = {
             uid: uid,
-            email: email, // ADDED THIS for your Admin Panel
+            email: email, 
             firstName: "",
             lastName: "",
             grade: "",
-            credits: 20,
+            credits: 20,         // Base starter credits
             totalEarned: 20,
             totalMinutes: 0,
             weekMinutes: 0,
             dailyLinkUsage: 0,
             streak: 0,
             redeemedDays: [],
+            referrals: [],       // Initialize empty array to prevent dashboard bugs
             unlockedLinks: [],
             referralCode: uid.slice(0, 6).toUpperCase(),
             lastVisitDate: new Date().toDateString(),
@@ -102,21 +109,21 @@ signUpBtn.addEventListener("click", async () => {
                     const referrerDoc = snap.docs[0];
                     const referrerUid = referrerDoc.id;
 
-                    // Reward the Referrer
+                    // Reward the Referrer (Person who shared link)
                     await updateDoc(doc(db, "users", referrerUid), {
                         credits: increment(50),
                         totalEarned: increment(50),
-                        // BUG FIX: Add the new user's email so it shows in the "Activity Feed"
                         referrals: arrayUnion(email) 
                     });
 
-                    // Reward the New User
-                    userData.credits += 30;
-                    userData.totalEarned += 30;
+                    // Reward the New User (Person who clicked link)
+                    // We add 50 so they start with 70 total (20 base + 50 bonus)
+                    userData.credits += 50;
+                    userData.totalEarned += 50;
                     userData.referredBy = referrerUid;
                 }
             } catch (refErr) {
-                console.warn("Referral failed:", refErr);
+                console.warn("Referral payout failed, but account creation continued:", refErr);
             }
         }
 
@@ -125,10 +132,15 @@ signUpBtn.addEventListener("click", async () => {
 
         // 5. Cleanup
         sessionStorage.setItem("justSignedUp", "1");
-        localStorage.removeItem("pendingReferral"); // Clean up used code
+        localStorage.removeItem("pendingReferral"); 
+        
+        // Final success - refresh to trigger dashboard
+        window.location.reload();
 
     } catch (err) {
         console.error("Sign up error:", err);
         loginError.textContent = err.message || "Sign up failed.";
+        signUpBtn.disabled = false;
+        signUpBtn.textContent = "Sign Up";
     }
 });
