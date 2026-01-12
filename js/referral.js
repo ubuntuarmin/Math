@@ -1,12 +1,25 @@
 import { auth, db } from "./firebase.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const referralContent = document.getElementById("referralContent");
 
 /**
- * Renders the referral dashboard for the logged-in user.
- * Displays invite link, total friends joined, and credits earned.
+ * Helper: Generates a random 6-character referral code
  */
+function generateRandomCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+/**
+ * Tracker: Captures the 'ref' parameter from the URL and saves it to localStorage.
+ * Put this at the top so it runs immediately when the script loads.
+ */
+const urlParams = new URLSearchParams(window.location.search);
+const incomingRef = urlParams.get('ref');
+if (incomingRef && incomingRef !== "NOCODE") {
+    localStorage.setItem("pendingReferral", incomingRef);
+}
+
 export async function renderReferral() {
     if (!auth.currentUser) {
         if (referralContent) referralContent.innerHTML = `<div class="text-sm text-gray-400">Please sign in to view your referral rewards.</div>`;
@@ -15,22 +28,30 @@ export async function renderReferral() {
 
     try {
         const userRef = doc(db, "users", auth.currentUser.uid);
-        const snap = await getDoc(userRef);
+        let snap = await getDoc(userRef);
 
         if (!snap.exists()) {
-            referralContent.innerHTML = `<div class="text-sm text-gray-400">User profile not found.</div>`;
+            if (referralContent) referralContent.innerHTML = `<div class="text-sm text-gray-400">User profile not found.</div>`;
             return;
         }
 
-        const data = snap.data();
-        const code = data.referralCode || "NOCODE";
+        let data = snap.data();
+
+        // --- BUG FIX: GENERATE CODE IF MISSING OR "NOCODE" ---
+        if (!data.referralCode || data.referralCode === "NOCODE") {
+            const newCode = generateRandomCode();
+            await updateDoc(userRef, { referralCode: newCode });
+            // Re-fetch data to ensure UI is accurate
+            const freshSnap = await getDoc(userRef);
+            data = freshSnap.data();
+        }
+
+        const code = data.referralCode;
         const referrals = data.referrals || [];
-        
-        // --- CALCULATIONS ---
         const friendCount = referrals.length;
-        const totalCreditsEarned = friendCount * 50; // Each referral = 50 credits
+        const totalCreditsEarned = friendCount * 50; 
         
-        // Construct the full invite URL
+        // Construct the full invite URL (strips existing params to avoid nesting)
         const referralLink = `${window.location.origin}${window.location.pathname}?ref=${code}`;
 
         referralContent.innerHTML = `
@@ -80,7 +101,6 @@ export async function renderReferral() {
         `;
 
         // --- BUTTON LOGIC ---
-
         const copyBtn = document.getElementById("copyReferralBtn");
         copyBtn?.addEventListener("click", async () => {
             try {
@@ -95,7 +115,6 @@ export async function renderReferral() {
                 const input = document.getElementById("refUrlInput");
                 input.select();
                 document.execCommand("copy");
-                alert("Link selected! Press Ctrl+C to copy.");
             }
         });
 
@@ -113,7 +132,6 @@ export async function renderReferral() {
         });
 
         // --- LIST LOGIC ---
-
         const refList = document.getElementById("refList");
         if (referrals.length > 0) {
             refList.innerHTML = referrals.map(refName => `
