@@ -2,6 +2,21 @@ import { auth, db } from "./firebase.js";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, setDoc, collection, query, where, getDocs, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
+// --- 1. TRACKING LOGIC (MOVED HERE) ---
+// This runs immediately when the script loads on the landing page.
+const urlParams = new URLSearchParams(window.location.search);
+const incomingRef = urlParams.get('ref');
+
+if (incomingRef && incomingRef !== "NOCODE") {
+    console.log("✅ Referral Link Detected:", incomingRef);
+    localStorage.setItem("pendingReferral", incomingRef);
+    
+    // Clean URL so user doesn't see the code
+    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+}
+// --------------------------------------
+
 // DOM Elements
 const loginModal = document.getElementById("loginModal");
 const emailInput = document.getElementById("email");
@@ -42,7 +57,7 @@ signInBtn.addEventListener("click", async () => {
     }
 
     try {
-        signInBtn.disabled = true; // Prevent double sign-in
+        signInBtn.disabled = true;
         await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
         console.error("Sign in error:", err);
@@ -60,7 +75,7 @@ signUpBtn.addEventListener("click", async () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     
-    // Look in localStorage where we saved the link data
+    // Check localStorage (Captured at top of file) OR Manual Input
     const referralCode = referralInput.value.trim() || localStorage.getItem("pendingReferral");
 
     if (!email || !password) {
@@ -69,7 +84,6 @@ signUpBtn.addEventListener("click", async () => {
     }
 
     try {
-        // SAFETY: Disable button during processing
         signUpBtn.disabled = true;
         signUpBtn.textContent = "Creating Account...";
 
@@ -78,63 +92,75 @@ signUpBtn.addEventListener("click", async () => {
         const uid = cred.user.uid;
         const userDocRef = doc(db, "users", uid);
 
-        // 2. Prepare User Data 
-        const userData = {
-            uid: uid,
-            email: email, 
-            firstName: "",
-            lastName: "",
-            grade: "",
-            credits: 20,         // Base starter credits
-            totalEarned: 20,
-            totalMinutes: 0,
-            weekMinutes: 0,
-            dailyLinkUsage: 0,
-            streak: 0,
-            redeemedDays: [],
-            referrals: [],       // Initialize empty array to prevent dashboard bugs
-            unlockedLinks: [],
-            referralCode: uid.slice(0, 6).toUpperCase(),
-            lastVisitDate: new Date().toDateString(),
-            createdAt: new Date()
-        };
+        // 2. Define Base User Data
+        // Base = 20. If referred, we will add +20 more below.
+        let baseCredits = 20; 
+        let referrerUid = null;
 
-        // 3. Process Referral logic
+        // 3. Process Referral Rewards (The "Debugged" Section)
         if (referralCode && referralCode !== "NOCODE") {
+            console.log("🔍 Processing Referral Code:", referralCode);
             try {
+                // Find the owner of the code
                 const q = query(collection(db, "users"), where("referralCode", "==", referralCode));
                 const snap = await getDocs(q);
 
                 if (!snap.empty) {
                     const referrerDoc = snap.docs[0];
-                    const referrerUid = referrerDoc.id;
+                    referrerUid = referrerDoc.id;
+                    console.log("✅ Referrer Found:", referrerUid);
 
-                    // Reward the Referrer (Person who shared link)
+                    // A. REWARD THE SHARER (+50 Credits)
+                    // Note: This requires Firestore Rules to allow User A to write to User B
                     await updateDoc(doc(db, "users", referrerUid), {
                         credits: increment(50),
                         totalEarned: increment(50),
                         referrals: arrayUnion(email) 
                     });
+                    console.log("💰 Referrer Reward Sent (+50)");
 
-                    // Reward the New User (Person who clicked link)
-                    // We add 50 so they start with 70 total (20 base + 50 bonus)
-                    userData.credits += 50;
-                    userData.totalEarned += 50;
-                    userData.referredBy = referrerUid;
+                    // B. REWARD THE NEW USER (+20 Credits)
+                    baseCredits += 20; 
+                    console.log("💰 New User Bonus Applied (+20)");
+                } else {
+                    console.warn("⚠️ Invalid Referral Code:", referralCode);
                 }
             } catch (refErr) {
-                console.warn("Referral payout failed, but account creation continued:", refErr);
+                // IMPORTANT: If this errors, it is likely PERMISSIONS.
+                // The account will still be created, but the reward failed.
+                console.error("❌ Referral Payout Failed (Check Firestore Rules):", refErr);
             }
         }
 
-        // 4. Save the User Document
+        // 4. Save the New User Document
+        const userData = {
+            uid: uid,
+            email: email,
+            firstName: "",
+            lastName: "",
+            grade: "",
+            credits: baseCredits, // Will be 20 (standard) or 40 (referred)
+            totalEarned: baseCredits,
+            totalMinutes: 0,
+            weekMinutes: 0,
+            dailyLinkUsage: 0,
+            streak: 0,
+            redeemedDays: [],
+            referrals: [],
+            unlockedLinks: [],
+            referralCode: uid.slice(0, 6).toUpperCase(),
+            referredBy: referrerUid,
+            lastVisitDate: new Date().toDateString(),
+            createdAt: new Date()
+        };
+
         await setDoc(userDocRef, userData);
+        console.log("✅ User Document Created");
 
         // 5. Cleanup
         sessionStorage.setItem("justSignedUp", "1");
         localStorage.removeItem("pendingReferral"); 
         
-        // Final success - refresh to trigger dashboard
         window.location.reload();
 
     } catch (err) {
