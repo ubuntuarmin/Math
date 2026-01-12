@@ -5,16 +5,16 @@ const referralContent = document.getElementById("referralContent");
 
 /**
  * 1. URL TRACKER & CLEANER
- * Runs immediately when the script loads to capture ?ref=CODE
+ * Runs immediately to capture ?ref=CODE from the URL bar.
  */
 const urlParams = new URLSearchParams(window.location.search);
 const incomingRef = urlParams.get('ref');
 
 if (incomingRef && incomingRef !== "NOCODE") {
-    // Store for the login/signup process
+    // Save to localStorage so login.js can use it later
     localStorage.setItem("pendingReferral", incomingRef);
     
-    // Clean the URL bar immediately so it looks professional
+    // Clean the URL bar so the user doesn't see the code
     const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
     
@@ -22,7 +22,7 @@ if (incomingRef && incomingRef !== "NOCODE") {
 }
 
 /**
- * 2. HELPER: Generate Code
+ * 2. HELPER: Generate Random Code
  */
 function generateRandomCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -32,6 +32,7 @@ function generateRandomCode() {
  * 3. MAIN RENDER FUNCTION
  */
 export async function renderReferral() {
+    // If user is not logged in, show a polite message
     if (!auth.currentUser) {
         if (referralContent) {
             referralContent.innerHTML = `
@@ -60,9 +61,10 @@ export async function renderReferral() {
         const code = data.referralCode;
         const referrals = data.referrals || [];
         const friendCount = referrals.length;
+        // Calculation: 50 credits per friend
         const totalCreditsEarned = friendCount * 50; 
         
-        // Construct link (stripping any existing params)
+        // Construct the shareable link
         const referralLink = `${window.location.origin}${window.location.pathname}?ref=${code}`;
 
         referralContent.innerHTML = `
@@ -70,7 +72,7 @@ export async function renderReferral() {
                 
                 <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 shadow-xl">
                     <div class="text-xs text-indigo-400 mb-2 uppercase tracking-widest font-bold">Your Unique Invite Link</div>
-                    <p class="text-xs text-slate-500 mb-4 font-medium">Invite a friend. When they join, you both get 50 credits!</p>
+                    <p class="text-xs text-slate-500 mb-4 font-medium">Invite a friend. You get 50 credits, they get +20 bonus!</p>
                     <div class="flex items-center gap-2 bg-slate-900 p-3 rounded-xl border border-slate-700">
                         <input readonly value="${referralLink}" id="refUrlInput" class="bg-transparent border-none text-sm w-full outline-none text-slate-300 font-mono" />
                         <button id="copyReferralBtn" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shadow-lg whitespace-nowrap">Copy</button>
@@ -110,7 +112,7 @@ export async function renderReferral() {
             </div>
         `;
 
-        // Action Logic
+        // Button Action Logic
         const copyBtn = document.getElementById("copyReferralBtn");
         const shareBtn = document.getElementById("shareReferralBtn");
 
@@ -134,11 +136,11 @@ export async function renderReferral() {
             if (navigator.share) {
                 navigator.share({
                     title: "Join Katy Math!",
-                    text: "Use my link to get 50 bonus credits and start learning math today!",
+                    text: "Use my link to get 20 bonus credits and start learning math today!",
                     url: referralLink
                 }).catch(() => {});
             } else {
-                handleCopy(); // Fallback to copy if native share isn't supported
+                handleCopy(); // Fallback
             }
         });
 
@@ -147,5 +149,5 @@ export async function renderReferral() {
     }
 }
 
-// Make globally accessible if needed for onclicks
+// Make globally accessible for onclick events in HTML
 window.renderReferral = renderReferral;
