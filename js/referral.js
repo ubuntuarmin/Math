@@ -4,25 +4,41 @@ import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.
 const referralContent = document.getElementById("referralContent");
 
 /**
- * Helper: Generates a random 6-character referral code
+ * 1. URL TRACKER & CLEANER
+ * Runs immediately when the script loads to capture ?ref=CODE
+ */
+const urlParams = new URLSearchParams(window.location.search);
+const incomingRef = urlParams.get('ref');
+
+if (incomingRef && incomingRef !== "NOCODE") {
+    // Store for the login/signup process
+    localStorage.setItem("pendingReferral", incomingRef);
+    
+    // Clean the URL bar immediately so it looks professional
+    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+    
+    console.log("Referral system: Code captured and URL cleaned.");
+}
+
+/**
+ * 2. HELPER: Generate Code
  */
 function generateRandomCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
 /**
- * Tracker: Captures the 'ref' parameter from the URL and saves it to localStorage.
- * Put this at the top so it runs immediately when the script loads.
+ * 3. MAIN RENDER FUNCTION
  */
-const urlParams = new URLSearchParams(window.location.search);
-const incomingRef = urlParams.get('ref');
-if (incomingRef && incomingRef !== "NOCODE") {
-    localStorage.setItem("pendingReferral", incomingRef);
-}
-
 export async function renderReferral() {
     if (!auth.currentUser) {
-        if (referralContent) referralContent.innerHTML = `<div class="text-sm text-gray-400">Please sign in to view your referral rewards.</div>`;
+        if (referralContent) {
+            referralContent.innerHTML = `
+                <div class="p-6 text-center bg-slate-800/50 rounded-2xl border border-slate-700">
+                    <p class="text-sm text-slate-400">Please sign in to view your referral rewards.</p>
+                </div>`;
+        }
         return;
     }
 
@@ -30,20 +46,15 @@ export async function renderReferral() {
         const userRef = doc(db, "users", auth.currentUser.uid);
         let snap = await getDoc(userRef);
 
-        if (!snap.exists()) {
-            if (referralContent) referralContent.innerHTML = `<div class="text-sm text-gray-400">User profile not found.</div>`;
-            return;
-        }
+        if (!snap.exists()) return;
 
         let data = snap.data();
 
-        // --- BUG FIX: GENERATE CODE IF MISSING OR "NOCODE" ---
+        // Ensure user has a code; if not, create one automatically
         if (!data.referralCode || data.referralCode === "NOCODE") {
             const newCode = generateRandomCode();
             await updateDoc(userRef, { referralCode: newCode });
-            // Re-fetch data to ensure UI is accurate
-            const freshSnap = await getDoc(userRef);
-            data = freshSnap.data();
+            data.referralCode = newCode; 
         }
 
         const code = data.referralCode;
@@ -51,7 +62,7 @@ export async function renderReferral() {
         const friendCount = referrals.length;
         const totalCreditsEarned = friendCount * 50; 
         
-        // Construct the full invite URL (strips existing params to avoid nesting)
+        // Construct link (stripping any existing params)
         const referralLink = `${window.location.origin}${window.location.pathname}?ref=${code}`;
 
         referralContent.innerHTML = `
@@ -59,10 +70,10 @@ export async function renderReferral() {
                 
                 <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 shadow-xl">
                     <div class="text-xs text-indigo-400 mb-2 uppercase tracking-widest font-bold">Your Unique Invite Link</div>
-                    <p class="text-xs text-slate-500 mb-4">Share this link. When friends join, you get 50 credits and they get 50!</p>
+                    <p class="text-xs text-slate-500 mb-4 font-medium">Invite a friend. When they join, you both get 50 credits!</p>
                     <div class="flex items-center gap-2 bg-slate-900 p-3 rounded-xl border border-slate-700">
                         <input readonly value="${referralLink}" id="refUrlInput" class="bg-transparent border-none text-sm w-full outline-none text-slate-300 font-mono" />
-                        <button id="copyReferralBtn" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shadow-lg">Copy</button>
+                        <button id="copyReferralBtn" class="bg-indigo-600 hover:bg-indigo-500 px-6 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shadow-lg whitespace-nowrap">Copy</button>
                     </div>
                 </div>
 
@@ -77,88 +88,64 @@ export async function renderReferral() {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
-                        <div class="text-xs text-slate-400 mb-1 uppercase tracking-widest font-bold">Your Code</div>
-                        <div class="text-3xl font-mono font-black text-white tracking-tighter">${code}</div>
-                    </div>
-                    <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 flex flex-col justify-center">
-                        <button id="shareReferralBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg">
-                            <span>🚀</span> Quick Share Link
-                        </button>
-                    </div>
+                <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 flex flex-col items-center">
+                     <div class="text-xs text-slate-400 mb-1 uppercase tracking-widest font-bold">Your Personal Code</div>
+                     <div class="text-3xl font-mono font-black text-white mb-4 tracking-wider">${code}</div>
+                     <button id="shareReferralBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg">
+                        <span>🚀</span> Send to Friend
+                     </button>
                 </div>
 
                 <div class="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
-                    <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
-                        <div class="text-xs text-slate-400 uppercase tracking-widest font-bold">Activity Feed</div>
-                        <div class="text-[10px] text-slate-500">History</div>
-                    </div>
+                    <div class="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4 border-b border-slate-700 pb-2">Recent Referrals</div>
                     <div id="refList" class="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                        </div>
+                        ${referrals.length > 0 ? referrals.map(refEmail => `
+                            <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-700/50">
+                                <span class="text-sm text-slate-200 font-medium">${refEmail}</span>
+                                <span class="text-xs font-black text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">+50 🪙</span>
+                            </div>
+                        `).join("") : '<div class="text-center py-4 text-slate-500 text-sm italic">No friends have joined yet.</div>'}
+                    </div>
                 </div>
             </div>
         `;
 
-        // --- BUTTON LOGIC ---
+        // Action Logic
         const copyBtn = document.getElementById("copyReferralBtn");
-        copyBtn?.addEventListener("click", async () => {
+        const shareBtn = document.getElementById("shareReferralBtn");
+
+        const handleCopy = async () => {
             try {
                 await navigator.clipboard.writeText(referralLink);
                 copyBtn.textContent = "Copied!";
-                copyBtn.classList.replace("bg-indigo-600", "bg-green-600");
+                copyBtn.classList.replace("bg-indigo-600", "bg-emerald-600");
                 setTimeout(() => {
                     copyBtn.textContent = "Copy";
-                    copyBtn.classList.replace("bg-green-600", "bg-indigo-600");
+                    copyBtn.classList.replace("bg-emerald-600", "bg-indigo-600");
                 }, 2000);
             } catch (err) {
-                const input = document.getElementById("refUrlInput");
-                input.select();
-                document.execCommand("copy");
+                console.error("Clipboard error", err);
             }
-        });
+        };
 
-        const shareBtn = document.getElementById("shareReferralBtn");
+        copyBtn?.addEventListener("click", handleCopy);
+        
         shareBtn?.addEventListener("click", () => {
             if (navigator.share) {
                 navigator.share({
-                    title: "Join me on Katy Math!",
-                    text: `Use my link to get 50 bonus credits and start learning:`,
+                    title: "Join Katy Math!",
+                    text: "Use my link to get 50 bonus credits and start learning math today!",
                     url: referralLink
                 }).catch(() => {});
             } else {
-                copyBtn.click();
+                handleCopy(); // Fallback to copy if native share isn't supported
             }
         });
 
-        // --- LIST LOGIC ---
-        const refList = document.getElementById("refList");
-        if (referrals.length > 0) {
-            refList.innerHTML = referrals.map(refName => `
-                <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-700/50 hover:border-indigo-500/50 transition-colors">
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 bg-indigo-600/20 text-indigo-400 rounded-full flex items-center justify-center text-xs font-bold border border-indigo-500/30">
-                            👤
-                        </div>
-                        <div class="text-sm text-slate-200 font-bold">${refName}</div>
-                    </div>
-                    <div class="text-xs font-black text-emerald-400">+50 🪙</div>
-                </div>
-            `).join("");
-        } else {
-            refList.innerHTML = `
-                <div class="text-center py-8 bg-slate-900/30 rounded-xl border border-dashed border-slate-700">
-                    <div class="text-2xl mb-2">🎁</div>
-                    <div class="text-slate-500 text-sm">No friends joined yet.</div>
-                    <div class="text-[10px] text-slate-600 uppercase mt-1">Start sharing to earn extra credits!</div>
-                </div>
-            `;
-        }
-
     } catch (err) {
         console.error("Referral Page Error:", err);
-        if (referralContent) referralContent.innerHTML = `<div class="text-sm text-red-400 p-4 bg-red-400/10 rounded-lg">Error loading referral data.</div>`;
     }
 }
 
+// Make globally accessible if needed for onclicks
 window.renderReferral = renderReferral;
