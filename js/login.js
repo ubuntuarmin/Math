@@ -11,9 +11,6 @@ const signInBtn = document.getElementById("signInBtn");
 const signUpBtn = document.getElementById("signUpBtn");
 const loginError = document.getElementById("loginError");
 
-/**
- * UI Controls
- */
 export function showLogin(message) {
     if (loginError) loginError.textContent = message || "";
     loginModal.classList.remove("hidden");
@@ -34,7 +31,6 @@ export function hideLogin() {
  */
 signInBtn.addEventListener("click", async () => {
     loginError.textContent = "";
-    // Clear flag on explicit sign-in to avoid accidental onboarding
     sessionStorage.removeItem("justSignedUp"); 
     
     const email = emailInput.value.trim();
@@ -54,7 +50,7 @@ signInBtn.addEventListener("click", async () => {
 });
 
 /**
- * Sign Up Logic (With Referral & Timer Support)
+ * Sign Up Logic
  */
 signUpBtn.addEventListener("click", async () => {
     if (loginError) loginError.textContent = "";
@@ -62,8 +58,8 @@ signUpBtn.addEventListener("click", async () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     
-    // Check for a typed code OR an automatic code caught from a link
-    const referralCode = referralInput.value.trim() || sessionStorage.getItem("pendingReferral");
+    // BUG FIX: Look in localStorage where we saved the link data
+    const referralCode = referralInput.value.trim() || localStorage.getItem("pendingReferral");
 
     if (!email || !password) {
         loginError.textContent = "Email and password required.";
@@ -76,27 +72,28 @@ signUpBtn.addEventListener("click", async () => {
         const uid = cred.user.uid;
         const userDocRef = doc(db, "users", uid);
 
-        // 2. Prepare User Data Object with ALL required fields
+        // 2. Prepare User Data (Added 'email' for the Admin Panel)
         const userData = {
             uid: uid,
+            email: email, // ADDED THIS for your Admin Panel
             firstName: "",
             lastName: "",
             grade: "",
-            credits: 20,         // Basic starter credits
+            credits: 20,
             totalEarned: 20,
             totalMinutes: 0,
-            weekMinutes: 0,      // Required for Leaderboard
-            dailyLinkUsage: 0,   // Required for 45-min link timer
+            weekMinutes: 0,
+            dailyLinkUsage: 0,
             streak: 0,
             redeemedDays: [],
-            unlockedLinks: [],   // Required for Dashboard state
+            unlockedLinks: [],
             referralCode: uid.slice(0, 6).toUpperCase(),
             lastVisitDate: new Date().toDateString(),
             createdAt: new Date()
         };
 
-        // 3. Process Referral logic if a code exists
-        if (referralCode) {
+        // 3. Process Referral logic
+        if (referralCode && referralCode !== "NOCODE") {
             try {
                 const q = query(collection(db, "users"), where("referralCode", "==", referralCode));
                 const snap = await getDocs(q);
@@ -105,30 +102,30 @@ signUpBtn.addEventListener("click", async () => {
                     const referrerDoc = snap.docs[0];
                     const referrerUid = referrerDoc.id;
 
-                    // Reward the Referrer (Give 50 credits)
+                    // Reward the Referrer
                     await updateDoc(doc(db, "users", referrerUid), {
                         credits: increment(50),
                         totalEarned: increment(50),
-                        referrals: arrayUnion(uid)
+                        // BUG FIX: Add the new user's email so it shows in the "Activity Feed"
+                        referrals: arrayUnion(email) 
                     });
 
-                    // Reward the New User (Add 30 more for 50 total)
+                    // Reward the New User
                     userData.credits += 30;
                     userData.totalEarned += 30;
                     userData.referredBy = referrerUid;
-                    console.log("Referral rewards successfully processed.");
                 }
             } catch (refErr) {
-                console.warn("Referral processing failed, but account creation continued:", refErr);
+                console.warn("Referral failed:", refErr);
             }
         }
 
         // 4. Save the User Document
         await setDoc(userDocRef, userData);
 
-        // 5. Success: Trigger Onboarding via session flag
+        // 5. Cleanup
         sessionStorage.setItem("justSignedUp", "1");
-        sessionStorage.removeItem("pendingReferral"); // Clean up the used link code
+        localStorage.removeItem("pendingReferral"); // Clean up used code
 
     } catch (err) {
         console.error("Sign up error:", err);
