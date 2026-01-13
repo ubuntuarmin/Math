@@ -49,8 +49,7 @@ async function handleDailyData(uid, userData) {
         updates.lastVisitDate = todayStr;
     }
 
-    // 2. Weekly Leaderboard Reset (Calculates if we are in a new week)
-    // Sunday is 0. If last visit was before the most recent Sunday, reset.
+    // 2. Weekly Leaderboard Reset
     const lastVisitTimestamp = userData.lastVisitTimestamp?.toMillis() || 0;
     const diffInDays = (Date.now() - lastVisitTimestamp) / (1000 * 60 * 60 * 24);
     
@@ -67,9 +66,9 @@ async function handleDailyData(uid, userData) {
         yesterday.setDate(yesterday.getDate() - 1);
         
         if (lastVisitDate === yesterday.toDateString()) {
-            updates.streak = increment(1); // Continued streak
+            updates.streak = increment(1); 
         } else {
-            updates.streak = 1; // Broke streak, reset to 1
+            updates.streak = 1; 
         }
     }
 
@@ -86,6 +85,7 @@ async function handleDailyData(uid, userData) {
  */
 onAuthStateChanged(auth, async user => {
     if (!user) {
+        // Not logged in: Clean UI and show login
         header?.classList.add("hidden");
         appContainer?.classList.add("hidden");
         showLogin();
@@ -94,32 +94,47 @@ onAuthStateChanged(auth, async user => {
 
     try {
         const userRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userRef);
+        let snap = await getDoc(userRef);
         
-        // GUARD: If Auth user exists but Firestore doc is gone (Deleted Account)
+        // --- RACE CONDITION FIX ---
+        // If doc doesn't exist, it's likely a brand new signup still writing to DB.
+        // We wait up to 3 seconds before giving up.
         if (!snap.exists()) {
-            console.warn("User data missing. Force logging out.");
-            await signOut(auth);
+            console.log("New account detected. Waiting for database initialization...");
+            await new Promise(res => setTimeout(res, 2500));
+            snap = await getDoc(userRef);
+        }
+
+        // GUARD: If doc STILL doesn't exist, log out to prevent "broken" session
+        if (!snap.exists()) {
+            if (!sessionStorage.getItem("justSignedUp")) {
+                console.warn("User data missing. Force logging out.");
+                await signOut(auth);
+                return;
+            }
+            // If they JUST signed up, let login.js finish its reload/redirect
             return;
         }
 
+        // --- AUTH SUCCESS FLOW ---
         hideLogin();
         header?.classList.remove("hidden");
         appContainer?.classList.remove("hidden");
 
         let currentUserData = snap.data();
             
-        // Handle logic resets
+        // Reset daily stats if they are an existing user
         if (!sessionStorage.getItem("justSignedUp")) {
             currentUserData = await handleDailyData(user.uid, currentUserData);
         }
 
-        // Centralized UI refresh
+        // Refresh all UI components with the final data
         syncAllUI(currentUserData);
 
-        // One-time Welcome/Onboarding per session
+        // Handle Overlays (Onboarding vs Welcome)
         if (sessionStorage.getItem("justSignedUp")) {
             showOnboarding();
+            // We keep the flag for onboarding.js to handle, then it will remove it.
         } else if (!sessionStorage.getItem("welcomeShown")) {
             const displayName = currentUserData.firstName || "Student";
             showWelcome(displayName);
@@ -150,10 +165,15 @@ window.addEventListener("userProfileUpdated", (event) => {
     if (event.detail) syncAllUI(event.detail);
 });
 
-logoutBtn?.addEventListener("click", async () => {
-    if (auth.currentUser) {
-        sessionStorage.clear(); // Clear welcome flags
-        await signOut(auth);
-        window.location.href = "index.html";
-    }
-});
+/**
+ * Logout Logic
+ */
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", async () => {
+        if (auth.currentUser) {
+            sessionStorage.clear(); 
+            await signOut(auth);
+            window.location.reload();
+        }
+    });
+}
