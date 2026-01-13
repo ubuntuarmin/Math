@@ -10,8 +10,6 @@ import { renderLeaderboard } from "./leaderboard.js";
 import { showLogin, hideLogin } from "./login.js";
 import { showWelcome } from "./welcome.js";
 import { showOnboarding } from "./onboarding.js";
-
-// NEW: Tier logic
 import { calculateTier } from "./tier.js";
 
 const header = document.getElementById("header");
@@ -20,57 +18,59 @@ const logoutBtn = document.getElementById("logoutBtn");
 const tierLabel = document.getElementById("tierLabel");
 
 /**
- * NEW: Global Header Refresh
- * Updates credits and Tier label across the app
+ * Global Header Refresh
  */
 export function refreshHeaderUI(userData) {
     if (!userData) return;
-
-    // Update Credits display
     const creditCount = document.getElementById("creditCount");
     if (creditCount) creditCount.textContent = userData.credits || 0;
 
-    // Update Tier display
     if (tierLabel) {
         const tier = calculateTier(userData.totalEarned || 0);
         tierLabel.textContent = tier.name;
-        tierLabel.style.color = tier.color; // Changes to Gold, Silver, etc.
+        tierLabel.style.color = tier.color;
     }
 }
 
 /**
- * Handles daily reset of time limits and streaks
+ * Robust Daily/Weekly Reset Logic
  */
 async function handleDailyData(uid, userData) {
     const userRef = doc(db, "users", uid);
     const now = new Date();
     const todayStr = now.toDateString();
-    
     const lastVisitDate = userData.lastVisitDate || "";
+    
     const updates = {};
 
-    // 1. Reset Daily Link Usage (Timer)
+    // 1. Reset Daily Timer
     if (lastVisitDate !== todayStr) {
         updates.dailyLinkUsage = 0;
         updates.lastVisitDate = todayStr;
     }
 
-    // 2. Weekly Leaderboard Reset (Sundays)
-    if (now.getDay() === 0 && lastVisitDate !== todayStr) {
+    // 2. Weekly Leaderboard Reset (Calculates if we are in a new week)
+    // Sunday is 0. If last visit was before the most recent Sunday, reset.
+    const lastVisitTimestamp = userData.lastVisitTimestamp?.toMillis() || 0;
+    const diffInDays = (Date.now() - lastVisitTimestamp) / (1000 * 60 * 60 * 24);
+    
+    if (diffInDays > 7 || (now.getDay() === 0 && lastVisitDate !== todayStr)) {
         updates.weekMinutes = 0;
     }
+    updates.lastVisitTimestamp = serverTimestamp();
 
-    // 3. Streak Logic
-    const DAY_IN_MS = 24 * 60 * 60 * 1000;
-    const lastStreakUpdate = userData.lastStreakUpdate?.toMillis() || 0;
-    const timeDiff = Date.now() - lastStreakUpdate;
-
-    if (!userData.streak || userData.streak === 0) {
+    // 3. Calendar-based Streak Logic
+    if (!userData.streak) {
         updates.streak = 1;
-        updates.lastStreakUpdate = serverTimestamp();
-    } else if (timeDiff >= DAY_IN_MS) {
-        updates.streak = increment(1);
-        updates.lastStreakUpdate = serverTimestamp();
+    } else if (lastVisitDate !== todayStr) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        if (lastVisitDate === yesterday.toDateString()) {
+            updates.streak = increment(1); // Continued streak
+        } else {
+            updates.streak = 1; // Broke streak, reset to 1
+        }
     }
 
     if (Object.keys(updates).length > 0) {
@@ -92,63 +92,68 @@ onAuthStateChanged(auth, async user => {
         return;
     }
 
-    hideLogin();
-    header?.classList.remove("hidden");
-    appContainer?.classList.remove("hidden");
-
-    let currentUserData = {};
     try {
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
         
-        if (snap.exists()) {
-            currentUserData = snap.data();
-            
-            // Only handle resets for returning users, not brand new signups
-            if (!sessionStorage.getItem("justSignedUp")) {
-                currentUserData = await handleDailyData(user.uid, currentUserData);
-            }
+        // GUARD: If Auth user exists but Firestore doc is gone (Deleted Account)
+        if (!snap.exists()) {
+            console.warn("User data missing. Force logging out.");
+            await signOut(auth);
+            return;
         }
+
+        hideLogin();
+        header?.classList.remove("hidden");
+        appContainer?.classList.remove("hidden");
+
+        let currentUserData = snap.data();
+            
+        // Handle logic resets
+        if (!sessionStorage.getItem("justSignedUp")) {
+            currentUserData = await handleDailyData(user.uid, currentUserData);
+        }
+
+        // Centralized UI refresh
+        syncAllUI(currentUserData);
+
+        // One-time Welcome/Onboarding per session
+        if (sessionStorage.getItem("justSignedUp")) {
+            showOnboarding();
+        } else if (!sessionStorage.getItem("welcomeShown")) {
+            const displayName = currentUserData.firstName || "Student";
+            showWelcome(displayName);
+            sessionStorage.setItem("welcomeShown", "true");
+        }
+
     } catch (err) {
-        console.error("Auth Data Error:", err);
-    }
-
-    // NEW: Centralized UI refresh
-    syncAllUI(currentUserData);
-
-    // Handle initial routing
-    if (sessionStorage.getItem("justSignedUp")) {
-        showOnboarding();
-    } else {
-        const displayName = user.displayName || currentUserData.firstName || "Student";
-        showWelcome(displayName);
+        console.error("Critical Auth/Data Error:", err);
     }
 });
 
 /**
- * Syncs all UI parts with the provided user data
+ * Syncs all UI components
  */
 function syncAllUI(data) {
-    try { refreshHeaderUI(data); } catch(e){}
-    try { updateUI(data); } catch (e) {}
-    try { renderDaily(data); } catch (e) {}
-    try { updateAccount(data); } catch (e) {}
-    try { renderLeaderboard(data); } catch (e) {}
+    if (!data) return;
+    refreshHeaderUI(data);
+    updateUI(data);
+    renderDaily(data);
+    updateAccount(data);
+    renderLeaderboard(data);
 }
 
 /**
- * NEW: Event Listener for manual profile updates
- * Listens for "userProfileUpdated" event triggered by Onboarding or Account pages
+ * Global update listener
  */
 window.addEventListener("userProfileUpdated", (event) => {
-    if (event.detail) {
-        syncAllUI(event.detail);
-    }
+    if (event.detail) syncAllUI(event.detail);
 });
 
 logoutBtn?.addEventListener("click", async () => {
     if (auth.currentUser) {
+        sessionStorage.clear(); // Clear welcome flags
         await signOut(auth);
-        location.reload();
+        window.location.href = "index.html";
     }
 });
