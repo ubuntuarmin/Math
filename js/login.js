@@ -2,20 +2,18 @@ import { auth, db } from "./firebase.js";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, setDoc, collection, query, where, getDocs, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-// --- 1. TRACKING LOGIC (MOVED HERE) ---
-// This runs immediately when the script loads on the landing page.
+// --- 1. URL TRACKING ---
+// Captures ?ref=CODE from the URL immediately upon script load
 const urlParams = new URLSearchParams(window.location.search);
 const incomingRef = urlParams.get('ref');
 
 if (incomingRef && incomingRef !== "NOCODE") {
-    console.log("✅ Referral Link Detected:", incomingRef);
-    localStorage.setItem("pendingReferral", incomingRef);
+    localStorage.setItem("pendingReferral", incomingRef.toUpperCase());
     
-    // Clean URL so user doesn't see the code
-    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+    // Clean the URL bar so the user sees a clean link
+    const cleanUrl = window.location.origin + window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
 }
-// --------------------------------------
 
 // DOM Elements
 const loginModal = document.getElementById("loginModal");
@@ -28,8 +26,7 @@ const loginError = document.getElementById("loginError");
 
 export function showLogin(message) {
     if (loginError) loginError.textContent = message || "";
-    loginModal.classList.remove("hidden");
-    loginModal.setAttribute("aria-hidden", "false");
+    loginModal?.classList.remove("hidden");
 }
 
 export function hideLogin() {
@@ -37,8 +34,7 @@ export function hideLogin() {
     emailInput.value = "";
     passwordInput.value = "";
     referralInput.value = "";
-    loginModal.classList.add("hidden");
-    loginModal.setAttribute("aria-hidden", "true");
+    loginModal?.classList.add("hidden");
 }
 
 /**
@@ -67,7 +63,7 @@ signInBtn.addEventListener("click", async () => {
 });
 
 /**
- * Sign Up Logic
+ * Sign Up Logic (With Payouts)
  */
 signUpBtn.addEventListener("click", async () => {
     if (loginError) loginError.textContent = "";
@@ -75,8 +71,8 @@ signUpBtn.addEventListener("click", async () => {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
     
-    // Check localStorage (Captured at top of file) OR Manual Input
-    const referralCode = referralInput.value.trim() || localStorage.getItem("pendingReferral");
+    // Priority: 1. Manual Input field, 2. LocalStorage from URL
+    const referralCode = referralInput.value.trim().toUpperCase() || localStorage.getItem("pendingReferral");
 
     if (!email || !password) {
         loginError.textContent = "Email and password required.";
@@ -87,67 +83,58 @@ signUpBtn.addEventListener("click", async () => {
         signUpBtn.disabled = true;
         signUpBtn.textContent = "Creating Account...";
 
-        // 1. Create the Auth Account
+        // 1. Create Auth Account
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const uid = cred.user.uid;
         const userDocRef = doc(db, "users", uid);
 
-        // 2. Define Base User Data
-        // Base = 20. If referred, we will add +20 more below.
         let baseCredits = 20; 
         let referrerUid = null;
 
-        // 3. Process Referral Rewards (The "Debugged" Section)
-        if (referralCode && referralCode !== "NOCODE") {
-            console.log("🔍 Processing Referral Code:", referralCode);
+        // 2. Process Referral Payout
+        if (referralCode) {
             try {
-                // Find the owner of the code
                 const q = query(collection(db, "users"), where("referralCode", "==", referralCode));
                 const snap = await getDocs(q);
 
                 if (!snap.empty) {
                     const referrerDoc = snap.docs[0];
                     referrerUid = referrerDoc.id;
-                    console.log("✅ Referrer Found:", referrerUid);
 
-                    // A. REWARD THE SHARER (+50 Credits)
-                    // Note: This requires Firestore Rules to allow User A to write to User B
-                    await updateDoc(doc(db, "users", referrerUid), {
-                        credits: increment(50),
-                        totalEarned: increment(50),
-                        referrals: arrayUnion(email) 
-                    });
-                    console.log("💰 Referrer Reward Sent (+50)");
+                    // PREVENT SELF-REFERRAL
+                    if (referrerUid !== uid) {
+                        // Reward the Referrer (+50)
+                        await updateDoc(doc(db, "users", referrerUid), {
+                            credits: increment(50),
+                            totalEarned: increment(50),
+                            referrals: arrayUnion(email) 
+                        });
 
-                    // B. REWARD THE NEW USER (+20 Credits)
-                    baseCredits += 20; 
-                    console.log("💰 New User Bonus Applied (+20)");
-                } else {
-                    console.warn("⚠️ Invalid Referral Code:", referralCode);
+                        // Reward the New User (+20 additional bonus)
+                        baseCredits += 20; 
+                    }
                 }
             } catch (refErr) {
-                // IMPORTANT: If this errors, it is likely PERMISSIONS.
-                // The account will still be created, but the reward failed.
-                console.error("❌ Referral Payout Failed (Check Firestore Rules):", refErr);
+                console.warn("Referral payout failed (Check Firestore rules):", refErr);
             }
         }
 
-        // 4. Save the New User Document
+        // 3. Create Final User Data
         const userData = {
             uid: uid,
             email: email,
             firstName: "",
             lastName: "",
             grade: "",
-            credits: baseCredits, // Will be 20 (standard) or 40 (referred)
+            credits: baseCredits,
             totalEarned: baseCredits,
             totalMinutes: 0,
             weekMinutes: 0,
             dailyLinkUsage: 0,
             streak: 0,
-            redeemedDays: [],
-            referrals: [],
             unlockedLinks: [],
+            referrals: [],
+            // Consistent Code Generation: First 6 chars of UID
             referralCode: uid.slice(0, 6).toUpperCase(),
             referredBy: referrerUid,
             lastVisitDate: new Date().toDateString(),
@@ -155,12 +142,10 @@ signUpBtn.addEventListener("click", async () => {
         };
 
         await setDoc(userDocRef, userData);
-        console.log("✅ User Document Created");
 
-        // 5. Cleanup
+        // 4. Cleanup and Redirect
         sessionStorage.setItem("justSignedUp", "1");
         localStorage.removeItem("pendingReferral"); 
-        
         window.location.reload();
 
     } catch (err) {
