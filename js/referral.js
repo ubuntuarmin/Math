@@ -1,13 +1,15 @@
 import { auth, db } from "./firebase.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-const referralContent = document.getElementById("referralContent");
+// ID changed to match your index.html (referralArea)
+const referralContent = document.getElementById("referralArea");
 
 /**
  * MAIN RENDER FUNCTION
  * Displays the user's referral stats and sharing options.
  */
 export async function renderReferral(userData) {
+    // If the element doesn't exist on the current page, exit silently
     if (!referralContent) return;
 
     // 1. Auth Guard
@@ -27,12 +29,15 @@ export async function renderReferral(userData) {
             if (snap.exists()) data = snap.data();
         }
 
+        // Fallback if the data is still loading or incomplete
+        if (!data) return;
+
         const code = data.referralCode || auth.currentUser.uid.slice(0, 6).toUpperCase();
         const referrals = data.referrals || [];
         const friendCount = referrals.length;
         const totalCreditsEarned = friendCount * 50; 
         
-        // Construct the shareable link (Standardized)
+        // Construct the shareable link
         const referralLink = `${window.location.origin}${window.location.pathname}?ref=${code}`;
 
         referralContent.innerHTML = `
@@ -41,11 +46,11 @@ export async function renderReferral(userData) {
                 <div class="bg-gray-800/50 p-6 rounded-2xl border border-gray-700 shadow-xl">
                     <div class="text-xs text-blue-400 mb-2 uppercase tracking-widest font-bold">Invite Friends</div>
                     <p class="text-xs text-gray-400 mb-4">Give 20 credits, Get 50 credits!</p>
-                    <div class="flex items-center gap-2 bg-gray-900 p-3 rounded-xl border border-gray-700">
+                    <div class="flex flex-col sm:flex-row items-center gap-2 bg-gray-900 p-3 rounded-xl border border-gray-700">
                         <input readonly value="${referralLink}" id="refUrlInput" 
-                               class="bg-transparent border-none text-sm w-full outline-none text-blue-300 font-mono" />
+                               class="bg-transparent border-none text-sm w-full outline-none text-blue-300 font-mono p-1" />
                         <button id="copyReferralBtn" 
-                                class="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shadow-lg whitespace-nowrap">
+                                class="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 shadow-lg whitespace-nowrap">
                             Copy
                         </button>
                     </div>
@@ -92,13 +97,17 @@ export async function renderReferral(userData) {
         const handleCopy = async () => {
             try {
                 await navigator.clipboard.writeText(referralLink);
-                copyBtn.textContent = "Copied!";
-                copyBtn.classList.replace("bg-blue-600", "bg-emerald-600");
-                setTimeout(() => {
-                    copyBtn.textContent = "Copy";
-                    copyBtn.classList.replace("bg-emerald-600", "bg-blue-600");
-                }, 2000);
-            } catch (err) { console.error("Clipboard error", err); }
+                if (copyBtn) {
+                    copyBtn.textContent = "Copied!";
+                    copyBtn.classList.replace("bg-blue-600", "bg-emerald-600");
+                    setTimeout(() => {
+                        copyBtn.textContent = "Copy";
+                        copyBtn.classList.replace("bg-emerald-600", "bg-blue-600");
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error("Clipboard error", err);
+            }
         };
 
         copyBtn?.addEventListener("click", handleCopy);
