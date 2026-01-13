@@ -1,12 +1,12 @@
 import { db, auth } from "./firebase.js";
-import { doc, updateDoc, increment, setDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, updateDoc, increment, getDocs, collection } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
+import { launchFrame } from "./frame.js"; // Import our new logic
 
 const linksEl = document.getElementById("links");
 const creditCount = document.getElementById("creditCount");
 const tierLabel = document.getElementById("tierLabel");
 
-// Configuration for all link categories
 const LINK_GROUPS = [
     { id: 'general', name: 'General', links: [1, 2, 3], cost: 0 },
     { id: 'extra', name: 'Extra', links: [4, 5], cost: 100, individual: true },
@@ -43,7 +43,6 @@ async function renderLinks(userData) {
     const maxSeconds = userTier.limitMinutes * 60;
 
     try {
-        // Fetch Votes and Destinations from Firestore
         const [voteSnap, destSnap] = await Promise.all([
             getDocs(collection(db, "linkVotes")),
             getDocs(collection(db, "linkDestinations"))
@@ -60,7 +59,6 @@ async function renderLinks(userData) {
             
             group.links.forEach(num => {
                 const linkId = `link${num}`;
-                // This 'content' could be a URL or raw HTML code
                 const content = destinations[linkId] || "https://www.wikipedia.org";
                 createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, content);
             });
@@ -74,11 +72,15 @@ async function renderLinks(userData) {
  * Creates VIP Dropdown structure
  */
 function createDropdown(group) {
+    // Check if it already exists to prevent duplicates on re-render
+    let dropContent = document.getElementById("vipContent");
+    if (dropContent) return dropContent;
+
     const dropHeader = document.createElement("div");
     dropHeader.className = "col-span-full bg-gradient-to-r from-purple-900 to-indigo-900 p-3 rounded-lg cursor-pointer flex justify-between items-center border border-purple-500 mt-4 mb-2 shadow-lg";
     dropHeader.innerHTML = `<span class="font-bold text-purple-200 uppercase tracking-tighter">💎 VIP Exclusive Section</span> <span id="vipArrow" class="text-xs">▼</span>`;
     
-    const dropContent = document.createElement("div");
+    dropContent = document.createElement("div");
     dropContent.id = "vipContent";
     dropContent.className = "col-span-full hidden grid grid-cols-1 md:grid-cols-3 gap-4 mb-6";
     
@@ -97,12 +99,13 @@ function createDropdown(group) {
  */
 function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes, container, userData, content) {
     const linkId = `link${num}`;
-    const isBought = group.cost === 0 || unlocked.includes(linkId) || (unlocked.includes(group.id) && !group.individual);
+    // A link is bought if it's free, individually unlocked, or the whole group is unlocked
+    const isBought = group.cost === 0 || unlocked.includes(linkId) || unlocked.includes(group.id);
     const isOverLimit = usageInSeconds >= maxSeconds;
     const v = votes[linkId] || { yes: 0, no: 0 };
 
     const card = document.createElement("div");
-    card.className = `p-4 rounded border-2 transition relative flex flex-col justify-between h-32 ${isBought && !isOverLimit ? 'bg-gray-800 border-gray-700 cursor-pointer hover:border-blue-500' : 'bg-gray-900 border-gray-800 opacity-60'}`;
+    card.className = `p-4 rounded border-2 transition relative flex flex-col justify-between h-32 ${isBought && !isOverLimit ? 'bg-gray-800 border-gray-700 cursor-pointer hover:border-blue-500 shadow-md' : 'bg-gray-900 border-gray-800 opacity-60'}`;
     
     card.innerHTML = `
         <div class="flex justify-between font-bold text-sm items-center">
@@ -110,107 +113,23 @@ function createLinkCard(num, group, unlocked, usageInSeconds, maxSeconds, votes,
             <span class="text-lg">${isBought ? (isOverLimit ? '🛑' : '✅') : '🔒'}</span>
         </div>
         <div class="flex flex-col gap-1">
-            <div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Community Score</div>
-            <div class="text-xs text-gray-400 font-mono">👍 ${v.yes} · 👎 ${v.no}</div>
+            <div class="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Score</div>
+            <div class="text-xs text-gray-500 font-mono">👍 ${v.yes} · 👎 ${v.no}</div>
         </div>
-        ${!isBought ? `<button class="mt-2 text-[10px] bg-blue-700 hover:bg-blue-600 py-1 w-full rounded font-bold transition">Unlock (${group.cost} credits)</button>` : ''}
+        ${!isBought ? `<button class="mt-2 text-[10px] bg-blue-700 hover:bg-blue-600 py-1 w-full rounded font-bold transition">Unlock (${group.cost})</button>` : ''}
     `;
 
-    card.onclick = () => {
-        if (!isBought) handleUnlock(group, linkId, userData);
-        else if (!isOverLimit) openIframe(linkId, userData, usageInSeconds, maxSeconds, content);
-        else alert(`Daily limit reached! Earn more credits to rank up.`);
+    card.onclick = (e) => {
+        // Prevent click if clicking the unlock button specifically (handled separately)
+        if (!isBought) {
+            handleUnlock(group, linkId, userData);
+        } else if (!isOverLimit) {
+            launchFrame(content, linkId, usageInSeconds, maxSeconds);
+        } else {
+            alert(`Daily limit of ${maxSeconds/60} minutes reached! Upgrade your tier to get more time.`);
+        }
     };
     container.appendChild(card);
-}
-
-/**
- * The Iframe viewer - Smart Detection for URLs vs HTML Code
- */
-function openIframe(linkId, userData, currentUsage, maxSeconds, content) {
-    const overlay = document.createElement("div");
-    overlay.className = "fixed inset-0 bg-black z-50 flex flex-col";
-    
-    // --- SMART DETECTION ---
-    let finalSrc = content;
-    let isApp = false;
-
-    // Detect if content is HTML code (starts with <)
-    if (content.trim().startsWith('<')) {
-        isApp = true;
-        const blob = new Blob([content], { type: 'text/html' });
-        finalSrc = URL.createObjectURL(blob);
-    }
-
-    overlay.innerHTML = `
-        <div class="bg-gray-900 p-2 border-b border-gray-700 flex flex-col gap-1">
-            <div class="flex justify-between items-center px-2">
-                <span class="text-[10px] text-blue-400 font-mono" id="usageStatus">
-                    ${isApp ? '🚀 Launching App...' : '🌐 Loading Link...'}
-                </span>
-                <div id="promptArea" class="hidden text-sm font-bold text-yellow-400">
-                    Working? 
-                    <button id="vYes" class="bg-green-600 px-3 rounded mx-1 text-white hover:bg-green-500">Yes</button>
-                    <button id="vNo" class="bg-red-600 px-3 rounded text-white hover:bg-red-500">No</button>
-                </div>
-                <button id="closeIframe" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-xs text-white font-bold transition">Close X</button>
-            </div>
-            <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                <div id="usageBar" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-        </div>
-        <iframe id="activeFrame" src="${finalSrc}" class="flex-1 w-full border-none bg-white shadow-2xl"></iframe>
-    `;
-    document.body.appendChild(overlay);
-
-    const usageBar = document.getElementById("usageBar");
-    const usageStatus = document.getElementById("usageStatus");
-    const startTime = Date.now();
-    
-    const autoKickInterval = setInterval(() => {
-        const sessionSeconds = Math.floor((Date.now() - startTime) / 1000);
-        const totalUsed = currentUsage + sessionSeconds;
-        const progressPct = (totalUsed / maxSeconds) * 100;
-
-        usageBar.style.width = `${Math.min(progressPct, 100)}%`;
-        usageStatus.textContent = `Usage: ${Math.floor(totalUsed/60)}m / ${maxSeconds/60}m (${Math.floor(progressPct)}%)`;
-
-        if (totalUsed >= maxSeconds) {
-            clearInterval(autoKickInterval);
-            alert("🚨 DAILY TIME EXPIRED!");
-            saveTimeAndClose(sessionSeconds);
-        }
-    }, 1000);
-
-    const saveTimeAndClose = async (sessionSeconds) => {
-        clearInterval(autoKickInterval);
-        
-        // Cleanup Blob URL if it was an app
-        if (isApp) URL.revokeObjectURL(finalSrc);
-
-        try {
-            const userRef = doc(db, "users", auth.currentUser.uid);
-            await updateDoc(userRef, { 
-                dailyLinkUsage: increment(sessionSeconds),
-                totalMinutes: increment(Math.floor(sessionSeconds / 60))
-            });
-        } catch (e) { console.error("Save error:", e); }
-        
-        overlay.remove();
-        location.reload(); 
-    };
-
-    document.getElementById("closeIframe").onclick = () => saveTimeAndClose(Math.floor((Date.now() - startTime) / 1000));
-    document.getElementById("activeFrame").onload = () => setTimeout(() => document.getElementById("promptArea")?.classList.remove("hidden"), 3000);
-    document.getElementById("vYes").onclick = () => castVote(linkId, 'yes');
-    document.getElementById("vNo").onclick = () => castVote(linkId, 'no');
-
-    async function castVote(id, type) {
-        try {
-            await setDoc(doc(db, "linkVotes", id), { [type]: increment(1) }, { merge: true });
-            document.getElementById("promptArea").innerHTML = "<span class='text-green-400'>Vote Recorded!</span>";
-        } catch (e) { console.error(e); }
-    }
 }
 
 /**
@@ -218,16 +137,31 @@ function openIframe(linkId, userData, currentUsage, maxSeconds, content) {
  */
 async function handleUnlock(group, linkId, userData) {
     const cost = group.cost;
-    if ((userData?.credits || 0) < cost) return alert("You need more credits!");
+    const currentCredits = userData?.credits || 0;
 
-    if (confirm(`Unlock ${group.individual ? 'this link' : group.name + ' section'} for ${cost} credits?`)) {
+    if (currentCredits < cost) {
+        return alert(`Not enough credits! You need ${cost - currentCredits} more.`);
+    }
+
+    const confirmMsg = group.individual 
+        ? `Unlock Link ${linkId.replace('link', '')} for ${cost} credits?` 
+        : `Unlock the entire ${group.name} category for ${cost} credits?`;
+
+    if (confirm(confirmMsg)) {
         try {
             const userRef = doc(db, "users", auth.currentUser.uid);
+            const unlockKey = group.individual ? linkId : group.id;
+            
             await updateDoc(userRef, {
                 credits: increment(-cost),
-                unlockedLinks: [group.individual ? linkId : group.id, ...(userData.unlockedLinks || [])]
+                unlockedLinks: [unlockKey, ...(userData.unlockedLinks || [])]
             });
+            
+            // Re-render UI instead of reload if possible, but location.reload is safer for first version
             location.reload();
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error("Unlock Error:", e);
+            alert("Transaction failed. Check your connection.");
+        }
     }
 }
