@@ -2,7 +2,7 @@ import { auth, db } from "./firebase.js";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, setDoc, collection, query, where, getDocs, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-// --- 1. URL TRACKING (Runs immediately) ---
+// --- 1. URL TRACKING ---
 const urlParams = new URLSearchParams(window.location.search);
 const incomingRef = urlParams.get('ref');
 
@@ -12,7 +12,7 @@ if (incomingRef && incomingRef !== "NOCODE") {
     window.history.replaceState({}, document.title, cleanUrl);
 }
 
-// --- 2. EXPORTS (Must be at top level, not inside listeners) ---
+// --- 2. EXPORTS ---
 export function showLogin(message) {
     const loginModal = document.getElementById("loginModal");
     const loginError = document.getElementById("loginError");
@@ -22,18 +22,10 @@ export function showLogin(message) {
 
 export function hideLogin() {
     const loginModal = document.getElementById("loginModal");
-    const emailInput = document.getElementById("email");
-    const passwordInput = document.getElementById("password");
-    const referralInput = document.getElementById("referralCodeInput");
-    
     if (loginModal) loginModal.classList.add("hidden");
-    if (emailInput) emailInput.value = "";
-    if (passwordInput) passwordInput.value = "";
-    if (referralInput) referralInput.value = "";
 }
 
-// --- 3. CORE LOGIC ---
-// We use a small helper to attach listeners safely
+// --- 3. INITIALIZATION ---
 const initLogin = () => {
     const signInBtn = document.getElementById("signInBtn");
     const signUpBtn = document.getElementById("signUpBtn");
@@ -42,13 +34,11 @@ const initLogin = () => {
     const referralInput = document.getElementById("referralCodeInput");
     const loginError = document.getElementById("loginError");
 
-    if (!signInBtn || !signUpBtn) {
-        console.warn("Login buttons not found yet, retrying...");
-        return;
-    }
+    if (!signInBtn || !signUpBtn) return;
 
     console.log("Login system listeners attached.");
 
+    // SIGN IN LOGIC
     signInBtn.onclick = async (e) => {
         e.preventDefault();
         if (loginError) loginError.textContent = "";
@@ -65,6 +55,7 @@ const initLogin = () => {
             signInBtn.disabled = true;
             signInBtn.textContent = "Checking...";
             await signInWithEmailAndPassword(auth, email, password);
+            // Redirection handled by auth.js
         } catch (err) {
             console.error(err);
             if (loginError) loginError.textContent = "Invalid email or password.";
@@ -73,6 +64,7 @@ const initLogin = () => {
         }
     };
 
+    // SIGN UP LOGIC
     signUpBtn.onclick = async (e) => {
         e.preventDefault();
         if (loginError) loginError.textContent = "";
@@ -90,31 +82,43 @@ const initLogin = () => {
             signUpBtn.disabled = true;
             signUpBtn.textContent = "Creating...";
 
+            // 1. Set the flag for auth.js to wait
+            sessionStorage.setItem("justSignedUp", "true");
+
+            // 2. Create Auth Account
             const cred = await createUserWithEmailAndPassword(auth, email, password);
             const uid = cred.user.uid;
 
             let baseCredits = 20; 
             let referrerUid = null;
 
+            // 3. Process Referral Payout (Before creating new user doc)
             if (referralCode) {
                 try {
                     const q = query(collection(db, "users"), where("referralCode", "==", referralCode));
                     const snap = await getDocs(q);
+
                     if (!snap.empty) {
                         const referrerDoc = snap.docs[0];
                         referrerUid = referrerDoc.id;
+
                         if (referrerUid !== uid) {
+                            // Reward the Referrer
                             await updateDoc(doc(db, "users", referrerUid), {
                                 credits: increment(50),
                                 totalEarned: increment(50),
                                 referrals: arrayUnion(email) 
                             });
-                            baseCredits += 20; 
+                            // Set bonus for new user
+                            baseCredits = 40; 
                         }
                     }
-                } catch (re) { console.warn("Referral skip", re); }
+                } catch (refErr) {
+                    console.warn("Referral system bypassed (Check Firestore index/rules):", refErr);
+                }
             }
 
+            // 4. Create New User Document
             await setDoc(doc(db, "users", uid), {
                 uid: uid,
                 email: email,
@@ -135,18 +139,25 @@ const initLogin = () => {
                 createdAt: new Date()
             });
 
+            // 5. Cleanup and Refresh
             localStorage.removeItem("pendingReferral"); 
             window.location.reload();
+
         } catch (err) {
-            console.error(err);
-            if (loginError) loginError.textContent = "Sign up failed.";
+            console.error("Sign up error:", err);
+            sessionStorage.removeItem("justSignedUp"); // Clear flag on failure
+            if (loginError) {
+                loginError.textContent = err.code === 'auth/email-already-in-use' 
+                    ? "Email already exists." 
+                    : "Sign up failed. Try again.";
+            }
             signUpBtn.disabled = false;
             signUpBtn.textContent = "Sign Up";
         }
     };
 };
 
-// Run init
+// Start initialization
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initLogin);
 } else {
