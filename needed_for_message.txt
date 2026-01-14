@@ -1,0 +1,15 @@
+import { collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+async function notifyUser(uid, title, message, type = "reward") {
+    const ref = collection(db, "users", uid, "notifications");
+    await addDoc(ref, {
+        title: title,
+        message: message,
+        type: type, // 'reward' or 'system'
+        read: false,
+        createdAt: serverTimestamp()
+    });
+}
+
+// Example usage in login.js:
+// notifyUser(referrerUid, "Referral Success!", "A friend joined using your code. +50 Credits!");
