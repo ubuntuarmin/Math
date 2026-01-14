@@ -1,0 +1,31 @@
+<div class="modern-card p-6 text-center animate-up">
+    <div class="text-3xl mb-2">⚡</div>
+    <h3 class="text-xl font-black mb-2">Speed Multiplier</h3>
+    <p class="text-gray-400 text-sm mb-4">Solve 10 problems in 14s for <span class="text-emerald-400 font-bold">+15 Credits</span></p>
+    
+    <div id="mathCooldownTimer" class="hidden text-xs text-orange-400 mb-4 font-mono"></div>
+    
+    <button id="startMathBtn" class="btn-primary px-8 py-3 rounded-xl w-full">
+        Start Challenge
+    </button>
+</div>
+
+<div id="mathModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden flex items-center justify-center z-50 p-4">
+    <div class="modern-card w-full max-w-md p-8 text-center relative overflow-hidden">
+        <div class="absolute top-0 left-0 h-1 bg-blue-500 transition-all duration-200" id="mathProgress" style="width: 0%"></div>
+        
+        <div class="flex justify-between items-center mb-6">
+            <span class="text-2xl font-black" id="mathTimer">14.0s</span>
+            <span class="text-gray-400 font-mono" id="questionCounter">1/10</span>
+        </div>
+
+        <div id="mathGameContent">
+            <div id="equationDisplay" class="text-5xl font-black mb-8 tracking-tighter">-- × --</div>
+            
+            <div class="grid grid-cols-2 gap-3" id="answerOptions">
+                </div>
+        </div>
+
+        <button id="closeMathBtn" class="mt-8 text-gray-500 text-xs hover:text-white transition">Cancel</button>
+    </div>
+</div>
