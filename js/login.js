@@ -51,11 +51,13 @@ const initLogin = () => {
             return;
         }
 
-        try {
+      try {
             signInBtn.disabled = true;
             signInBtn.textContent = "Checking...";
             await signInWithEmailAndPassword(auth, email, password);
-            // Redirection handled by auth.js
+            
+            // FIX: Force reload to ensure fresh state and reset UI
+            window.location.reload(); 
         } catch (err) {
             console.error(err);
             if (loginError) loginError.textContent = "Invalid email or password.";
