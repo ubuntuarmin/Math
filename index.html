@@ -97,6 +97,17 @@
             <button type="button" onclick="navigate('tokens')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Tokens</button>
             <button type="button" onclick="navigate('leaderboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Leaderboard</button>
             <button type="button" onclick="navigate('account')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Account</button>
+            <div class="notification-wrapper">
+    <button id="notifBtn" class="glass-btn">
+        🔔 <span id="notifBadge" class="badge hidden">0</span>
+    </button>
+    <div id="notifDropdown" class="notif-dropdown hidden">
+        <h3>Inbox</h3>
+        <div id="notifList">
+            <p class="empty-msg">No new messages</p>
+        </div>
+    </div>
+</div>
             <a href="tutoring.html" class="bg-blue-600/20 hover:bg-blue-600 px-3 py-1 rounded transition border border-blue-500/50 text-sm font-bold whitespace-nowrap">
                 Chat
             </a>
