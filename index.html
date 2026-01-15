@@ -161,7 +161,15 @@
                     </div>
                 </div>
             </div>
-
+<div id="inboxDropdown" class="hidden absolute right-4 top-16 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
+        <h3 class="font-bold text-white">Notifications</h3>
+        <button id="markAllRead" class="text-[10px] text-blue-400 hover:underline uppercase font-bold">Mark all as read</button>
+    </div>
+    <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
+        <div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>
+    </div>
+</div>
             <a href="tutoring.html" class="bg-blue-600/20 hover:bg-blue-600 px-3 py-1 rounded transition border border-blue-500/50 text-sm font-bold whitespace-nowrap">
                 Chat
             </a>
