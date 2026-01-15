@@ -26,11 +26,14 @@ const ADMIN_UID = "bnGhRvqW1YhvGek1JTLuAed6Ib63";
  */
 async function sendNotification(targetUid, title, message, type = "admin") {
     try {
-        const notifRef = collection(db, "users", targetUid, "notifications");
-        await addDoc(notifRef, {
+        // Change from a sub-collection to the top-level 'messages' collection
+        const messagesRef = collection(db, "messages"); 
+        await addDoc(messagesRef, {
+            to: targetUid,               // Match the 'to' field in inbox.js
+            fromName: "Admin",           // Match the 'fromName' field
+            text: message,               // Change 'message' to 'text' to match inbox.js
             title: title,
-            message: message,
-            type: type, // 'credit', 'admin', 'system'
+            type: type, 
             timestamp: serverTimestamp(),
             read: false
         });
