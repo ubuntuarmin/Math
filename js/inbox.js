@@ -7,29 +7,42 @@ import {
     onSnapshot, 
     updateDoc, 
     doc, 
-    addDoc, 
-    serverTimestamp, 
     orderBy, 
-    getDocs, 
     limit 
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
+// Mapping the IDs from your HTML
+const notifBtn = document.getElementById("notifBtn");
+const notifBadge = document.getElementById("notifBadge");
+const inboxDropdown = document.getElementById("inboxDropdown");
 const inboxList = document.getElementById("inboxList");
-const msgCount = document.getElementById("msgCount");
+const markAllReadBtn = document.getElementById("markAllRead");
 
-/**
- * Listens for new messages/notifications for the current user
- */
 export function initInbox() {
     onAuthStateChanged(auth, (user) => {
         if (!user) return;
 
-        // Query: Messages where recipient is current user
+        // 1. UI TOGGLE LOGIC
+        if (notifBtn && inboxDropdown) {
+            notifBtn.addEventListener("click", (e) => {
+                e.stopPropagation(); // Prevents immediate closing
+                inboxDropdown.classList.toggle("hidden");
+            });
+
+            // Close dropdown when clicking anywhere else
+            document.addEventListener("click", (e) => {
+                if (!inboxDropdown.contains(e.target) && e.target !== notifBtn) {
+                    inboxDropdown.classList.add("hidden");
+                }
+            });
+        }
+
+        // 2. FIREBASE REAL-TIME LISTENER
         const q = query(
             collection(db, "messages"),
             where("to", "==", user.uid),
             orderBy("timestamp", "desc"),
-            limit(50)
+            limit(20)
         );
 
         onSnapshot(q, (snapshot) => {
@@ -38,54 +51,44 @@ export function initInbox() {
                 messages.push({ id: doc.id, ...doc.data() });
             });
             renderInbox(messages);
-            updateUnreadCount(messages);
+            updateBadge(messages);
         });
     });
 }
 
-/**
- * Renders the inbox UI
- */
 function renderInbox(messages) {
     if (!inboxList) return;
     
     if (messages.length === 0) {
-        inboxList.innerHTML = `
-            <div class="p-8 text-center text-gray-500">
-                <div class="text-4xl mb-2">📩</div>
-                <p class="text-sm">Your inbox is empty.</p>
-            </div>
-        `;
+        inboxList.innerHTML = `<p class="text-xs text-gray-500 text-center py-4 italic">No new messages</p>`;
         return;
     }
 
     inboxList.innerHTML = messages.map(msg => `
-        <div class="p-4 border-b border-gray-800 hover:bg-gray-800/50 transition cursor-pointer ${!msg.read ? 'bg-blue-900/10' : ''}" 
-             onclick="markAsRead('${msg.id}')">
+        <div class="p-3 rounded-lg transition ${!msg.read ? 'bg-blue-500/10 border-l-2 border-blue-500' : 'bg-gray-800/40'}" 
+             onclick="markRead('${msg.id}')" style="cursor: pointer;">
             <div class="flex justify-between items-start mb-1">
-                <span class="text-xs font-bold text-blue-400 uppercase tracking-widest">${msg.fromName || 'System'}</span>
-                <span class="text-[10px] text-gray-500">${formatTime(msg.timestamp)}</span>
+                <span class="text-[10px] font-bold text-blue-400 uppercase">${msg.fromName || 'System'}</span>
             </div>
-            <p class="text-sm text-gray-200 leading-relaxed">${msg.text}</p>
+            <p class="text-xs text-gray-200">${msg.text}</p>
         </div>
     `).join('');
 }
 
-/**
- * Updates the global notification badge
- */
-function updateUnreadCount(messages) {
-    const unread = messages.filter(m => !m.read).length;
-    if (msgCount) {
-        msgCount.textContent = unread;
-        msgCount.style.display = unread > 0 ? "flex" : "none";
+function updateBadge(messages) {
+    const unreadCount = messages.filter(m => !m.read).length;
+    if (notifBadge) {
+        if (unreadCount > 0) {
+            notifBadge.textContent = unreadCount;
+            notifBadge.classList.remove("hidden");
+        } else {
+            notifBadge.classList.add("hidden");
+        }
     }
 }
 
-/**
- * Marks a message as read in Firestore
- */
-window.markAsRead = async (msgId) => {
+// Global function so the onclick in HTML works
+window.markRead = async (msgId) => {
     try {
         const msgRef = doc(db, "messages", msgId);
         await updateDoc(msgRef, { read: true });
@@ -94,30 +97,5 @@ window.markAsRead = async (msgId) => {
     }
 };
 
-/**
- * Send Message Helper (System or Admin)
- */
-export async function sendMessage(toUid, fromName, text) {
-    try {
-        await addDoc(collection(db, "messages"), {
-            to: toUid,
-            fromName: fromName,
-            text: text,
-            timestamp: serverTimestamp(),
-            read: false
-        });
-    } catch (err) {
-        console.error("Send Message Error:", err);
-    }
-}
-
-function formatTime(ts) {
-    if (!ts) return "";
-    const date = ts.toDate ? ts.toDate() : new Date(ts);
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-// Auto-init if the container exists
-if (inboxList) {
-    initInbox();
-}
+// Start the listener
+initInbox();
