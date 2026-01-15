@@ -1,6 +1,7 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { doc, getDoc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+// Added 'setDoc' to the imports below
+import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // UI modules
 import { updateUI } from "./dashboard.js";
@@ -17,9 +18,6 @@ const appContainer = document.getElementById("appContainer");
 const logoutBtn = document.getElementById("logoutBtn");
 const tierLabel = document.getElementById("tierLabel");
 
-/**
- * Global Header Refresh
- */
 export function refreshHeaderUI(userData) {
     if (!userData) return;
     const creditCount = document.getElementById("creditCount");
@@ -32,9 +30,6 @@ export function refreshHeaderUI(userData) {
     }
 }
 
-/**
- * Robust Daily/Weekly Reset Logic
- */
 async function handleDailyData(uid, userData) {
     const userRef = doc(db, "users", uid);
     const now = new Date();
@@ -43,13 +38,11 @@ async function handleDailyData(uid, userData) {
     
     const updates = {};
 
-    // 1. Reset Daily Timer
     if (lastVisitDate !== todayStr) {
         updates.dailyLinkUsage = 0;
         updates.lastVisitDate = todayStr;
     }
 
-    // 2. Weekly Leaderboard Reset
     const lastVisitTimestamp = userData.lastVisitTimestamp?.toMillis() || 0;
     const diffInDays = (Date.now() - lastVisitTimestamp) / (1000 * 60 * 60 * 24);
     
@@ -58,7 +51,6 @@ async function handleDailyData(uid, userData) {
     }
     updates.lastVisitTimestamp = serverTimestamp();
 
-    // 3. Calendar-based Streak Logic
     if (!userData.streak) {
         updates.streak = 1;
     } else if (lastVisitDate !== todayStr) {
@@ -80,12 +72,9 @@ async function handleDailyData(uid, userData) {
     return userData;
 }
 
-/**
- * MAIN AUTH LISTENER
- */
+// --- MAIN AUTH LISTENER ---
 onAuthStateChanged(auth, async user => {
     if (!user) {
-        // Not logged in: Clean UI and show login
         header?.classList.add("hidden");
         appContainer?.classList.add("hidden");
         showLogin();
@@ -96,45 +85,69 @@ onAuthStateChanged(auth, async user => {
         const userRef = doc(db, "users", user.uid);
         let snap = await getDoc(userRef);
         
-        // --- RACE CONDITION FIX ---
-        // If doc doesn't exist, it's likely a brand new signup still writing to DB.
-        // We wait up to 3 seconds before giving up.
+        // Race condition waiter
         if (!snap.exists()) {
-            console.log("New account detected. Waiting for database initialization...");
+            console.log("Waiting for database initialization...");
             await new Promise(res => setTimeout(res, 2500));
             snap = await getDoc(userRef);
         }
 
-        // GUARD: If doc STILL doesn't exist, log out to prevent "broken" session
+        // --- FIXED SECTION: SELF-HEALING LOGIC ---
         if (!snap.exists()) {
-            if (!sessionStorage.getItem("justSignedUp")) {
-                console.warn("User data missing. Force logging out.");
+            if (sessionStorage.getItem("justSignedUp")) {
+                // If they just signed up, wait for login.js to finish
+                return;
+            }
+
+            console.warn("Profile missing. Attempting auto-repair...");
+            
+            // Create a default profile to fix the "Ghost Account"
+            const defaultData = {
+                uid: user.uid,
+                email: user.email,
+                firstName: "Student", // Default name
+                lastName: "",
+                grade: "",
+                credits: 20,          // Default credits
+                totalEarned: 20,
+                totalMinutes: 0,
+                weekMinutes: 0,
+                dailyLinkUsage: 0,
+                streak: 1,
+                unlockedLinks: [],
+                referrals: [],
+                referralCode: user.uid.slice(0, 6).toUpperCase(),
+                lastVisitDate: new Date().toDateString(),
+                createdAt: serverTimestamp()
+            };
+
+            try {
+                await setDoc(userRef, defaultData);
+                snap = await getDoc(userRef); // Fetch the new data
+                console.log("Account repaired successfully.");
+            } catch (createErr) {
+                console.error("Repair failed:", createErr);
+                // Only log out if we truly cannot fix it
                 await signOut(auth);
                 return;
             }
-            // If they JUST signed up, let login.js finish its reload/redirect
-            return;
         }
+        // ----------------------------------------
 
-        // --- AUTH SUCCESS FLOW ---
         hideLogin();
         header?.classList.remove("hidden");
         appContainer?.classList.remove("hidden");
 
         let currentUserData = snap.data();
             
-        // Reset daily stats if they are an existing user
         if (!sessionStorage.getItem("justSignedUp")) {
             currentUserData = await handleDailyData(user.uid, currentUserData);
         }
 
-        // Refresh all UI components with the final data
         syncAllUI(currentUserData);
 
-        // Handle Overlays (Onboarding vs Welcome)
         if (sessionStorage.getItem("justSignedUp")) {
             showOnboarding();
-            // We keep the flag for onboarding.js to handle, then it will remove it.
         } else if (!sessionStorage.getItem("welcomeShown")) {
             const displayName = currentUserData.firstName || "Student";
             showWelcome(displayName);
@@ -146,9 +159,6 @@ onAuthStateChanged(auth, async user => {
     }
 });
 
-/**
- * Syncs all UI components
- */
 function syncAllUI(data) {
     if (!data) return;
     refreshHeaderUI(data);
@@ -158,16 +168,10 @@ function syncAllUI(data) {
     renderLeaderboard(data);
 }
 
-/**
- * Global update listener
- */
 window.addEventListener("userProfileUpdated", (event) => {
     if (event.detail) syncAllUI(event.detail);
 });
 
-/**
- * Logout Logic
- */
 if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
         if (auth.currentUser) {
