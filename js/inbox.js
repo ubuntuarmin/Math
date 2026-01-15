@@ -1,123 +1,123 @@
-import { db } from "./firebase.js";
+import { auth, db } from "./firebase.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { 
     collection, 
     query, 
     where, 
     onSnapshot, 
-    orderBy, 
-    doc, 
     updateDoc, 
-    writeBatch 
+    doc, 
+    addDoc, 
+    serverTimestamp, 
+    orderBy, 
+    getDocs, 
+    limit 
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-const inboxBtn = document.getElementById("inboxBtn");
-const inboxBadge = document.getElementById("inboxBadge");
-const inboxDropdown = document.getElementById("inboxDropdown");
 const inboxList = document.getElementById("inboxList");
-const markAllReadBtn = document.getElementById("markAllRead");
-
-let currentUserId = null;
+const msgCount = document.getElementById("msgCount");
 
 /**
- * Initializes the real-time inbox listener for a specific user
+ * Listens for new messages/notifications for the current user
  */
-export function initInbox(uid) {
-    if (!uid) return;
-    currentUserId = uid;
+export function initInbox() {
+    onAuthStateChanged(auth, (user) => {
+        if (!user) return;
 
-    const messagesRef = collection(db, "messages");
-    const q = query(
-        messagesRef, 
-        where("recipientId", "==", uid), 
-        orderBy("timestamp", "desc")
-    );
+        // Query: Messages where recipient is current user
+        const q = query(
+            collection(db, "messages"),
+            where("to", "==", user.uid),
+            orderBy("timestamp", "desc"),
+            limit(50)
+        );
 
-    // Listen for real-time updates
-    onSnapshot(q, (snapshot) => {
-        const messages = [];
-        snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
-        renderInbox(messages);
-    });
-
-    // Toggle dropdown visibility
-    if (inboxBtn && inboxDropdown) {
-        inboxBtn.onclick = (e) => {
-            e.stopPropagation();
-            inboxDropdown.classList.toggle("hidden");
-        };
-    }
-
-    // Mark all as read logic
-    if (markAllReadBtn) {
-        markAllReadBtn.onclick = async () => {
-            const unreadDocs = document.querySelectorAll('.message-item[data-read="false"]');
-            if (unreadDocs.length === 0) return;
-
-            const batch = writeBatch(db);
-            unreadDocs.forEach(el => {
-                const ref = doc(db, "messages", el.dataset.id);
-                batch.update(ref, { read: true });
+        onSnapshot(q, (snapshot) => {
+            const messages = [];
+            snapshot.forEach((doc) => {
+                messages.push({ id: doc.id, ...doc.data() });
             });
-            await batch.commit();
-        };
-    }
+            renderInbox(messages);
+            updateUnreadCount(messages);
+        });
+    });
 }
 
 /**
- * Renders the messages into the UI
+ * Renders the inbox UI
  */
 function renderInbox(messages) {
-    if (!inboxList || !inboxBadge) return;
-
-    const unreadCount = messages.filter(m => !m.read).length;
-
-    // Update Badge
-    if (unreadCount > 0) {
-        inboxBadge.textContent = unreadCount;
-        inboxBadge.classList.remove("hidden");
-    } else {
-        inboxBadge.classList.add("hidden");
-    }
-
-    // Render List
+    if (!inboxList) return;
+    
     if (messages.length === 0) {
-        inboxList.innerHTML = `<div class="p-8 text-center text-gray-500 text-xs italic">No messages yet</div>`;
+        inboxList.innerHTML = `
+            <div class="p-8 text-center text-gray-500">
+                <div class="text-4xl mb-2">📩</div>
+                <p class="text-sm">Your inbox is empty.</p>
+            </div>
+        `;
         return;
     }
 
     inboxList.innerHTML = messages.map(msg => `
-        <div class="message-item p-3 rounded-lg border border-gray-800 transition-all cursor-pointer hover:bg-gray-800/50 ${msg.read ? 'opacity-60' : 'bg-blue-900/10 border-blue-900/30'}" 
-             data-id="${msg.id}" 
-             data-read="${msg.read}">
+        <div class="p-4 border-b border-gray-800 hover:bg-gray-800/50 transition cursor-pointer ${!msg.read ? 'bg-blue-900/10' : ''}" 
+             onclick="markAsRead('${msg.id}')">
             <div class="flex justify-between items-start mb-1">
-                <span class="text-[10px] font-bold uppercase tracking-wider ${msg.read ? 'text-gray-500' : 'text-blue-400'}">
-                    ${msg.type || 'Notification'}
-                </span>
-                <span class="text-[9px] text-gray-600">
-                    ${msg.timestamp?.toDate().toLocaleDateString() || 'Recently'}
-                </span>
+                <span class="text-xs font-bold text-blue-400 uppercase tracking-widest">${msg.fromName || 'System'}</span>
+                <span class="text-[10px] text-gray-500">${formatTime(msg.timestamp)}</span>
             </div>
-            <div class="text-xs text-gray-200 leading-relaxed">${msg.text}</div>
-            ${!msg.read ? `<div class="mt-2 text-[9px] text-blue-500 font-bold uppercase">Click to dismiss</div>` : ''}
+            <p class="text-sm text-gray-200 leading-relaxed">${msg.text}</p>
         </div>
     `).join('');
-
-    // Add click-to-read listeners to individual messages
-    document.querySelectorAll('.message-item').forEach(item => {
-        item.onclick = async () => {
-            if (item.dataset.read === "false") {
-                const msgRef = doc(db, "messages", item.dataset.id);
-                await updateDoc(msgRef, { read: true });
-            }
-        };
-    });
 }
 
-// Global click listener to close dropdown when clicking outside
-document.addEventListener("click", () => {
-    if (inboxDropdown) inboxDropdown.classList.add("hidden");
-});
+/**
+ * Updates the global notification badge
+ */
+function updateUnreadCount(messages) {
+    const unread = messages.filter(m => !m.read).length;
+    if (msgCount) {
+        msgCount.textContent = unread;
+        msgCount.style.display = unread > 0 ? "flex" : "none";
+    }
+}
 
-if (inboxDropdown) {
-    inboxDropdown.onclick = (e) => e.stopPropagation();
+/**
+ * Marks a message as read in Firestore
+ */
+window.markAsRead = async (msgId) => {
+    try {
+        const msgRef = doc(db, "messages", msgId);
+        await updateDoc(msgRef, { read: true });
+    } catch (err) {
+        console.error("Error marking as read:", err);
+    }
+};
+
+/**
+ * Send Message Helper (System or Admin)
+ */
+export async function sendMessage(toUid, fromName, text) {
+    try {
+        await addDoc(collection(db, "messages"), {
+            to: toUid,
+            fromName: fromName,
+            text: text,
+            timestamp: serverTimestamp(),
+            read: false
+        });
+    } catch (err) {
+        console.error("Send Message Error:", err);
+    }
+}
+
+function formatTime(ts) {
+    if (!ts) return "";
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Auto-init if the container exists
+if (inboxList) {
+    initInbox();
 }
