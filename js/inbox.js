@@ -13,38 +13,40 @@ import {
     getDocs
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
-// DOM Elements from your index.html
-const notifBtn = document.getElementById("notifBtn");
-const notifBadge = document.getElementById("notifBadge");
-const inboxDropdown = document.getElementById("inboxDropdown");
-const inboxList = document.getElementById("inboxList");
-const markAllReadBtn = document.getElementById("markAllRead");
+/**
+ * NEW: Event Delegation Logic
+ * This handles the click globally so re-renders don't break the button.
+ */
+document.addEventListener("click", (e) => {
+    const notifBtn = document.getElementById("notifBtn");
+    const inboxDropdown = document.getElementById("inboxDropdown");
+
+    if (!notifBtn || !inboxDropdown) return;
+
+    // 1. Check if the user clicked the Bell button (or anything inside it)
+    if (notifBtn.contains(e.target)) {
+        e.stopPropagation();
+        inboxDropdown.classList.toggle("hidden");
+        return;
+    }
+
+    // 2. Check if the user clicked "Mark All Read"
+    if (e.target.id === "markAllRead") {
+        markAllAsRead();
+        return;
+    }
+
+    // 3. Close the menu if clicking outside of it
+    if (!inboxDropdown.contains(e.target)) {
+        inboxDropdown.classList.add("hidden");
+    }
+});
 
 export function initInbox() {
     onAuthStateChanged(auth, (user) => {
         if (!user) return;
 
-        // --- 1. UI TOGGLE LOGIC ---
-        if (notifBtn && inboxDropdown) {
-            notifBtn.onclick = (e) => {
-                e.stopPropagation(); // Stops the document click listener from closing it instantly
-                const isHidden = inboxDropdown.classList.contains("hidden");
-                
-                // Close all other potential dropdowns here if you have them
-                inboxDropdown.classList.toggle("hidden");
-                
-                console.log("Inbox toggled. Current state hidden:", !isHidden);
-            };
-
-            // Close when clicking outside
-            document.addEventListener("click", (e) => {
-                if (!inboxDropdown.contains(e.target) && e.target !== notifBtn) {
-                    inboxDropdown.classList.add("hidden");
-                }
-            });
-        }
-
-        // --- 2. DATA LISTENER ---
+        // --- DATA LISTENER ---
         const q = query(
             collection(db, "messages"),
             where("to", "==", user.uid),
@@ -60,30 +62,35 @@ export function initInbox() {
             renderInbox(messages);
             updateBadge(messages);
         });
-
-        // --- 3. MARK ALL AS READ LOGIC ---
-        if (markAllReadBtn) {
-            markAllReadBtn.onclick = async () => {
-                const qUnread = query(
-                    collection(db, "messages"),
-                    where("to", "==", user.uid),
-                    where("read", "==", false)
-                );
-                const querySnapshot = await getDocs(qUnread);
-                const batch = writeBatch(db);
-                querySnapshot.forEach((d) => {
-                    batch.update(d.ref, { read: true });
-                });
-                await batch.commit();
-            };
-        }
     });
 }
 
 /**
- * Renders the HTML inside the inboxList
+ * Handles marking everything as read
  */
+async function markAllAsRead() {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+        const qUnread = query(
+            collection(db, "messages"),
+            where("to", "==", user.uid),
+            where("read", "==", false)
+        );
+        const querySnapshot = await getDocs(qUnread);
+        const batch = writeBatch(db);
+        querySnapshot.forEach((d) => {
+            batch.update(d.ref, { read: true });
+        });
+        await batch.commit();
+    } catch (err) {
+        console.error("Error marking all read:", err);
+    }
+}
+
 function renderInbox(messages) {
+    const inboxList = document.getElementById("inboxList");
     if (!inboxList) return;
     
     if (messages.length === 0) {
@@ -103,16 +110,15 @@ function renderInbox(messages) {
     `).join('');
 }
 
-/**
- * Updates the red badge on the bell icon
- */
 function updateBadge(messages) {
+    const notifBadge = document.getElementById("notifBadge");
     const unreadCount = messages.filter(m => !m.read).length;
+    
     if (notifBadge) {
         if (unreadCount > 0) {
             notifBadge.textContent = unreadCount;
             notifBadge.classList.remove("hidden");
-            notifBadge.style.display = "block"; // Ensure Tailwind 'hidden' is overridden
+            notifBadge.style.display = "block";
         } else {
             notifBadge.classList.add("hidden");
             notifBadge.style.display = "none";
@@ -120,9 +126,6 @@ function updateBadge(messages) {
     }
 }
 
-/**
- * Global function for individual message clicks
- */
 window.markRead = async (msgId) => {
     try {
         const msgRef = doc(db, "messages", msgId);
@@ -132,5 +135,4 @@ window.markRead = async (msgId) => {
     }
 };
 
-// Start the module
 initInbox();
