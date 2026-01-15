@@ -8,7 +8,9 @@ import {
     query, 
     orderBy, 
     limit, 
-    increment 
+    increment,
+    addDoc,
+    serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // DOM Elements
@@ -18,6 +20,26 @@ const searchInput = document.getElementById("adminSearch");
 
 // Your Unique Admin ID
 const ADMIN_UID = "bnGhRvqW1YhvGek1JTLuAed6Ib63";
+
+/**
+ * NEW: Send Inbox Message Logic
+ */
+async function sendNotification(targetUid, title, message, type = "admin") {
+    try {
+        const notifRef = collection(db, "users", targetUid, "notifications");
+        await addDoc(notifRef, {
+            title: title,
+            message: message,
+            type: type, // 'credit', 'admin', 'system'
+            timestamp: serverTimestamp(),
+            read: false
+        });
+        return true;
+    } catch (error) {
+        console.error("Error sending notification:", error);
+        return false;
+    }
+}
 
 /**
  * Authorization & Initial Load
@@ -33,10 +55,6 @@ async function initAdmin() {
     });
 }
 
-/**
- * Helper: Reward Logic
- * Rank 1 = 100, Rank 2 = 90 ... Rank 10 = 10
- */
 function getRewardAmount(rank) {
     if (rank > 10) return 0;
     return 110 - (rank * 10);
@@ -45,20 +63,21 @@ function getRewardAmount(rank) {
 /**
  * THE BIG ACTION: 
  * 1. Distributes Credits to Top 10
- * 2. Resets Weekly Minutes for Everyone
+ * 2. Sends Inbox Notifications for the reward
+ * 3. Resets Weekly Minutes for Everyone
  */
 resetBtn.onclick = async () => {
     const confirmAction = confirm(
         "🚨 CRITICAL ACTION 🚨\n\n" +
         "This will:\n" +
-        "1. Give bonus credits to the Top 10 (1st: 100, 2nd: 90, etc.)\n" +
-        "2. Clear all 'This Week' minutes for every student.\n\n" +
+        "1. Give bonus credits to the Top 10\n" +
+        "2. Send an Inbox message to winners\n" +
+        "3. Clear all 'This Week' minutes.\n\n" +
         "Do you want to proceed?"
     );
 
     if (!confirmAction) return;
 
-    // UI Feedback: Disable button
     resetBtn.disabled = true;
     const originalText = resetBtn.innerHTML;
     resetBtn.innerHTML = `⏳ Processing Rewards...`;
@@ -72,49 +91,52 @@ resetBtn.onclick = async () => {
         );
         const topSnap = await getDocs(topQuery);
         
-        const rewardPromises = [];
+        const batchPromises = [];
         let rank = 1;
 
-        topSnap.forEach((userDoc) => {
+        for (const userDoc of topSnap.docs) {
             const userData = userDoc.data();
-            // Only reward if they actually played (minutes > 0)
             if ((userData.weekMinutes || 0) > 0) {
                 const reward = getRewardAmount(rank);
                 const userRef = doc(db, "users", userDoc.id);
                 
-                console.log(`Rewarding Rank ${rank} (${userData.email}): +${reward} 🪙`);
-                
-                rewardPromises.push(updateDoc(userRef, {
+                // Update Credits
+                batchPromises.push(updateDoc(userRef, {
                     credits: increment(reward),
                     totalEarned: increment(reward)
                 }));
+
+                // Send Inbox Notification
+                batchPromises.push(sendNotification(
+                    userDoc.id, 
+                    "🏆 Leaderboard Reward!", 
+                    `Congratulations! You finished Rank #${rank} this week and earned ${reward} credits.`, 
+                    "credit"
+                ));
+                
                 rank++;
             }
-        });
+        }
 
-        // Run all reward updates
-        await Promise.all(rewardPromises);
-        console.log("✅ Rewards distributed.");
+        await Promise.all(batchPromises);
 
-        // --- STEP 2: Global Reset of Weekly Minutes ---
+        // --- STEP 2: Global Reset ---
         resetBtn.innerHTML = `🧹 Resetting Leaderboard...`;
-        
         const allUsersSnap = await getDocs(collection(db, "users"));
         const resetPromises = allUsersSnap.docs.map(userDoc => {
             return updateDoc(doc(db, "users", userDoc.id), { weekMinutes: 0 });
         });
 
         await Promise.all(resetPromises);
-        
-        alert(`Success! Distributed rewards to ${rank - 1} students and reset the leaderboard.`);
+        alert(`Success! Distributed rewards and reset minutes.`);
 
     } catch (error) {
         console.error("Critical Reset Error:", error);
-        alert("An error occurred. Check the console for details.");
+        alert("An error occurred.");
     } finally {
         resetBtn.disabled = false;
         resetBtn.innerHTML = originalText;
-        loadAllUsers(); // Refresh the table
+        loadAllUsers(); 
     }
 };
 
@@ -122,16 +144,7 @@ resetBtn.onclick = async () => {
  * UI: Fetch and Render User List
  */
 async function loadAllUsers() {
-    userListEl.innerHTML = `
-        <tr>
-            <td colspan="6" class="p-10 text-center">
-                <div class="flex flex-col items-center gap-2">
-                    <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span class="text-xs text-slate-500 uppercase font-bold tracking-widest">Refreshing Students...</span>
-                </div>
-            </td>
-        </tr>
-    `;
+    userListEl.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-white">Loading Students...</td></tr>`;
 
     try {
         const querySnapshot = await getDocs(collection(db, "users"));
@@ -150,7 +163,11 @@ async function loadAllUsers() {
                 <td class="p-4 text-slate-400 font-medium">${u.grade || 'N/A'}</td>
                 <td class="p-4 text-emerald-400 font-mono font-bold">${u.credits || 0}</td>
                 <td class="p-4 font-mono text-blue-400 font-bold">${u.weekMinutes || 0}m</td>
-                <td class="p-4 text-right">
+                <td class="p-4 text-right flex gap-2 justify-end">
+                    <button class="msg-user-btn bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
+                            data-id="${userDoc.id}" data-name="${u.firstName}">
+                        Message
+                    </button>
                     <button class="del-user-btn bg-red-900/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
                             data-id="${userDoc.id}">
                         Delete
@@ -160,20 +177,32 @@ async function loadAllUsers() {
             userListEl.appendChild(row);
         });
 
-        // Re-attach delete listeners
+        // Attach Message listeners
+        document.querySelectorAll(".msg-user-btn").forEach(btn => {
+            btn.onclick = () => manualNotify(btn.dataset.id, btn.dataset.name);
+        });
+
+        // Attach delete listeners
         document.querySelectorAll(".del-user-btn").forEach(btn => {
             btn.onclick = () => deleteUserAccount(btn.dataset.id);
         });
 
     } catch (err) {
-        console.error("Load All Users Error:", err);
-        userListEl.innerHTML = `<tr><td colspan="6" class="p-10 text-red-500 text-center font-bold">Access Denied. Check Firestore Rules.</td></tr>`;
+        console.error("Load Error:", err);
     }
 }
 
 /**
- * Live Search Filter
+ * Manual Message Trigger
  */
+async function manualNotify(userId, userName) {
+    const msg = prompt(`Send an inbox message to ${userName}:`);
+    if (!msg) return;
+
+    const success = await sendNotification(userId, "Admin Message", msg, "admin");
+    if (success) alert("Message delivered!");
+}
+
 if (searchInput) {
     searchInput.oninput = (e) => {
         const term = e.target.value.toLowerCase();
@@ -185,20 +214,15 @@ if (searchInput) {
     };
 }
 
-/**
- * Permanently Delete Student Data
- */
 async function deleteUserAccount(userId) {
-    if (confirm("🚨 WARNING: Delete this student's data permanently? This action is irreversible.")) {
+    if (confirm("🚨 WARNING: Delete permanently?")) {
         try {
             await deleteDoc(doc(db, "users", userId));
             loadAllUsers();
         } catch (err) {
-            console.error("Delete failed:", err);
-            alert("Permission denied. Could not delete user.");
+            alert("Delete failed.");
         }
     }
 }
 
-// Start Admin Check
 initAdmin();
