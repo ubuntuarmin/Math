@@ -1,101 +1,123 @@
-import { db, auth } from "./firebase.js";
-import { collection, query, orderBy, onSnapshot, limit } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { db } from "./firebase.js";
+import { 
+    collection, 
+    query, 
+    where, 
+    onSnapshot, 
+    orderBy, 
+    doc, 
+    updateDoc, 
+    writeBatch 
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
+const inboxBtn = document.getElementById("inboxBtn");
+const inboxBadge = document.getElementById("inboxBadge");
+const inboxDropdown = document.getElementById("inboxDropdown");
+const inboxList = document.getElementById("inboxList");
+const markAllReadBtn = document.getElementById("markAllRead");
+
+let currentUserId = null;
+
+/**
+ * Initializes the real-time inbox listener for a specific user
+ */
 export function initInbox(uid) {
-    const notifList = document.getElementById("notifList");
-    const notifBadge = document.getElementById("notifBadge");
-    const dropdown = document.getElementById("notifDropdown");
-    const btn = document.getElementById("notifBtn");
+    if (!uid) return;
+    currentUserId = uid;
 
-    if (!btn || !dropdown) return;
-
-    // --- APPLY INLINE STYLES (Replaces CSS) ---
-    // Badge Style
-    Object.assign(notifBadge.style, {
-        position: 'absolute',
-        top: '-5px',
-        right: '-5px',
-        backgroundColor: '#ef4444',
-        color: 'white',
-        fontSize: '10px',
-        padding: '2px 6px',
-        borderRadius: '50%',
-        border: '2px solid white',
-        display: 'none' // Hidden by default
-    });
-
-    // Dropdown Container Style
-    Object.assign(dropdown.style, {
-        position: 'absolute',
-        right: '0',
-        top: '50px',
-        width: '300px',
-        backgroundColor: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-        border: '1px solid #e2e8f0',
-        padding: '15px',
-        zIndex: '9999',
-        display: 'none', // Hidden by default
-        maxHeight: '400px',
-        overflowY: 'auto',
-        color: '#1e293b',
-        textAlign: 'left'
-    });
-
+    const messagesRef = collection(db, "messages");
     const q = query(
-        collection(db, "users", uid, "notifications"),
-        orderBy("timestamp", "desc"),
-        limit(20)
+        messagesRef, 
+        where("recipientId", "==", uid), 
+        orderBy("timestamp", "desc")
     );
 
+    // Listen for real-time updates
     onSnapshot(q, (snapshot) => {
-        let unreadCount = 0;
-        notifList.innerHTML = "";
+        const messages = [];
+        snapshot.forEach(doc => messages.push({ id: doc.id, ...doc.data() }));
+        renderInbox(messages);
+    });
 
-        if (snapshot.empty) {
-            notifList.innerHTML = `<div style="text-align:center; padding:20px; color:#94a3b8;">No messages yet</div>`;
-            notifBadge.style.display = 'none';
-            return;
-        }
+    // Toggle dropdown visibility
+    if (inboxBtn && inboxDropdown) {
+        inboxBtn.onclick = (e) => {
+            e.stopPropagation();
+            inboxDropdown.classList.toggle("hidden");
+        };
+    }
 
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (!data.read) unreadCount++;
+    // Mark all as read logic
+    if (markAllReadBtn) {
+        markAllReadBtn.onclick = async () => {
+            const unreadDocs = document.querySelectorAll('.message-item[data-read="false"]');
+            if (unreadDocs.length === 0) return;
 
-            const item = document.createElement("div");
-            Object.assign(item.style, {
-                padding: '12px',
-                borderBottom: '1px solid #f1f5f9',
-                borderLeft: data.read ? 'none' : '4px solid #6366f1',
-                backgroundColor: data.read ? 'transparent' : '#f8fafc'
+            const batch = writeBatch(db);
+            unreadDocs.forEach(el => {
+                const ref = doc(db, "messages", el.dataset.id);
+                batch.update(ref, { read: true });
             });
+            await batch.commit();
+        };
+    }
+}
 
-            item.innerHTML = `
-                <div style="font-weight:600; font-size:14px;">${data.title}</div>
-                <div style="font-size:13px; color:#475569;">${data.message}</div>
-                <div style="font-size:10px; color:#94a3b8; margin-top:4px;">${data.timestamp?.toDate().toLocaleTimeString() || 'Just now'}</div>
-            `;
-            notifList.appendChild(item);
-        });
+/**
+ * Renders the messages into the UI
+ */
+function renderInbox(messages) {
+    if (!inboxList || !inboxBadge) return;
 
-        if (unreadCount > 0) {
-            notifBadge.textContent = unreadCount;
-            notifBadge.style.display = 'block';
-        } else {
-            notifBadge.style.display = 'none';
-        }
+    const unreadCount = messages.filter(m => !m.read).length;
+
+    // Update Badge
+    if (unreadCount > 0) {
+        inboxBadge.textContent = unreadCount;
+        inboxBadge.classList.remove("hidden");
+    } else {
+        inboxBadge.classList.add("hidden");
+    }
+
+    // Render List
+    if (messages.length === 0) {
+        inboxList.innerHTML = `<div class="p-8 text-center text-gray-500 text-xs italic">No messages yet</div>`;
+        return;
+    }
+
+    inboxList.innerHTML = messages.map(msg => `
+        <div class="message-item p-3 rounded-lg border border-gray-800 transition-all cursor-pointer hover:bg-gray-800/50 ${msg.read ? 'opacity-60' : 'bg-blue-900/10 border-blue-900/30'}" 
+             data-id="${msg.id}" 
+             data-read="${msg.read}">
+            <div class="flex justify-between items-start mb-1">
+                <span class="text-[10px] font-bold uppercase tracking-wider ${msg.read ? 'text-gray-500' : 'text-blue-400'}">
+                    ${msg.type || 'Notification'}
+                </span>
+                <span class="text-[9px] text-gray-600">
+                    ${msg.timestamp?.toDate().toLocaleDateString() || 'Recently'}
+                </span>
+            </div>
+            <div class="text-xs text-gray-200 leading-relaxed">${msg.text}</div>
+            ${!msg.read ? `<div class="mt-2 text-[9px] text-blue-500 font-bold uppercase">Click to dismiss</div>` : ''}
+        </div>
+    `).join('');
+
+    // Add click-to-read listeners to individual messages
+    document.querySelectorAll('.message-item').forEach(item => {
+        item.onclick = async () => {
+            if (item.dataset.read === "false") {
+                const msgRef = doc(db, "messages", item.dataset.id);
+                await updateDoc(msgRef, { read: true });
+            }
+        };
     });
+}
 
-    // --- TOGGLE LOGIC ---
-    btn.onclick = (e) => {
-        e.stopPropagation();
-        const isHidden = dropdown.style.display === 'none';
-        dropdown.style.display = isHidden ? 'block' : 'none';
-    };
+// Global click listener to close dropdown when clicking outside
+document.addEventListener("click", () => {
+    if (inboxDropdown) inboxDropdown.classList.add("hidden");
+});
 
-    // Close if clicking anywhere else
-    document.addEventListener('click', () => {
-        dropdown.style.display = 'none';
-    });
+if (inboxDropdown) {
+    inboxDropdown.onclick = (e) => e.stopPropagation();
 }
