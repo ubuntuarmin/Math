@@ -68,7 +68,8 @@
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
         /* --- INBOX STYLES --- */
-        #inboxBadge {
+        .notification-wrapper { position: relative; }
+        #notifBadge {
             position: absolute;
             top: -2px;
             right: -2px;
@@ -79,6 +80,44 @@
             border-radius: 999px;
             border: 2px solid #1f2937;
             font-weight: bold;
+        }
+        #notifDropdown {
+            position: absolute;
+            right: 0;
+            top: 50px;
+            width: 300px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            padding: 12px;
+            z-index: 100;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #notifDropdown h3 {
+            font-weight: bold;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+        .notif-item {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            transition: background 0.2s;
+            font-size: 13px;
+        }
+        .notif-item.unread {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 3px solid #3b82f6;
+        }
+        .notif-item:hover {
+            background: rgba(255, 255, 255, 0.05);
         }
     </style>
     <script>
@@ -110,23 +149,27 @@
             <button type="button" onclick="navigate('leaderboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Leaderboard</button>
             <button type="button" onclick="navigate('account')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Account</button>
             
-            <div class="relative">
-                <button id="inboxBtn" class="p-2 hover:bg-gray-700 rounded-full transition relative flex items-center justify-center">
+            <div class="notification-wrapper relative">
+                <button id="notifBtn" class="p-2 hover:bg-gray-700 rounded-full transition relative flex items-center justify-center">
                     <span class="text-lg">🔔</span>
-                    <span id="inboxBadge" class="hidden">0</span>
+                    <span id="notifBadge" class="hidden">0</span>
                 </button>
-                
-                <div id="inboxDropdown" class="hidden absolute right-0 top-12 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-                    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
-                        <h3 class="font-bold text-white text-sm">Notifications</h3>
-                        <button id="markAllRead" class="text-[10px] text-blue-400 hover:underline uppercase font-bold">Mark all read</button>
-                    </div>
-                    <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
-                        <div class="text-center py-8 text-gray-500 text-sm italic">Loading...</div>
+                <div id="notifDropdown" class="hidden">
+                    <h3>Inbox</h3>
+                    <div id="notifList">
+                        <p class="text-xs text-gray-500 text-center py-4">No new messages</p>
                     </div>
                 </div>
             </div>
-
+<div id="inboxDropdown" class="hidden absolute right-4 top-16 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
+        <h3 class="font-bold text-white">Notifications</h3>
+        <button id="markAllRead" class="text-[10px] text-blue-400 hover:underline uppercase font-bold">Mark all as read</button>
+    </div>
+    <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
+        <div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>
+    </div>
+</div>
             <a href="tutoring.html" class="bg-blue-600/20 hover:bg-blue-600 px-3 py-1 rounded transition border border-blue-500/50 text-sm font-bold whitespace-nowrap">
                 Chat
             </a>
@@ -159,7 +202,10 @@
         <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
             <div class="flex items-center gap-4">
                 <div class="token-spin text-4xl">🪙</div>
-                <div><div class="font-semibold text-lg">Next Reward</div><div id="nextReward" class="text-green-400 text-sm font-mono uppercase"></div></div>
+                <div>
+                    <div class="font-semibold text-lg">Next Reward</div>
+                    <div id="nextReward" class="text-green-400 text-sm font-mono uppercase"></div>
+                </div>
             </div>
         </div>
         <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
@@ -209,17 +255,53 @@
     </section>
 </main>
 
-<div id="loginModal" class="hidden"><div class="panel">...</div></div>
-<div id="onboardModal" class="hidden"><div class="panel">...</div></div>
-<div id="welcomeOverlay"><div class="welcome-full">...</div></div>
+<div id="loginModal" class="hidden">
+    <div class="panel">
+        <h3 class="text-lg font-bold text-center mb-4 text-blue-400">Katy Math</h3>
+        <div id="loginError" class="text-red-400 text-xs mb-2 text-center"></div>
+        <input id="email" type="email" placeholder="Email" />
+        <input id="password" type="password" placeholder="Password" />
+        <input id="referralCodeInput" type="text" placeholder="Referral code (optional)" />
+        <div class="grid grid-cols-2 gap-2 mt-2">
+            <button id="signInBtn" type="button" class="bg-blue-600 py-2 rounded font-bold hover:bg-blue-500">Sign In</button>
+            <button id="signUpBtn" type="button" class="bg-green-600 py-2 rounded font-bold hover:bg-green-500">Sign Up</button>
+        </div>
+    </div>
+</div>
+
+<div id="onboardModal" class="hidden">
+    <div class="panel">
+        <h3 class="text-lg font-bold mb-4">Welcome!</h3>
+        <input id="onboardFirst" type="text" placeholder="First name" />
+        <input id="onboardLast" type="text" placeholder="Last name" />
+        <select id="onboardGrade" class="mt-2 w-full bg-gray-900 text-white p-2 rounded border border-gray-700">
+            <option value="">Select Grade</option>
+            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+            <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+            <option>11</option><option>12</option>
+        </select>
+        <button id="onboardSave" type="button" class="bg-blue-600 w-full py-2 rounded mt-4 font-bold">Save & Continue</button>
+    </div>
+</div>
+
+<div id="welcomeOverlay">
+    <div class="welcome-full">
+        <div class="welcome-card" id="welcomeCard">
+            <div class="welcome-logo" id="welcomeLogo">✨</div>
+            <div>
+                <div id="welcomeTitle" class="text-3xl font-bold">Welcome</div>
+                <div id="welcomeSub" class="text-lg opacity-90 mt-1">Ready to earn some credits?</div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script type="module" src="./js/firebase.js"></script>
 <script type="module" src="./js/utils.js"></script>
 <script type="module" src="./js/login.js"></script>
 <script type="module" src="./js/onboarding.js"></script>
 <script type="module" src="./js/auth.js"></script>
-<script type="module" src="./js/inbox.js"></script> 
-<script type="module" src="./js/dashboard.js"></script>
+<script type="module" src="./js/inbox.js"></script> <script type="module" src="./js/dashboard.js"></script>
 <script type="module" src="./js/tokens.js"></script>
 <script type="module" src="./js/leaderboard.js"></script>
 <script type="module" src="./js/account.js"></script>
