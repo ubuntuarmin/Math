@@ -1,6 +1,5 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-// Added 'setDoc' to the imports below
 import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // UI modules
@@ -12,6 +11,7 @@ import { showLogin, hideLogin } from "./login.js";
 import { showWelcome } from "./welcome.js";
 import { showOnboarding } from "./onboarding.js";
 import { calculateTier } from "./tier.js";
+import { initInbox } from "./inbox.js"; // <--- ADDED INBOX IMPORT
 
 const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
@@ -95,20 +95,18 @@ onAuthStateChanged(auth, async user => {
         // --- FIXED SECTION: SELF-HEALING LOGIC ---
         if (!snap.exists()) {
             if (sessionStorage.getItem("justSignedUp")) {
-                // If they just signed up, wait for login.js to finish
                 return;
             }
 
             console.warn("Profile missing. Attempting auto-repair...");
             
-            // Create a default profile to fix the "Ghost Account"
             const defaultData = {
                 uid: user.uid,
                 email: user.email,
-                firstName: "Student", // Default name
+                firstName: "Student", 
                 lastName: "",
                 grade: "",
-                credits: 20,          // Default credits
+                credits: 20,          
                 totalEarned: 20,
                 totalMinutes: 0,
                 weekMinutes: 0,
@@ -123,16 +121,17 @@ onAuthStateChanged(auth, async user => {
 
             try {
                 await setDoc(userRef, defaultData);
-                snap = await getDoc(userRef); // Fetch the new data
+                snap = await getDoc(userRef); 
                 console.log("Account repaired successfully.");
             } catch (createErr) {
                 console.error("Repair failed:", createErr);
-                // Only log out if we truly cannot fix it
                 await signOut(auth);
                 return;
             }
         }
-        // ----------------------------------------
+
+        // --- INITIALIZE INBOX ---
+        initInbox(user.uid); // <--- ADDED CALL
 
         hideLogin();
         header?.classList.remove("hidden");
