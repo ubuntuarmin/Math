@@ -36,8 +36,9 @@
             <span class="badge">Admin Console</span>
             <h1>Students & Leaderboard</h1>
             <p class="text-sm text-gray-400 max-w-xl">
-              Manage users, reset the weekly leaderboard, and review suggestions
-              from students. Only the configured admin account can access this page.
+              Manage users, reset the weekly leaderboard, and review suggestions,
+              link submissions, and activity from students. Only the configured
+              admin account can access this page.
             </p>
           </div>
           <div class="flex flex-col items-start md:items-end gap-2">
@@ -111,7 +112,7 @@
             </div>
           </header>
 
-          <div class="table-wrapper">
+          <div class="table-wrapper mb-10">
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-gray-900/70 text-xs text-slate-400 uppercase tracking-widest">
@@ -126,6 +127,45 @@
                 <tr>
                   <td colspan="5" class="p-6 text-center text-slate-400 text-sm">
                     Loading suggestions...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- LINK SUBMISSIONS SECTION -->
+        <section class="mt-8">
+          <header class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div class="text-xs text-gray-400 uppercase tracking-[0.16em] font-bold">
+                Link Submissions
+              </div>
+              <p class="text-xs text-gray-500 max-w-xl">
+                Students can submit resource links from the Suggestions page. Approving a link
+                and adding it to your system should reward the student with
+                <span class="font-semibold text-emerald-300">150 credits</span>.
+              </p>
+            </div>
+            <div class="text-[10px] text-gray-500 italic">
+              Tip: Only approve links that are safe, school-appropriate, and useful for math.
+            </div>
+          </header>
+
+          <div class="table-wrapper">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-900/70 text-xs text-slate-400 uppercase tracking-widest">
+                  <th class="p-3 text-left">Link</th>
+                  <th class="p-3 text-left">User</th>
+                  <th class="p-3 text-left">Status</th>
+                  <th class="p-3 text-right">Review</th>
+                </tr>
+              </thead>
+              <tbody id="linkSubmissionList">
+                <tr>
+                  <td colspan="4" class="p-6 text-center text-slate-400 text-sm">
+                    Loading link submissions...
                   </td>
                 </tr>
               </tbody>
