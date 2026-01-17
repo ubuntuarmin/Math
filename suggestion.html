@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Suggestions | Katy Math</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page">
+  <!-- Top header reused (simpler version): brand + back -->
+  <header class="site-header">
+    <nav class="navbar">
+      <a href="index.html" class="navbar-brand">
+        <span class="navbar-brand-logo"></span>
+        <span>Katy Math</span>
+      </a>
+      <a href="index.html" class="btn-outline text-xs">
+        ← Back to Dashboard
+      </a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="container">
+      <section class="surface">
+        <header class="mb-6">
+          <span class="badge">Feedback</span>
+          <h1>Leave a Suggestion</h1>
+          <p>
+            Share ideas for new features or report bugs. Each suggestion costs
+            <strong>20 credits</strong> to submit. If your suggestion is helpful,
+            the admin can refund your 20 credits and even give you a bonus.
+          </p>
+        </header>
+
+        <form id="suggestionForm" class="space-y-4 max-w-xl">
+          <div>
+            <label for="suggestionType">Type</label>
+            <select id="suggestionType" class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1">
+              <option value="feature">Feature Request</option>
+              <option value="bug">Bug Report</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="suggestionTitle">Title</label>
+            <input
+              id="suggestionTitle"
+              type="text"
+              placeholder="Short summary (e.g. 'Add dark mode toggle')"
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1"
+            />
+          </div>
+
+          <div>
+            <label for="suggestionText">Details</label>
+            <textarea
+              id="suggestionText"
+              rows="5"
+              placeholder="Describe the idea or bug in detail..."
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1"
+            ></textarea>
+          </div>
+
+          <p class="text-xs text-gray-400">
+            Submitting a suggestion will temporarily deduct
+            <span class="text-emerald-400 font-bold">20 credits</span> from your account.
+            If the suggestion is accepted, you will be refunded and will most likley receive bonus credits.
+          </p>
+
+          <div id="suggestionError" class="text-xs text-red-400"></div>
+          <div id="suggestionSuccess" class="text-xs text-emerald-400"></div>
+
+          <button
+            id="suggestionSubmit"
+            type="submit"
+            class="btn"
+          >
+            Submit Suggestion (‑20 credits)
+          </button>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <span>© 2026 Katy Math</span>
+    </div>
+  </footer>
+
+  <!-- Firebase + auth context needed -->
+  <script type="module" src="./js/firebase.js"></script>
+  <script type="module" src="./js/auth.js"></script>
+  <script type="module" src="./js/suggestions.js"></script>
+</body>
+</html>
