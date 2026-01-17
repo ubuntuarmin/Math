@@ -1,312 +1,377 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Katy Math</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Spinning token */
-        .token-spin { animation: spin 3s linear infinite; }
-        @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Katy Math</title>
 
-        /* Loader */
-        .loader { width:64px; height:64px; border-radius:50%; border:6px solid #1f2937; border-top:6px solid #22c55e; animation: spin 1s linear infinite; }
+  <!-- Tailwind (kept, since your JS uses the classes) -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-        /* Pulse effect */
-        .pulse { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
+  <!-- New global modern stylesheet -->
+  <link rel="stylesheet" href="style.css">
 
-        /* Login modal */
-        #loginModal { position:fixed; inset:0; z-index:50; }
-        #loginModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); }
-        #loginModal .panel { width:320px; background:#0f172a; padding:18px; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); border: 1px solid #1f2937; }
-        #loginModal input { width:100%; margin-top:8px; padding:8px; background:#0b1220; border:1px solid #1f2937; color:#e5e7eb; border-radius:6px; outline: none; }
-        #loginModal input:focus { border-color: #3b82f6; }
-        #loginModal button { margin-top:12px; width:100%; }
+  <style>
+    /* Spinning token */
+    .token-spin { animation: spin 3s linear infinite; }
+    @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
 
-        /* Fullscreen welcome overlay */
-        #welcomeOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index:60; pointer-events:none; }
-        #welcomeOverlay.show { display:flex; pointer-events:auto; }
-        .welcome-full {
-            width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-            background: linear-gradient(180deg, rgba(2,6,23,0.95), rgba(2,6,23,0.85));
-            backdrop-filter: blur(6px);
-        }
-        .welcome-card {
-            background: linear-gradient(135deg,#0ea5a4,#7c3aed);
-            color:white; padding:30px 36px; border-radius:18px; box-shadow:0 20px 60px rgba(2,6,23,0.7);
-            transform: translateY(20px) scale(.96); opacity: 0; display:flex; gap:18px; align-items:center;
-            max-width:920px; width:90%;
-        }
-        .welcome-logo { width:88px; height:88px; border-radius:16px; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:36px; transform-origin:center; }
-        
-        @keyframes welcome-pop {
-            0% { transform: translateY(30px) scale(.94); opacity:0; }
-            60% { transform: translateY(-8px) scale(1.03); opacity:1; }
-            100% { transform: translateY(0) scale(1); opacity:1; }
-        }
-        @keyframes logo-bounce {
-            0% { transform: translateY(0) rotate(-6deg) }
-            50% { transform: translateY(-6px) rotate(8deg) }
-            100% { transform: translateY(0) rotate(0deg) }
-        }
-        .welcome-card.animate { animation: welcome-pop 700ms cubic-bezier(.2,.9,.3,1) forwards; }
-        .welcome-logo.animate { animation: logo-bounce 900ms cubic-bezier(.2,.9,.3,1) forwards; }
+    /* Loader */
+    .loader { width:64px; height:64px; border-radius:50%; border:6px solid #1f2937; border-top:6px solid #22c55e; animation: spin 1s linear infinite; }
 
-        /* Onboarding modal */
-        #onboardModal { position:fixed; inset:0; z-index:70; }
-        #onboardModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); }
-        #onboardModal .panel { width:420px; background:#071024; padding:20px; border-radius:12px; color:#e6eef8; border: 1px solid #1f2937; }
+    /* Pulse effect */
+    .pulse { animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
 
-        /* daily streak interactive styles */
-        .day-card { transition: transform .14s ease, box-shadow .14s ease; cursor: pointer; }
-        .day-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(2,6,23,0.6); }
-        
-        /* Custom Scrollbar for Header */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Login modal */
+    #loginModal { position:fixed; inset:0; z-index:50; }
+    #loginModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); }
+    #loginModal .panel { width:320px; background:#0f172a; padding:18px; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); border: 1px solid #1f2937; }
+    #loginModal input { width:100%; margin-top:8px; padding:8px; background:#0b1220; border:1px solid #1f2937; color:#e5e7eb; border-radius:6px; outline: none; }
+    #loginModal input:focus { border-color: #3b82f6; }
+    #loginModal button { margin-top:12px; width:100%; }
 
-        /* --- INBOX STYLES --- */
-        .notification-wrapper { position: relative; }
-        #notifBadge {
-            position: absolute;
-            top: -2px;
-            right: -2px;
-            background: #ef4444;
-            color: white;
-            font-size: 10px;
-            padding: 1px 5px;
-            border-radius: 999px;
-            border: 2px solid #1f2937;
-            font-weight: bold;
-        }
-        #notifDropdown {
-            position: absolute;
-            right: 0;
-            top: 50px;
-            width: 300px;
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 12px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-            padding: 12px;
-            z-index: 100;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        #notifDropdown h3 {
-            font-weight: bold;
-            border-bottom: 1px solid #334155;
-            padding-bottom: 8px;
-            margin-bottom: 8px;
-            color: #94a3b8;
-            text-transform: uppercase;
-            font-size: 11px;
-            letter-spacing: 0.05em;
-        }
-        .notif-item {
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 4px;
-            transition: background 0.2s;
-            font-size: 13px;
-        }
-        .notif-item.unread {
-            background: rgba(59, 130, 246, 0.1);
-            border-left: 3px solid #3b82f6;
-        }
-        .notif-item:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-    </style>
-    <script>
-        (function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const ref = urlParams.get('ref');
-            if (ref) {
-                localStorage.setItem('pendingReferral', ref);
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        })();
-    </script>
+    /* Fullscreen welcome overlay */
+    #welcomeOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index:60; pointer-events:none; }
+    #welcomeOverlay.show { display:flex; pointer-events:auto; }
+    .welcome-full {
+      width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+      background: linear-gradient(180deg, rgba(2,6,23,0.95), rgba(2,6,23,0.85));
+      backdrop-filter: blur(6px);
+    }
+    .welcome-card {
+      background: linear-gradient(135deg,#0ea5a4,#7c3aed);
+      color:white; padding:30px 36px; border-radius:18px; box-shadow:0 20px 60px rgba(2,6,23,0.7);
+      transform: translateY(20px) scale(.96); opacity: 0; display:flex; gap:18px; align-items:center;
+      max-width:920px; width:90%;
+    }
+    .welcome-logo {
+      width:88px; height:88px; border-radius:16px; background:rgba(255,255,255,.12); display:flex;
+      align-items:center; justify-content:center; font-size:36px; transform-origin:center;
+    }
+
+    @keyframes welcome-pop {
+      0% { transform: translateY(30px) scale(.94); opacity:0; }
+      60% { transform: translateY(-8px) scale(1.03); opacity:1; }
+      100% { transform: translateY(0) scale(1); opacity:1; }
+    }
+    @keyframes logo-bounce {
+      0% { transform: translateY(0) rotate(-6deg) }
+      50% { transform: translateY(-6px) rotate(8deg) }
+      100% { transform: translateY(0) rotate(0deg) }
+    }
+    .welcome-card.animate { animation: welcome-pop 700ms cubic-bezier(.2,.9,.3,1) forwards; }
+    .welcome-logo.animate { animation: logo-bounce 900ms cubic-bezier(.2,.9,.3,1) forwards; }
+
+    /* Onboarding modal */
+    #onboardModal { position:fixed; inset:0; z-index:70; }
+    #onboardModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); }
+    #onboardModal .panel { width:420px; background:#071024; padding:20px; border-radius:12px; color:#e6eef8; border: 1px solid #1f2937; }
+
+    /* daily streak interactive styles */
+    .day-card { transition: transform .14s ease, box-shadow .14s ease; cursor: pointer; }
+    .day-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(2,6,23,0.6); }
+
+    /* Custom Scrollbar for Header */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* --- INBOX STYLES --- */
+    .notification-wrapper { position: relative; }
+    #notifBadge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      background: #ef4444;
+      color: white;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 999px;
+      border: 2px solid #1f2937;
+      font-weight: bold;
+    }
+    #notifDropdown {
+      position: absolute;
+      right: 0;
+      top: 50px;
+      width: 300px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+      padding: 12px;
+      z-index: 100;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    #notifDropdown h3 {
+      font-weight: bold;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+    .notif-item {
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      transition: background 0.2s;
+      font-size: 13px;
+    }
+    .notif-item.unread {
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 3px solid #3b82f6;
+    }
+    .notif-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+  </style>
+
+  <script>
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ref = urlParams.get('ref');
+      if (ref) {
+        localStorage.setItem('pendingReferral', ref);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    })();
+  </script>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+<body class="page">
 
-<header id="header" class="hidden fixed top-0 w-full bg-gray-800 z-40 shadow-lg border-b border-gray-700">
-    <div class="max-w-6xl mx-auto flex justify-between items-center p-4">
-        <div class="flex items-center gap-4 shrink-0">
-            <div class="flex items-center gap-2 bg-gray-900 px-3 py-1 rounded-full border border-gray-700">
-                <div class="token-spin text-xl">🪙</div>
-                <span id="creditCount" class="font-bold">0</span>
-            </div>
-            <button id="tierBtn" type="button" class="text-xs text-blue-400 underline decoration-dotted uppercase tracking-tighter">Tier: <span id="tierLabel">Basic</span></button>
+  <!-- Modern global header using style.css, but preserving your IDs/buttons -->
+  <header id="header" class="site-header hidden">
+    <nav class="navbar">
+      <a href="index.html" class="navbar-brand">
+        <span class="navbar-brand-logo"></span>
+        <span>Katy Math</span>
+      </a>
+
+      <button class="nav-toggle" type="button">Menu</button>
+
+      <div class="navbar-nav">
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 bg-gray-900 px-3 py-1 rounded-full border border-gray-700">
+            <div class="token-spin text-xl">🪙</div>
+            <span id="creditCount" class="font-bold">0</span>
+          </div>
+          <button id="tierBtn" type="button" class="text-xs text-blue-400 underline decoration-dotted uppercase tracking-tighter">
+            Tier: <span id="tierLabel">Basic</span>
+          </button>
         </div>
 
-        <nav class="flex gap-4 items-center overflow-x-auto no-scrollbar ml-4">
-            <button type="button" onclick="navigate('dashboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Dashboard</button>
-            <button type="button" onclick="navigate('tokens')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Tokens</button>
-            <button type="button" onclick="navigate('leaderboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Leaderboard</button>
-            <button type="button" onclick="navigate('account')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">Account</button>
-            
-            <div class="notification-wrapper relative">
-                <button id="notifBtn" class="p-2 hover:bg-gray-700 rounded-full transition relative flex items-center justify-center">
-                    <span class="text-lg">🔔</span>
-                    <span id="notifBadge" class="hidden">0</span>
-                </button>
-                <div id="notifDropdown" class="hidden">
-                    <h3>Inbox</h3>
-                    <div id="notifList">
-                        <p class="text-xs text-gray-500 text-center py-4">No new messages</p>
-                    </div>
-                </div>
+        <button type="button" onclick="navigate('dashboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+          Dashboard
+        </button>
+        <button type="button" onclick="navigate('tokens')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+          Tokens
+        </button>
+        <button type="button" onclick="navigate('leaderboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+          Leaderboard
+        </button>
+        <button type="button" onclick="navigate('account')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+          Account
+        </button>
+
+        <div class="notification-wrapper relative">
+          <button id="notifBtn" class="p-2 hover:bg-gray-700 rounded-full transition relative flex items-center justify-center">
+            <span class="text-lg">🔔</span>
+            <span id="notifBadge" class="hidden">0</span>
+          </button>
+          <div id="notifDropdown" class="hidden">
+            <h3>Inbox</h3>
+            <div id="notifList">
+              <p class="text-xs text-gray-500 text-center py-4">No new messages</p>
             </div>
-<div id="inboxDropdown" class="hidden absolute right-4 top-16 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
+          </div>
+        </div>
+
+        <a href="tutoring.html" class="btn-outline whitespace-nowrap">
+          Chat
+        </a>
+
+        <button id="logoutBtn" type="button" class="btn-outline whitespace-nowrap">
+          Logout
+        </button>
+      </div>
+    </nav>
+
+    <!-- Existing floating inbox dropdown preserved -->
+    <div id="inboxDropdown" class="hidden absolute right-4 top-16 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+      <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
         <h3 class="font-bold text-white">Notifications</h3>
         <button id="markAllRead" class="text-[10px] text-blue-400 hover:underline uppercase font-bold">Mark all as read</button>
-    </div>
-    <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
+      </div>
+      <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
         <div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>
+      </div>
     </div>
-</div>
-            <a href="tutoring.html" class="bg-blue-600/20 hover:bg-blue-600 px-3 py-1 rounded transition border border-blue-500/50 text-sm font-bold whitespace-nowrap">
-                Chat
-            </a>
+  </header>
 
-            <button id="logoutBtn" type="button" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm font-bold transition whitespace-nowrap">Logout</button>
-        </nav>
-    </div>
-</header>
-
-<main id="appContainer" class="pt-24 max-w-6xl mx-auto p-4">
-    <section id="dashboardPage">
-        <div id="siteInfoBox" class="mb-8 bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 relative overflow-hidden">
-            <button type="button" onclick="document.getElementById('siteInfoBox').remove()" class="absolute top-3 right-4 text-gray-500 hover:text-white transition text-xl">&times;</button>
-            <div class="flex items-start gap-4">
-                <div class="text-3xl">🚀</div>
-                <div>
-                    <h3 class="text-lg font-bold text-blue-400 mb-2">Beta Version 1.0</h3>
-                    <div class="text-sm text-gray-300 space-y-3 leading-relaxed">
-                        <p>This is v1 beta—there are lots of bugs, but we are working to fix them! <span class="text-yellow-400 font-bold underline">PRO TIP:</span> For now, use the **3rd link**.</p>
-                        <p>Share the site with your **Referral URL** to gain credits! You get 50, they get 20.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <h2 class="text-xl mb-4 font-bold text-gray-400 uppercase tracking-widest text-sm">General Links</h2>
-        <div id="links" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
-    </section>
-
-    <section id="tokensPage" class="hidden space-y-6">
-        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
-            <div class="flex items-center gap-4">
-                <div class="token-spin text-4xl">🪙</div>
-                <div>
-                    <div class="font-semibold text-lg">Next Reward</div>
-                    <div id="nextReward" class="text-green-400 text-sm font-mono uppercase"></div>
-                </div>
-            </div>
-        </div>
-        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
-            <h3 class="font-bold text-gray-400 uppercase text-xs tracking-widest mb-4">Daily Streak</h3>
-            <div id="dailyTracker" class="grid grid-cols-5 md:grid-cols-10 gap-3"></div>
-        </div>
-    </section>
-
-    <section id="leaderboardPage" class="hidden">
-        <h2 class="text-xl mb-4 font-bold">Weekly Leaderboard</h2>
-        <div id="leaderboard" class="bg-gray-800 p-4 rounded-xl border border-gray-700 space-y-2"></div>
-    </section>
-
-    <section id="accountPage" class="hidden">
-        <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 space-y-4">
-            <div id="accountInfo" class="space-y-1"></div>
-            <div id="editProfileForm" class="hidden border-t border-gray-700 pt-4 mt-4 space-y-3">
-                <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Edit Profile</h4>
-                <div class="grid grid-cols-2 gap-3">
-                    <input id="editFirst" type="text" placeholder="First Name" class="bg-gray-900 p-2 rounded border border-gray-700 outline-none focus:border-blue-500">
-                    <input id="editLast" type="text" placeholder="Last Name" class="bg-gray-900 p-2 rounded border border-gray-700 outline-none focus:border-blue-500">
-                </div>
-                <select id="editGrade" class="w-full bg-gray-900 p-2 rounded border border-gray-700">
-                    <option value="">Select grade</option>
-                    <option>Kindergarten</option>
-                    <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-                    <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
-                    <option>11</option><option>12</option>
-                </select>
-                <div class="flex gap-2">
-                    <button id="saveProfileBtn" type="button" class="bg-green-600 px-4 py-2 rounded text-sm font-bold">Save</button>
-                    <button id="cancelEditBtn" type="button" class="bg-gray-700 px-4 py-2 rounded text-sm font-bold">Cancel</button>
-                </div>
-            </div>
-            <button id="showEditBtn" type="button" class="text-sm text-blue-400 hover:underline">Edit Profile</button>
-            <div class="pt-4 border-t border-gray-700">
-                <div class="text-sm text-gray-400">Total Minutes: <span id="totalMinutes" class="text-white font-mono">0</span></div>
-                <div id="referralArea" class="mt-3"></div>
-            </div>
-            <div class="pt-10 mt-10 border-t border-red-900/30">
-                <h4 class="text-xs font-bold text-red-500 uppercase tracking-widest mb-2">Danger Zone</h4>
-                <button id="deleteAccountBtn" type="button" class="bg-red-900/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-900 px-4 py-2 rounded-lg text-xs font-bold transition">
-                    Delete My Account
-                </button>
-            </div>
-        </div>
-    </section>
-</main>
-
-<div id="loginModal" class="hidden">
-    <div class="panel">
-        <h3 class="text-lg font-bold text-center mb-4 text-blue-400">Katy Math</h3>
-        <div id="loginError" class="text-red-400 text-xs mb-2 text-center"></div>
-        <input id="email" type="email" placeholder="Email" />
-        <input id="password" type="password" placeholder="Password" />
-        <input id="referralCodeInput" type="text" placeholder="Referral code (optional)" />
-        <div class="grid grid-cols-2 gap-2 mt-2">
-            <button id="signInBtn" type="button" class="bg-blue-600 py-2 rounded font-bold hover:bg-blue-500">Sign In</button>
-            <button id="signUpBtn" type="button" class="bg-green-600 py-2 rounded font-bold hover:bg-green-500">Sign Up</button>
-        </div>
-    </div>
-</div>
-
-<div id="onboardModal" class="hidden">
-    <div class="panel">
-        <h3 class="text-lg font-bold mb-4">Welcome!</h3>
-        <input id="onboardFirst" type="text" placeholder="First name" />
-        <input id="onboardLast" type="text" placeholder="Last name" />
-        <select id="onboardGrade" class="mt-2 w-full bg-gray-900 text-white p-2 rounded border border-gray-700">
-            <option value="">Select Grade</option>
-            <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-            <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
-            <option>11</option><option>12</option>
-        </select>
-        <button id="onboardSave" type="button" class="bg-blue-600 w-full py-2 rounded mt-4 font-bold">Save & Continue</button>
-    </div>
-</div>
-
-<div id="welcomeOverlay">
-    <div class="welcome-full">
-        <div class="welcome-card" id="welcomeCard">
-            <div class="welcome-logo" id="welcomeLogo">✨</div>
+  <main id="appContainer">
+    <div class="container">
+      <section class="surface" id="dashboardPage">
+        <div id="siteInfoBox" class="mb-8 card">
+          <button type="button" onclick="document.getElementById('siteInfoBox').remove()" class="absolute top-3 right-4 text-gray-500 hover:text-white transition text-xl">
+            &times;
+          </button>
+          <div class="flex items-start gap-4">
+            <div class="text-3xl">🚀</div>
             <div>
-                <div id="welcomeTitle" class="text-3xl font-bold">Welcome</div>
-                <div id="welcomeSub" class="text-lg opacity-90 mt-1">Ready to earn some credits?</div>
+              <h3 class="text-lg font-bold text-blue-400 mb-2">Beta Version 1.0</h3>
+              <div class="text-sm text-gray-300 space-y-3 leading-relaxed">
+                <p>
+                  This is v1 beta—there are lots of bugs, but we are working to fix them!
+                  <span class="text-yellow-400 font-bold underline">PRO TIP:</span>
+                  For now, use the <strong>3rd link</strong>.
+                </p>
+                <p>Share the site with your <strong>Referral URL</strong> to gain credits! You get 50, they get 20.</p>
+              </div>
             </div>
+          </div>
         </div>
+
+        <h2 class="text-xl mb-4 font-bold text-gray-400 uppercase tracking-widest text-sm">
+          General Links
+        </h2>
+        <div id="links" class="card-grid"></div>
+      </section>
+
+      <section id="tokensPage" class="hidden space-y-6 surface">
+        <div class="card flex items-center gap-4">
+          <div class="token-spin text-4xl">🪙</div>
+          <div>
+            <div class="font-semibold text-lg">Next Reward</div>
+            <div id="nextReward" class="text-green-400 text-sm font-mono uppercase"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="font-bold text-gray-400 uppercase text-xs tracking-widest mb-4">
+            Daily Streak
+          </h3>
+          <div id="dailyTracker" class="grid grid-cols-5 md:grid-cols-10 gap-3"></div>
+        </div>
+      </section>
+
+      <section id="leaderboardPage" class="hidden surface">
+        <h2 class="text-xl mb-4 font-bold">Weekly Leaderboard</h2>
+        <div id="leaderboard" class="space-y-2"></div>
+      </section>
+
+      <section id="accountPage" class="hidden surface">
+        <div class="space-y-4">
+          <div id="accountInfo" class="space-y-1"></div>
+
+          <div id="editProfileForm" class="hidden border-t border-gray-700 pt-4 mt-4 space-y-3">
+            <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Edit Profile</h4>
+            <div class="grid grid-cols-2 gap-3">
+              <input id="editFirst" type="text" placeholder="First Name" class="bg-gray-900 p-2 rounded border border-gray-700 outline-none focus:border-blue-500">
+              <input id="editLast" type="text" placeholder="Last Name" class="bg-gray-900 p-2 rounded border border-gray-700 outline-none focus:border-blue-500">
+            </div>
+            <select id="editGrade" class="w-full bg-gray-900 p-2 rounded border border-gray-700">
+              <option value="">Select grade</option>
+              <option>Kindergarten</option>
+              <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+              <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+              <option>11</option><option>12</option>
+            </select>
+            <div class="flex gap-2">
+              <button id="saveProfileBtn" type="button" class="bg-green-600 px-4 py-2 rounded text-sm font-bold">Save</button>
+              <button id="cancelEditBtn" type="button" class="bg-gray-700 px-4 py-2 rounded text-sm font-bold">Cancel</button>
+            </div>
+          </div>
+
+          <button id="showEditBtn" type="button" class="text-sm text-blue-400 hover:underline">
+            Edit Profile
+          </button>
+
+          <div class="pt-4 border-t border-gray-700">
+            <div class="text-sm text-gray-400">
+              Total Minutes: <span id="totalMinutes" class="text-white font-mono">0</span>
+            </div>
+            <div id="referralArea" class="mt-3"></div>
+          </div>
+
+          <div class="pt-10 mt-10 border-t border-red-900/30">
+            <h4 class="text-xs font-bold text-red-500 uppercase tracking-widest mb-2">
+              Danger Zone
+            </h4>
+            <button
+              id="deleteAccountBtn"
+              type="button"
+              class="bg-red-900/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-900 px-4 py-2 rounded-lg text-xs font-bold transition"
+            >
+              Delete My Account
+            </button>
+          </div>
+        </div>
+      </section>
     </div>
-</div>
+  </main>
 
-<script type="module" src="./js/firebase.js"></script>
-<script type="module" src="./js/utils.js"></script>
-<script type="module" src="./js/login.js"></script>
-<script type="module" src="./js/onboarding.js"></script>
-<script type="module" src="./js/auth.js"></script>
-<script type="module" src="./js/inbox.js"></script> <script type="module" src="./js/dashboard.js"></script>
-<script type="module" src="./js/tokens.js"></script>
-<script type="module" src="./js/leaderboard.js"></script>
-<script type="module" src="./js/account.js"></script>
-<script type="module" src="./js/welcome.js"></script>
-<script type="module" src="./js/blockExtensions.js"></script>
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="hidden">
+    <div class="panel">
+      <h3 class="text-lg font-bold text-center mb-4 text-blue-400">Katy Math</h3>
+      <div id="loginError" class="text-red-400 text-xs mb-2 text-center"></div>
+      <input id="email" type="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+      <input id="referralCodeInput" type="text" placeholder="Referral code (optional)" />
+      <div class="grid grid-cols-2 gap-2 mt-2">
+        <button id="signInBtn" type="button" class="bg-blue-600 py-2 rounded font-bold hover:bg-blue-500">Sign In</button>
+        <button id="signUpBtn" type="button" class="bg-green-600 py-2 rounded font-bold hover:bg-green-500">Sign Up</button>
+      </div>
+    </div>
+  </div>
 
+  <!-- ONBOARDING MODAL -->
+  <div id="onboardModal" class="hidden">
+    <div class="panel">
+      <h3 class="text-lg font-bold mb-4">Welcome!</h3>
+      <input id="onboardFirst" type="text" placeholder="First name" />
+      <input id="onboardLast" type="text" placeholder="Last name" />
+      <select id="onboardGrade" class="mt-2 w-full bg-gray-900 text-white p-2 rounded border border-gray-700">
+        <option value="">Select Grade</option>
+        <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+        <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+        <option>11</option><option>12</option>
+      </select>
+      <button id="onboardSave" type="button" class="bg-blue-600 w-full py-2 rounded mt-4 font-bold">
+        Save & Continue
+      </button>
+    </div>
+  </div>
+
+  <!-- WELCOME OVERLAY -->
+  <div id="welcomeOverlay">
+    <div class="welcome-full">
+      <div class="welcome-card" id="welcomeCard">
+        <div class="welcome-logo" id="welcomeLogo">✨</div>
+        <div>
+          <div id="welcomeTitle" class="text-3xl font-bold">Welcome</div>
+          <div id="welcomeSub" class="text-lg opacity-90 mt-1">Ready to earn some credits?</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts (unchanged) -->
+  <script type="module" src="./js/firebase.js"></script>
+  <script type="module" src="./js/utils.js"></script>
+  <script type="module" src="./js/login.js"></script>
+  <script type="module" src="./js/onboarding.js"></script>
+  <script type="module" src="./js/auth.js"></script>
+  <script type="module" src="./js/inbox.js"></script>
+  <script type="module" src="./js/dashboard.js"></script>
+  <script type="module" src="./js/tokens.js"></script>
+  <script type="module" src="./js/leaderboard.js"></script>
+  <script type="module" src="./js/account.js"></script>
+  <script type="module" src="./js/welcome.js"></script>
+  <script type="module" src="./js/blockExtensions.js"></script>
 </body>
 </html>
