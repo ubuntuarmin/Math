@@ -10,45 +10,47 @@ const errorEl = document.getElementById("onboardError");
 
 let _isSaving = false;
 
-function setSavingState(on){
+function setSavingState(on) {
   _isSaving = !!on;
-  if(saveBtn){
+  if (saveBtn) {
     saveBtn.disabled = _isSaving;
     saveBtn.textContent = _isSaving ? "Saving…" : "Save & Continue";
   }
 }
 
-export function showOnboarding(){
-  if(!onboardModal) return;
+export function showOnboarding() {
+  if (!onboardModal) return;
   onboardModal.classList.remove("hidden");
   onboardModal.setAttribute("aria-hidden", "false");
-  setTimeout(()=> firstInput?.focus(), 50);
+  // Clear any old errors
+  if (errorEl) errorEl.textContent = "";
+  setTimeout(() => firstInput?.focus(), 50);
 }
 
-export function hideOnboarding(){
-  if(!onboardModal) return;
+export function hideOnboarding() {
+  if (!onboardModal) return;
   onboardModal.classList.add("hidden");
   onboardModal.setAttribute("aria-hidden", "true");
 }
 
 /**
- * FIXED: Fetches fresh data and tells the rest of the app to update
+ * Fetch fresh user data and notify rest of app
  */
 async function finalizeOnboarding(uid, firstName) {
   try {
-    // 1. Get the full fresh document from Firebase
     const snap = await getDoc(doc(db, "users", uid));
-    const freshData = snap.data();
+    const freshData = snap.data() || {};
 
-    // 2. Remove the signup flag
+    // Remove the signup flag
     sessionStorage.removeItem("justSignedUp");
 
-    // 3. IMPORTANT: Tell auth.js and dashboard.js to re-render with the NEW name
-    // We do this by dispatching a custom event that your other files can hear
-    const updateEvent = new CustomEvent("userProfileUpdated", { detail: freshData });
+    // Notify other modules (auth.js listens for this)
+    const updateEvent = new CustomEvent("userProfileUpdated", {
+      detail: freshData,
+    });
     window.dispatchEvent(updateEvent);
 
-    // 4. Show success and close
+    // Show success UX
     showSuccessAndClose(firstName);
   } catch (e) {
     console.error("Finalize error:", e);
@@ -56,59 +58,89 @@ async function finalizeOnboarding(uid, firstName) {
   }
 }
 
-function showSuccessAndClose(name){
-  const panel = onboardModal.querySelector(".panel");
-  if(!panel) return;
+function showSuccessAndClose(name) {
+  const panel = onboardModal?.querySelector(".panel");
+  if (!panel) return;
 
   panel.innerHTML = `
     <div class="flex flex-col items-center gap-4 py-6">
-      <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white text-3xl shadow-lg animate-bounce">✓</div>
-      <div class="text-xl font-bold">Welcome, ${name}!</div>
-      <p class="text-gray-400 text-sm">Setting up your dashboard...</p>
+      <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white text-3xl shadow-lg animate-bounce">
+        ✓
+      </div>
+      <div class="text-xl font-bold">Welcome, ${name || "Student"}!</div>
+      <p class="text-gray-400 text-sm text-center max-w-sm">
+        Your profile is set. We’ll use this to pick the right links and track your progress.
+      </p>
     </div>
   `;
 
   setTimeout(() => {
     hideOnboarding();
-    // Refresh page to ensure all modules (Referrals, Dashboard) sync up
-    location.reload(); 
+    // No hard reload needed here; auth.js and dashboard react to userProfileUpdated
   }, 1500);
 }
 
-saveBtn?.addEventListener("click", async () => {
-  if(_isSaving) return;
+async function handleSave() {
+  if (_isSaving) return;
+
   const uid = auth.currentUser?.uid;
-  if(!uid) return;
+  if (!uid) return;
 
-  const first = firstInput.value.trim();
-  const last = lastInput.value.trim();
-  const grade = gradeSelect.value;
+  const first = (firstInput?.value || "").trim();
+  const last = (lastInput?.value || "").trim();
+  const grade = gradeSelect?.value || "";
 
-  if(!first){
-    errorEl.textContent = "First name is required.";
+  if (errorEl) errorEl.textContent = "";
+
+  // VALIDATION
+  if (!first || first.length < 2) {
+    if (errorEl) errorEl.textContent = "Please enter your first name (at least 2 characters).";
+    firstInput?.focus();
+    return;
+  }
+
+  if (first.length > 20) {
+    if (errorEl) errorEl.textContent = "First name is too long (max 20 characters).";
+    firstInput?.focus();
+    return;
+  }
+
+  if (!grade) {
+    if (errorEl) errorEl.textContent = "Please select your grade.";
+    gradeSelect?.focus();
     return;
   }
 
   setSavingState(true);
 
   try {
-    // Update the existing document created in login.js
     await updateDoc(doc(db, "users", uid), {
       firstName: first,
       lastName: last,
       grade: grade,
-      onboardingComplete: true // Added a flag to help auth.js
+      onboardingComplete: true,
     });
 
     await finalizeOnboarding(uid, first);
-  } catch(err) {
-    console.error(err);
-    errorEl.textContent = "Failed to save. Try again.";
+  } catch (err) {
+    console.error("Onboarding save error:", err);
+    if (errorEl) errorEl.textContent = "Failed to save. Please try again.";
     setSavingState(false);
   }
+}
+
+// Button click
+saveBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  handleSave();
 });
 
-// Helper for Enter Key
-[firstInput, lastInput].forEach(el => {
-  el?.addEventListener("keydown", e => { if(e.key === "Enter") saveBtn.click(); });
+// Enter key helper
+[firstInput, lastInput].forEach((el) => {
+  el?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSave();
+    }
+  });
 });
