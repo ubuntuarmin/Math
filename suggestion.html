@@ -25,20 +25,88 @@
   <main>
     <div class="container">
       <section class="surface">
-        <header class="mb-6">
+        <!-- TOP: Submit a Link (eye-catching) -->
+        <header class="mb-4">
+          <span class="badge">Earn Credits</span>
+          <h1>Submit a Resource Link</h1>
+          <p class="text-sm text-gray-300">
+            Know a great math website, game, or tool? Share it here.
+            If the admin approves it and adds it to the system, you’ll earn
+            <span class="text-emerald-400 font-bold">150 bonus credits</span>.
+          </p>
+        </header>
+
+        <form id="linkSubmissionForm" class="space-y-4 max-w-xl mb-10">
+          <div>
+            <label for="linkUrl">Link URL</label>
+            <input
+              id="linkUrl"
+              type="url"
+              placeholder="https://awesome-math-site.com"
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
+            />
+            <p class="text-[11px] text-gray-500 mt-1">
+              Make sure the site is safe, school-appropriate, and helpful for math practice.
+            </p>
+          </div>
+
+          <div>
+            <label for="linkTitle">Name of the site</label>
+            <input
+              id="linkTitle"
+              type="text"
+              placeholder="Short name (e.g. 'Cool Fractions Game')"
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label for="linkNotes">Why is this good?</label>
+            <textarea
+              id="linkNotes"
+              rows="3"
+              placeholder="Explain why this is safe, helpful, and what math it practices."
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
+            ></textarea>
+          </div>
+
+          <p class="text-xs text-gray-400">
+            No credits are deducted for link submissions. If the admin approves and adds your link,
+            you’ll receive <span class="text-emerald-400 font-bold">150 bonus credits</span>.
+          </p>
+
+          <div id="linkError" class="text-xs text-red-400"></div>
+          <div id="linkSuccess" class="text-xs text-emerald-400"></div>
+
+          <button
+            id="linkSubmit"
+            type="submit"
+            class="btn-outline"
+          >
+            Submit Link for Review (+150 if approved)
+          </button>
+        </form>
+
+        <hr class="my-8 border-gray-800">
+
+        <!-- BELOW: Regular suggestions / bug reports -->
+        <header class="mb-4">
           <span class="badge">Feedback</span>
-          <h1>Leave a Suggestion</h1>
-          <p>
+          <h2 class="mt-2 text-lg font-bold">Leave a Suggestion</h2>
+          <p class="text-sm text-gray-300">
             Share ideas for new features or report bugs. Each suggestion costs
             <strong>20 credits</strong> to submit. If your suggestion is helpful,
-            the admin can refund your 20 credits and even give you a bonus.
+            the admin can refund your 20 credits and you will most likely receive bonus credits.
           </p>
         </header>
 
         <form id="suggestionForm" class="space-y-4 max-w-xl">
           <div>
             <label for="suggestionType">Type</label>
-            <select id="suggestionType" class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1">
+            <select
+              id="suggestionType"
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
+            >
               <option value="feature">Feature Request</option>
               <option value="bug">Bug Report</option>
             </select>
@@ -50,7 +118,7 @@
               id="suggestionTitle"
               type="text"
               placeholder="Short summary (e.g. 'Add dark mode toggle')"
-              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1"
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
             />
           </div>
 
@@ -60,14 +128,14 @@
               id="suggestionText"
               rows="5"
               placeholder="Describe the idea or bug in detail..."
-              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1"
+              class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
             ></textarea>
           </div>
 
           <p class="text-xs text-gray-400">
             Submitting a suggestion will temporarily deduct
             <span class="text-emerald-400 font-bold">20 credits</span> from your account.
-            If the suggestion is accepted, you will be refunded and will most likley receive bonus credits.
+            If the suggestion is accepted, you will be refunded and will most likely receive bonus credits.
           </p>
 
           <div id="suggestionError" class="text-xs text-red-400"></div>
