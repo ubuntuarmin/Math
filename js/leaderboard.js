@@ -12,11 +12,12 @@ import {
 import { calculateTier } from "./tier.js";
 
 const leaderboardContainer = document.getElementById("leaderboard");
+let timerInterval = null;
 
 /**
- * Helper: Get next reset time.
- * 1. Try Firestore settings/leaderboard.nextReset (preferred)
- * 2. Fallback to "next Sunday at 00:00" if not set
+ * Helper: Get next reset time:
+ * 1. Try Firestore settings/leaderboard.nextReset
+ * 2. Fallback to "next Sunday at 00:00" based on now
  */
 async function getNextResetDate() {
   try {
@@ -25,11 +26,11 @@ async function getNextResetDate() {
     if (snap.exists()) {
       const data = snap.data();
       if (data.nextReset) {
-        // nextReset may be a Firestore Timestamp or JS Date
+        // Firestore Timestamp
         if (typeof data.nextReset.toMillis === "function") {
           return new Date(data.nextReset.toMillis());
         }
-        // If it's stored as a plain Date-like string/number
+        // Plain Date/string/number
         return new Date(data.nextReset);
       }
     }
@@ -37,7 +38,7 @@ async function getNextResetDate() {
     console.warn("Leaderboard: failed to fetch settings/leaderboard:", err);
   }
 
-  // Fallback: next Sunday at 00:00
+  // Fallback: compute next Sunday at 00:00
   const now = new Date();
   const nextSunday = new Date();
   nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
@@ -46,7 +47,7 @@ async function getNextResetDate() {
 }
 
 /**
- * Helper: Diff between now and target reset date
+ * Compute the remaining time to a target date
  */
 function getTimeRemainingTo(targetDate) {
   const now = new Date();
@@ -64,37 +65,59 @@ function getTimeRemainingTo(targetDate) {
 }
 
 /**
- * Helper: Logic for Reward Tiers
- * 1st = 100, 2nd = 90, ..., 10th = 10
+ * Helper: Reward tier
  */
 function getPotentialReward(rank) {
   if (rank > 10) return 0;
   return 110 - rank * 10;
 }
 
+/**
+ * Render header + list, and keep header timer live‑updating.
+ */
 export async function renderLeaderboard() {
   if (!leaderboardContainer) return;
 
-  // Compute time remaining using Firestore-configured reset
-  const nextResetDate = await getNextResetDate();
-  const time = getTimeRemainingTo(nextResetDate);
+  // Stop any previous countdown interval
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
 
-  // Header + initial loading state
+  // Build the shell
   leaderboardContainer.innerHTML = `
-        <div class="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-2xl text-center">
-            <div class="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-black mb-1">Season Ends In</div>
-            <div class="text-2xl font-mono font-black text-white">
-                ${time.days}d ${time.hours}h ${time.mins}m
-            </div>
-            <div class="text-[9px] text-gray-500 mt-1 italic">Top 10 win bonus credits at reset!</div>
-        </div>
-        <div id="leaderboardList" class="space-y-3">
-             <div class="flex justify-center py-8"><div class="loader"></div></div>
-        </div>
-    `;
+    <div id="leaderboardHeader" class="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-2xl text-center">
+      <div class="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-black mb-1">
+        Season Ends In
+      </div>
+      <div id="leaderboardCountdown" class="text-2xl font-mono font-black text-white">
+        --
+      </div>
+      <div class="text-[9px] text-gray-500 mt-1 italic">
+        Top 10 win bonus credits at reset!
+      </div>
+    </div>
+    <div id="leaderboardList" class="space-y-3">
+      <div class="flex justify-center py-8"><div class="loader"></div></div>
+    </div>
+  `;
 
+  const countdownEl = document.getElementById("leaderboardCountdown");
   const listContainer = document.getElementById("leaderboardList");
 
+  // 1) Figure out target reset date
+  const nextResetDate = await getNextResetDate();
+
+  // 2) Start live countdown (self‑correcting each second)
+  const updateCountdown = () => {
+    const time = getTimeRemainingTo(nextResetDate);
+    if (!countdownEl) return;
+    countdownEl.textContent = `${time.days}d ${time.hours}h ${time.mins}m`;
+  };
+  updateCountdown();
+  timerInterval = setInterval(updateCountdown, 1000);
+
+  // 3) Load leaderboard data
   try {
     const leaderboardQuery = query(
       collection(db, "users"),
@@ -124,35 +147,36 @@ export async function renderLeaderboard() {
 
       const entry = document.createElement("div");
       entry.className = `relative flex justify-between items-center p-4 rounded-xl border ${
-        rank <= 3 ? "bg-gray-800/80 border-blue-500/30" : "bg-gray-900/40 border-gray-800"
+        rank <= 3
+          ? "bg-gray-800/80 border-blue-500/30"
+          : "bg-gray-900/40 border-gray-800"
       }`;
 
       entry.innerHTML = `
-                <div class="flex items-center gap-4">
-                    <div class="text-xl w-8 flex justify-center">${rankBadge}</div>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-white capitalize">${
-                              data.firstName || "Student"
-                            }</span>
-                            <span class="text-[8px] px-1 py-0.5 rounded font-bold uppercase" style="color: ${
-                              tier.color
-                            }; border: 1px solid ${tier.color}44">
-                                ${tier.name}
-                            </span>
-                        </div>
-                        <div class="text-[10px] text-emerald-400 font-bold">
-                            Estimated Reward: +${reward} 🪙
-                        </div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="text-blue-400 font-black text-lg">${
-                      data.weekMinutes || 0
-                    }<span class="text-[10px] ml-0.5">m</span></div>
-                    <div class="text-[9px] text-gray-600 uppercase font-bold">This Week</div>
-                </div>
-            `;
+        <div class="flex items-center gap-4">
+          <div class="text-xl w-8 flex justify-center">${rankBadge}</div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white capitalize">${
+                data.firstName || "Student"
+              }</span>
+              <span class="text-[8px] px-1 py-0.5 rounded font-bold uppercase"
+                    style="color: ${tier.color}; border: 1px solid ${tier.color}44">
+                ${tier.name}
+              </span>
+            </div>
+            <div class="text-[10px] text-emerald-400 font-bold">
+              Estimated Reward: +${reward} 🪙
+            </div>
+          </div>
+        </div>
+        <div class="text-right">
+          <div class="text-blue-400 font-black text-lg">
+            ${data.weekMinutes || 0}<span class="text-[10px] ml-0.5">m</span>
+          </div>
+          <div class="text-[9px] text-gray-600 uppercase font-bold">This Week</div>
+        </div>
+      `;
 
       listContainer.appendChild(entry);
       rank++;
