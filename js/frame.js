@@ -2,8 +2,84 @@ import { db, auth } from "./firebase.js";
 import { doc, updateDoc, increment, setDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 /**
+ * Injects a small script into the iframe (for same-origin content) to
+ * neutralize browser notifications and some noisy APIs, without breaking sites.
+ */
+function injectNotificationBlocker(iframe) {
+  try {
+    const win = iframe.contentWindow;
+    const doc = iframe.contentDocument || win.document;
+    if (!win || !doc) return;
+
+    const script = doc.createElement("script");
+    script.textContent = `
+      (function () {
+        try {
+          // Block Notification API (pretend denied)
+          if (typeof Notification !== "undefined") {
+            try {
+              Notification.requestPermission = function () {
+                return Promise.resolve("denied");
+              };
+            } catch (_) {}
+
+            try {
+              const OriginalNotification = Notification;
+              window.Notification = function () {
+                console.warn("Notification blocked by Katy Math frame sandbox.");
+                // no-op constructor
+              };
+              window.Notification.prototype = OriginalNotification.prototype;
+              Object.defineProperty(window.Notification, "permission", {
+                get: function () {
+                  return "denied";
+                }
+              });
+            } catch (_) {}
+          }
+
+          // Optional: soften alert/confirm/prompt to avoid annoying popups
+          const softBlock = function (name) {
+            if (!window[name]) return;
+            const original = window[name];
+            window[name] = function () {
+              console.warn(name + " blocked in Katy Math frame sandbox.");
+              // we can still log or silently ignore
+              return name === "confirm" ? false : undefined;
+            };
+            window[name].__original = original;
+          };
+          softBlock("alert");
+          softBlock("confirm");
+          softBlock("prompt");
+
+          // Optional: block service worker registration attempts
+          if (navigator && navigator.serviceWorker && navigator.serviceWorker.register) {
+            const origRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+            navigator.serviceWorker.register = function () {
+              console.warn("Service worker registration blocked in Katy Math frame sandbox.");
+              // Pretend it failed with a clean error to avoid site crashes.
+              return Promise.reject(new Error("Service worker not allowed in this context."));
+            };
+            navigator.serviceWorker.register.__original = origRegister;
+          }
+        } catch (e) {
+          console.warn("Frame sandbox injection error:", e);
+        }
+      })();
+    `;
+    doc.documentElement.appendChild(script);
+  } catch (e) {
+    // Cross-origin iframes will throw; just ignore
+    console.warn("Unable to inject notification blocker (likely cross-origin).", e);
+  }
+}
+
+/**
  * Launches the app/link in a fullscreen overlay with timer and voting logic.
- * Now includes a modern full-screen loading animation (~2 seconds).
+ * Includes:
+ * - Modern full-screen loader (~2s)
+ * - Notification blocking sandbox for iframe (best-effort)
  */
 export function launchFrame(content, linkId, currentUsage, maxSeconds) {
   const overlay = document.createElement("div");
@@ -141,6 +217,10 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
 
   iframe.onload = () => {
     iframeLoaded = true;
+
+    // Try to inject our notification-blocking sandbox
+    injectNotificationBlocker(iframe);
+
     maybeHideLoader();
 
     // Existing behavior: show vote prompt after 5 seconds
@@ -196,11 +276,7 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
     const promptArea = document.getElementById("promptArea");
     try {
       const voteRef = doc(db, "linkVotes", linkId);
-      await setDoc(
-        voteRef,
-        { [type]: increment(1) },
-        { merge: true }
-      );
+      await setDoc(voteRef, { [type]: increment(1) }, { merge: true });
 
       if (promptArea) {
         promptArea.innerHTML =
