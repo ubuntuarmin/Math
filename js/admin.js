@@ -12,7 +12,6 @@ import {
   addDoc,
   serverTimestamp,
   setDoc,
-  where,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // DOM Elements
@@ -20,15 +19,17 @@ const userListEl = document.getElementById("adminUserList");
 const resetBtn = document.getElementById("resetLeaderboardBtn");
 const searchInput = document.getElementById("adminSearch");
 const suggestionListEl = document.getElementById("suggestionList");
+const linkSubmissionListEl = document.getElementById("linkSubmissionList");
 
 // Your Unique Admin ID
 const ADMIN_UID = "bnGhRvqW1YhvGek1JTLuAed6Ib63";
 
-// Cost of a suggestion (must match suggestions.js)
+// Costs/bonuses (must match frontend logic)
 const SUGGESTION_COST = 20;
+const LINK_BONUS = 150;
 
 /**
- * NEW: Send Inbox Message Logic
+ * Send Inbox Message Logic
  */
 async function sendNotification(targetUid, title, message, type = "admin") {
   try {
@@ -60,6 +61,7 @@ async function initAdmin() {
     } else {
       loadAllUsers();
       loadSuggestions();
+      loadLinkSubmissions();
     }
   });
 }
@@ -70,11 +72,7 @@ function getRewardAmount(rank) {
 }
 
 /**
- * THE BIG ACTION:
- * 1. Distributes Credits to Top 10
- * 2. Sends Inbox Notifications for the reward
- * 3. Resets Weekly Minutes for Everyone
- * 4. Updates global "next reset" timestamp for leaderboard timer
+ * Reset leaderboard + rewards
  */
 resetBtn.onclick = async () => {
   const confirmAction = confirm(
@@ -134,7 +132,7 @@ resetBtn.onclick = async () => {
 
     await Promise.all(batchPromises);
 
-    // --- STEP 2: Global Reset of weekMinutes ---
+    // --- STEP 2: Global Reset ---
     resetBtn.innerHTML = `🧹 Resetting Leaderboard...`;
     const allUsersSnap = await getDocs(collection(db, "users"));
     const resetPromises = allUsersSnap.docs.map((userDoc) => {
@@ -143,9 +141,8 @@ resetBtn.onclick = async () => {
 
     await Promise.all(resetPromises);
 
-    // --- STEP 3: Update global next reset timestamp for leaderboard timer ---
+    // Optional: store next reset info
     const settingsRef = doc(db, "settings", "leaderboard");
-
     const now = new Date();
     const nextSunday = new Date();
     nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
@@ -169,6 +166,7 @@ resetBtn.onclick = async () => {
     resetBtn.innerHTML = originalText;
     loadAllUsers();
     loadSuggestions();
+    loadLinkSubmissions();
   }
 };
 
@@ -177,7 +175,9 @@ resetBtn.onclick = async () => {
  */
 async function loadAllUsers() {
   if (!userListEl) return;
-  userListEl.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-white">Loading Students...</td></tr>`;
+
+  userListEl.innerHTML =
+    '<tr><td colspan="6" class="p-10 text-center text-white">Loading Students...</td></tr>';
 
   try {
     const querySnapshot = await getDocs(collection(db, "users"));
@@ -226,7 +226,7 @@ async function loadAllUsers() {
 }
 
 /**
- * NEW: Load and render suggestions
+ * Load and render suggestions
  */
 async function loadSuggestions() {
   if (!suggestionListEl) return;
@@ -289,31 +289,31 @@ async function loadSuggestions() {
           ${
             status === "pending"
               ? `
-              <button
-                class="bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 px-3 py-1 rounded-full font-bold uppercase mr-1"
-                data-action="approve"
-                data-id="${docSnap.id}"
-                data-user="${s.userId}"
-              >
-                Approve (Refund)
-              </button>
-              <button
-                class="bg-blue-700/60 hover:bg-blue-600 text-blue-100 px-3 py-1 rounded-full font-bold uppercase mr-1"
-                data-action="approveBonus"
-                data-id="${docSnap.id}"
-                data-user="${s.userId}"
-              >
-                Approve + Bonus
-              </button>
-              <button
-                class="bg-red-800/40 hover:bg-red-700 text-red-200 px-3 py-1 rounded-full font-bold uppercase"
-                data-action="deny"
-                data-id="${docSnap.id}"
-                data-user="${s.userId}"
-              >
-                Deny
-              </button>
-            `
+            <button
+              class="bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 px-3 py-1 rounded-full font-bold uppercase mr-1"
+              data-action="approve"
+              data-id="${docSnap.id}"
+              data-user="${s.userId}"
+            >
+              Approve (Refund)
+            </button>
+            <button
+              class="bg-blue-700/60 hover:bg-blue-600 text-blue-100 px-3 py-1 rounded-full font-bold uppercase mr-1"
+              data-action="approveBonus"
+              data-id="${docSnap.id}"
+              data-user="${s.userId}"
+            >
+              Approve + Bonus
+            </button>
+            <button
+              class="bg-red-800/40 hover:bg-red-700 text-red-200 px-3 py-1 rounded-full font-bold uppercase"
+              data-action="deny"
+              data-id="${docSnap.id}"
+              data-user="${s.userId}"
+            >
+              Deny
+            </button>
+          `
               : "<span class='text-slate-500'>Reviewed</span>"
           }
         </td>
@@ -414,6 +414,183 @@ async function denySuggestion(suggestionId, userId) {
   } catch (err) {
     console.error("Deny suggestion error:", err);
     alert("Failed to deny suggestion.");
+  }
+}
+
+/**
+ * Load and render link submissions
+ */
+async function loadLinkSubmissions() {
+  if (!linkSubmissionListEl) return;
+
+  linkSubmissionListEl.innerHTML =
+    '<tr><td colspan="4" class="p-6 text-center text-slate-400 text-sm">Loading link submissions...</td></tr>';
+
+  try {
+    const q = query(
+      collection(db, "linkSubmissions"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
+
+    const snap = await getDocs(q);
+    linkSubmissionListEl.innerHTML = "";
+
+    if (snap.empty) {
+      linkSubmissionListEl.innerHTML =
+        '<tr><td colspan="4" class="p-6 text-center text-slate-500 text-sm italic">No link submissions yet.</td></tr>';
+      return;
+    }
+
+    snap.forEach((docSnap) => {
+      const s = docSnap.data();
+      const row = document.createElement("tr");
+      const status = s.status || "pending";
+
+      const statusColor =
+        status === "approved"
+          ? "text-emerald-400"
+          : status === "denied"
+          ? "text-red-400"
+          : "text-yellow-400";
+
+      row.className =
+        "border-b border-slate-800 hover:bg-slate-800/40 transition";
+
+      row.innerHTML = `
+        <td class="p-3 align-top">
+          <a href="${s.url}" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 underline text-sm break-all">
+            ${s.title || s.url || "(no title)"}
+          </a>
+          <div class="text-xs text-slate-400 mt-1 max-w-xl">${(s.notes || "").slice(0, 180)}${(s.notes || "").length > 180 ? "..." : ""}</div>
+        </td>
+        <td class="p-3 align-top text-xs text-slate-300">
+          <div>${s.email || "No email"}</div>
+          <div class="text-[10px] text-slate-500">${s.userId}</div>
+        </td>
+        <td class="p-3 align-top text-xs ${statusColor} font-bold uppercase">
+          ${status}
+        </td>
+        <td class="p-3 align-top text-right text-[10px] space-y-1">
+          ${
+            status === "pending"
+              ? `
+            <button
+              class="bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 px-3 py-1 rounded-full font-bold uppercase mr-1"
+              data-link-action="approveLink"
+              data-id="${docSnap.id}"
+              data-user="${s.userId}"
+            >
+              Approve (+${LINK_BONUS})
+            </button>
+            <button
+              class="bg-red-800/40 hover:bg-red-700 text-red-200 px-3 py-1 rounded-full font-bold uppercase"
+              data-link-action="denyLink"
+              data-id="${docSnap.id}"
+              data-user="${s.userId}"
+            >
+              Deny
+            </button>
+          `
+              : "<span class='text-slate-500'>Reviewed</span>"
+          }
+        </td>
+      `;
+
+      linkSubmissionListEl.appendChild(row);
+    });
+
+    // Attach handlers
+    linkSubmissionListEl
+      .querySelectorAll("button[data-link-action]")
+      .forEach((btn) => {
+        const action = btn.getAttribute("data-link-action");
+        const id = btn.getAttribute("data-id");
+        const userId = btn.getAttribute("data-user");
+
+        if (action === "approveLink") {
+          btn.onclick = () => approveLinkSubmission(id, userId);
+        } else if (action === "denyLink") {
+          btn.onclick = () => denyLinkSubmission(id, userId);
+        }
+      });
+  } catch (err) {
+    console.error("Load link submissions error:", err);
+    linkSubmissionListEl.innerHTML =
+      '<tr><td colspan="4" class="p-6 text-center text-red-400 text-xs">Failed to load link submissions.</td></tr>';
+  }
+}
+
+/**
+ * Approve link: give bonus
+ */
+async function approveLinkSubmission(submissionId, userId) {
+  if (
+    !confirm(
+      `Approve this link and give the student ${LINK_BONUS} bonus credits?`
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const subRef = doc(db, "linkSubmissions", submissionId);
+    const userRef = doc(db, "users", userId);
+
+    await updateDoc(userRef, {
+      credits: increment(LINK_BONUS),
+      totalEarned: increment(LINK_BONUS),
+    });
+
+    await updateDoc(subRef, {
+      status: "approved",
+      rewardGiven: true,
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+    });
+
+    await sendNotification(
+      userId,
+      "Link Approved",
+      `Thanks for sharing a great resource! Your link was approved and you received ${LINK_BONUS} bonus credits.`,
+      "link"
+    );
+
+    loadLinkSubmissions();
+  } catch (err) {
+    console.error("Approve link error:", err);
+    alert("Failed to approve link.");
+  }
+}
+
+/**
+ * Deny link: no bonus
+ */
+async function denyLinkSubmission(submissionId, userId) {
+  if (!confirm("Deny this link submission? No credits will be given.")) {
+    return;
+  }
+
+  try {
+    const subRef = doc(db, "linkSubmissions", submissionId);
+
+    await updateDoc(subRef, {
+      status: "denied",
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+    });
+
+    await sendNotification(
+      userId,
+      "Link Reviewed",
+      "Thanks for sending a link. This one was not approved, but please keep sharing safe and helpful math resources!",
+      "link"
+    );
+
+    loadLinkSubmissions();
+  } catch (err) {
+    console.error("Deny link error:", err);
+    alert("Failed to deny link.");
   }
 }
 
