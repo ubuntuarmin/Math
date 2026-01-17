@@ -12,27 +12,31 @@ import {
   addDoc,
   serverTimestamp,
   setDoc,
+  where,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // DOM Elements
 const userListEl = document.getElementById("adminUserList");
 const resetBtn = document.getElementById("resetLeaderboardBtn");
 const searchInput = document.getElementById("adminSearch");
+const suggestionListEl = document.getElementById("suggestionList");
 
 // Your Unique Admin ID
 const ADMIN_UID = "bnGhRvqW1YhvGek1JTLuAed6Ib63";
+
+// Cost of a suggestion (must match suggestions.js)
+const SUGGESTION_COST = 20;
 
 /**
  * NEW: Send Inbox Message Logic
  */
 async function sendNotification(targetUid, title, message, type = "admin") {
   try {
-    // Change from a sub-collection to the top-level 'messages' collection
     const messagesRef = collection(db, "messages");
     await addDoc(messagesRef, {
-      to: targetUid, // Match the 'to' field in inbox.js
-      fromName: "Admin", // Match the 'fromName' field
-      text: message, // Change 'message' to 'text' to match inbox.js
+      to: targetUid,
+      fromName: "Admin",
+      text: message,
       title: title,
       type: type,
       timestamp: serverTimestamp(),
@@ -55,6 +59,7 @@ async function initAdmin() {
       window.location.href = "index.html";
     } else {
       loadAllUsers();
+      loadSuggestions();
     }
   });
 }
@@ -139,11 +144,8 @@ resetBtn.onclick = async () => {
     await Promise.all(resetPromises);
 
     // --- STEP 3: Update global next reset timestamp for leaderboard timer ---
-    // We store it in a single document: settings/leaderboard
     const settingsRef = doc(db, "settings", "leaderboard");
 
-    // For now, schedule the next reset for NEXT Sunday at 00:00,
-    // but referenced from *now*, so the timer restarts immediately.
     const now = new Date();
     const nextSunday = new Date();
     nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
@@ -166,6 +168,7 @@ resetBtn.onclick = async () => {
     resetBtn.disabled = false;
     resetBtn.innerHTML = originalText;
     loadAllUsers();
+    loadSuggestions();
   }
 };
 
@@ -173,6 +176,7 @@ resetBtn.onclick = async () => {
  * UI: Fetch and Render User List
  */
 async function loadAllUsers() {
+  if (!userListEl) return;
   userListEl.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-white">Loading Students...</td></tr>`;
 
   try {
@@ -186,32 +190,24 @@ async function loadAllUsers() {
         "border-b border-slate-800 hover:bg-slate-800/50 transition user-row";
 
       row.innerHTML = `
-                <td class="p-4 font-bold user-name text-white">
-                    ${u.firstName || "???"} ${u.lastName || ""}
-                </td>
-                <td class="p-4 text-slate-400 text-xs font-mono">${
-                  u.email || "No Email"
-                }</td>
-                <td class="p-4 text-slate-400 font-medium">${
-                  u.grade || "N/A"
-                }</td>
-                <td class="p-4 text-emerald-400 font-mono font-bold">${
-                  u.credits || 0
-                }</td>
-                <td class="p-4 font-mono text-blue-400 font-bold">${
-                  u.weekMinutes || 0
-                }m</td>
-                <td class="p-4 text-right flex gap-2 justify-end">
-                    <button class="msg-user-btn bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
-                            data-id="${userDoc.id}" data-name="${u.firstName}">
-                        Message
-                    </button>
-                    <button class="del-user-btn bg-red-900/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
-                            data-id="${userDoc.id}">
-                        Delete
-                    </button>
-                </td>
-            `;
+        <td class="p-4 font-bold user-name text-white">
+          ${u.firstName || "???"} ${u.lastName || ""}
+        </td>
+        <td class="p-4 text-slate-400 text-xs font-mono">${u.email || "No Email"}</td>
+        <td class="p-4 text-slate-400 font-medium">${u.grade || "N/A"}</td>
+        <td class="p-4 text-emerald-400 font-mono font-bold">${u.credits || 0}</td>
+        <td class="p-4 font-mono text-blue-400 font-bold">${u.weekMinutes || 0}m</td>
+        <td class="p-4 text-right flex gap-2 justify-end">
+          <button class="msg-user-btn bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
+                  data-id="${userDoc.id}" data-name="${u.firstName}">
+            Message
+          </button>
+          <button class="del-user-btn bg-red-900/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
+                  data-id="${userDoc.id}">
+            Delete
+          </button>
+        </td>
+      `;
       userListEl.appendChild(row);
     });
 
@@ -226,6 +222,198 @@ async function loadAllUsers() {
     });
   } catch (err) {
     console.error("Load Error:", err);
+  }
+}
+
+/**
+ * NEW: Load and render suggestions
+ */
+async function loadSuggestions() {
+  if (!suggestionListEl) return;
+
+  suggestionListEl.innerHTML =
+    '<tr><td colspan="5" class="p-6 text-center text-slate-400 text-sm">Loading suggestions...</td></tr>';
+
+  try {
+    const q = query(
+      collection(db, "suggestions"),
+      orderBy("createdAt", "desc"),
+      limit(50)
+    );
+
+    const snap = await getDocs(q);
+    suggestionListEl.innerHTML = "";
+
+    if (snap.empty) {
+      suggestionListEl.innerHTML =
+        '<tr><td colspan="5" class="p-6 text-center text-slate-500 text-sm italic">No suggestions yet.</td></tr>';
+      return;
+    }
+
+    snap.forEach((docSnap) => {
+      const s = docSnap.data();
+      const row = document.createElement("tr");
+      const status = s.status || "pending";
+
+      row.className =
+        "border-b border-slate-800 hover:bg-slate-800/40 transition";
+
+      const typeLabel =
+        s.type === "bug"
+          ? '<span class="text-xs font-bold text-red-400 bg-red-400/10 px-2 py-0.5 rounded-full">Bug</span>'
+          : '<span class="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">Feature</span>';
+
+      const statusColor =
+        status === "approved"
+          ? "text-emerald-400"
+          : status === "denied"
+          ? "text-red-400"
+          : "text-yellow-400";
+
+      row.innerHTML = `
+        <td class="p-3 align-top">
+          <div class="font-bold text-white text-sm line-clamp-2">${s.title || "(no title)"}</div>
+          <div class="text-xs text-slate-400 mt-1 max-w-xl">${(s.text || "").slice(0, 180)}${(s.text || "").length > 180 ? "..." : ""}</div>
+        </td>
+        <td class="p-3 align-top">
+          ${typeLabel}
+        </td>
+        <td class="p-3 align-top text-xs text-slate-300">
+          <div>${s.email || "No email"}</div>
+          <div class="text-[10px] text-slate-500">${s.userId}</div>
+        </td>
+        <td class="p-3 align-top text-xs ${statusColor} font-bold uppercase">
+          ${status}
+        </td>
+        <td class="p-3 align-top text-right text-[10px] space-y-1">
+          ${
+            status === "pending"
+              ? `
+              <button
+                class="bg-emerald-700/60 hover:bg-emerald-600 text-emerald-100 px-3 py-1 rounded-full font-bold uppercase mr-1"
+                data-action="approve"
+                data-id="${docSnap.id}"
+                data-user="${s.userId}"
+              >
+                Approve (Refund)
+              </button>
+              <button
+                class="bg-blue-700/60 hover:bg-blue-600 text-blue-100 px-3 py-1 rounded-full font-bold uppercase mr-1"
+                data-action="approveBonus"
+                data-id="${docSnap.id}"
+                data-user="${s.userId}"
+              >
+                Approve + Bonus
+              </button>
+              <button
+                class="bg-red-800/40 hover:bg-red-700 text-red-200 px-3 py-1 rounded-full font-bold uppercase"
+                data-action="deny"
+                data-id="${docSnap.id}"
+                data-user="${s.userId}"
+              >
+                Deny
+              </button>
+            `
+              : "<span class='text-slate-500'>Reviewed</span>"
+          }
+        </td>
+      `;
+
+      suggestionListEl.appendChild(row);
+    });
+
+    // Attach click handlers
+    suggestionListEl.querySelectorAll("button[data-action]").forEach((btn) => {
+      const action = btn.getAttribute("data-action");
+      const suggestionId = btn.getAttribute("data-id");
+      const userId = btn.getAttribute("data-user");
+
+      if (action === "approve") {
+        btn.onclick = () => approveSuggestion(suggestionId, userId, false);
+      } else if (action === "approveBonus") {
+        btn.onclick = () => approveSuggestion(suggestionId, userId, true);
+      } else if (action === "deny") {
+        btn.onclick = () => denySuggestion(suggestionId, userId);
+      }
+    });
+  } catch (err) {
+    console.error("Load suggestions error:", err);
+    suggestionListEl.innerHTML =
+      '<tr><td colspan="5" class="p-6 text-center text-red-400 text-xs">Failed to load suggestions.</td></tr>';
+  }
+}
+
+/**
+ * Approve suggestion: refund and optional bonus
+ */
+async function approveSuggestion(suggestionId, userId, withBonus) {
+  const confirmText = withBonus
+    ? "Approve and refund 20 credits + give bonus tokens?"
+    : "Approve and refund 20 credits?";
+  if (!confirm(confirmText)) return;
+
+  try {
+    const suggestionRef = doc(db, "suggestions", suggestionId);
+    const userRef = doc(db, "users", userId);
+
+    const totalCreditChange = withBonus ? SUGGESTION_COST + 40 : SUGGESTION_COST;
+
+    await updateDoc(userRef, {
+      credits: increment(totalCreditChange),
+      totalEarned: withBonus ? increment(40) : increment(0),
+    });
+
+    await updateDoc(suggestionRef, {
+      status: "approved",
+      refundGiven: true,
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+    });
+
+    await sendNotification(
+      userId,
+      "Suggestion Approved",
+      withBonus
+        ? `Thanks for the great suggestion! Your 20-credit deposit was refunded and you received bonus tokens as a reward.`
+        : `Thanks for the helpful suggestion! Your 20-credit deposit was refunded.`,
+      "suggestion"
+    );
+
+    loadSuggestions();
+  } catch (err) {
+    console.error("Approve suggestion error:", err);
+    alert("Failed to approve suggestion.");
+  }
+}
+
+/**
+ * Deny suggestion: no refund
+ */
+async function denySuggestion(suggestionId, userId) {
+  if (!confirm("Deny this suggestion? The user will not receive a refund.")) {
+    return;
+  }
+
+  try {
+    const suggestionRef = doc(db, "suggestions", suggestionId);
+
+    await updateDoc(suggestionRef, {
+      status: "denied",
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+    });
+
+    await sendNotification(
+      userId,
+      "Suggestion Reviewed",
+      "Thanks for sending a suggestion. This one was not approved, so the 20-credit deposit was not refunded. Please keep reporting important bugs or high-value ideas!",
+      "suggestion"
+    );
+
+    loadSuggestions();
+  } catch (err) {
+    console.error("Deny suggestion error:", err);
+    alert("Failed to deny suggestion.");
   }
 }
 
