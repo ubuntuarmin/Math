@@ -144,73 +144,136 @@
 <body class="page">
 
   <!-- Modern global header using style.css, but preserving your IDs/buttons -->
-  <header id="header" class="site-header hidden">
-    <nav class="navbar">
-      <a href="index.html" class="navbar-brand">
-        <span class="navbar-brand-logo"></span>
-        <span>Katy Math</span>
-      </a>
+ <!-- REPLACE your current <header id="header">...</header> with this block -->
 
-      <button class="nav-toggle" type="button">Menu</button>
+<header id="header" class="site-header hidden">
+  <nav class="navbar">
+    <!-- Left: Brand -->
+    <a href="index.html" class="navbar-brand">
+      <span class="navbar-brand-logo"></span>
+      <span>Katy Math</span>
+    </a>
 
-      <div class="navbar-nav">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-2 bg-gray-900 px-3 py-1 rounded-full border border-gray-700">
-            <div class="token-spin text-xl">🪙</div>
-            <span id="creditCount" class="font-bold">0</span>
+    <!-- Mobile toggle (optional JS if you want to wire it later) -->
+    <button class="nav-toggle" type="button">
+      Menu
+    </button>
+
+    <!-- Right: Main controls -->
+    <div class="navbar-nav">
+      <!-- Credits pill -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1 rounded-full border border-gray-700/80 bg-black/40 shadow-sm">
+          <div class="token-spin text-lg leading-none">🪙</div>
+          <div class="flex flex-col leading-tight">
+            <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400 font-semibold">
+              Credits
+            </span>
+            <span id="creditCount" class="text-sm font-bold text-white">0</span>
           </div>
-          <button id="tierBtn" type="button" class="text-xs text-blue-400 underline decoration-dotted uppercase tracking-tighter">
-            Tier: <span id="tierLabel">Basic</span>
-          </button>
         </div>
 
-        <button type="button" onclick="navigate('dashboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+        <!-- Tier label -->
+        <button
+          id="tierBtn"
+          type="button"
+          class="px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.16em] border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition"
+        >
+          Tier:
+          <span id="tierLabel" class="ml-1">Basic</span>
+        </button>
+      </div>
+
+      <!-- Page nav buttons -->
+      <div class="hidden md:flex items-center gap-1 ml-4">
+        <button
+          type="button"
+          onclick="navigate('dashboard')"
+          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
+        >
           Dashboard
         </button>
-        <button type="button" onclick="navigate('tokens')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+        <button
+          type="button"
+          onclick="navigate('tokens')"
+          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
+        >
           Tokens
         </button>
-        <button type="button" onclick="navigate('leaderboard')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+        <button
+          type="button"
+          onclick="navigate('leaderboard')"
+          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
+        >
           Leaderboard
         </button>
-        <button type="button" onclick="navigate('account')" class="text-sm font-medium hover:text-blue-400 transition whitespace-nowrap">
+        <button
+          type="button"
+          onclick="navigate('account')"
+          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
+        >
           Account
         </button>
+      </div>
 
+      <!-- Bell + Chat + Logout -->
+      <div class="flex items-center gap-2 ml-3">
+        <!-- Notifications bell -->
         <div class="notification-wrapper relative">
-          <button id="notifBtn" class="p-2 hover:bg-gray-700 rounded-full transition relative flex items-center justify-center">
-            <span class="text-lg">🔔</span>
-            <span id="notifBadge" class="hidden">0</span>
+          <button
+            id="notifBtn"
+            class="w-9 h-9 flex items-center justify-center rounded-full border border-gray-700/80 bg-black/30 hover:bg-black/60 transition relative"
+            type="button"
+          >
+            <span class="text-lg leading-none">🔔</span>
+            <span
+              id="notifBadge"
+              class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1.5 py-[1px] rounded-full border border-gray-900 font-bold"
+            >
+              0
+            </span>
           </button>
-          <div id="notifDropdown" class="hidden">
-            <h3>Inbox</h3>
-            <div id="notifList">
-              <p class="text-xs text-gray-500 text-center py-4">No new messages</p>
-            </div>
-          </div>
         </div>
 
-        <a href="tutoring.html" class="btn-outline whitespace-nowrap">
+        <!-- Chat link -->
+        <a
+          href="tutoring.html"
+          class="hidden sm:inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-semibold border border-blue-500/60 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition whitespace-nowrap"
+        >
           Chat
         </a>
 
-        <button id="logoutBtn" type="button" class="btn-outline whitespace-nowrap">
+        <!-- Logout -->
+        <button
+          id="logoutBtn"
+          type="button"
+          class="px-3 py-1.5 rounded-full text-xs font-semibold border border-red-500/60 bg-red-500/10 text-red-300 hover:bg-red-500/25 hover:text-red-50 transition whitespace-nowrap"
+        >
           Logout
         </button>
       </div>
-    </nav>
-
-    <!-- Existing floating inbox dropdown preserved -->
-    <div id="inboxDropdown" class="hidden absolute right-4 top-16 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-      <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
-        <h3 class="font-bold text-white">Notifications</h3>
-        <button id="markAllRead" class="text-[10px] text-blue-400 hover:underline uppercase font-bold">Mark all as read</button>
-      </div>
-      <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
-        <div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>
-      </div>
     </div>
-  </header>
+  </nav>
+
+  <!-- Existing floating inbox dropdown (kept as-is for JS) -->
+  <div
+    id="inboxDropdown"
+    class="hidden absolute right-4 top-16 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden"
+  >
+    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
+      <h3 class="font-bold text-white text-sm">Notifications</h3>
+      <button
+        id="markAllRead"
+        class="text-[10px] text-blue-400 hover:underline uppercase font-bold tracking-[0.16em]"
+      >
+        Mark all as read
+      </button>
+    </div>
+    <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
+      <div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>
+    </div>
+  </div>
+</header>
 
   <main id="appContainer">
     <div class="container">
