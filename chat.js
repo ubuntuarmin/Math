@@ -1,5 +1,4 @@
 // === 1. Firebase config ===
-// Fill in the missing values from Firebase console → Project settings → General.
 const firebaseConfig = {
   apiKey: "YOUR_API_KEY",
   authDomain: "mathchat2351.firebaseapp.com",
@@ -12,15 +11,16 @@ const firebaseConfig = {
 
 // === 2. App State ===
 const ROOM_ID = "global";
-const COOLDOWN_MS = 3000;
+const COOLDOWN_MS = 3000; // 3s cooldown
 
 let appInitialized = false;
+let authReady = false;
 let currentUser = null;
 let currentName = "";
 let lastSentAt = 0;
 let cooldownTimer = null;
 
-// === 3. DOM ===
+// === 3. DOM refs ===
 const statusPill = document.getElementById("status-pill");
 const statusText = document.getElementById("status-text");
 const onlineCountEl = document.getElementById("online-count");
@@ -34,6 +34,7 @@ const cooldownIndicator = document.getElementById("cooldown-indicator");
 const errorBanner = document.getElementById("error-banner");
 const errorText = document.getElementById("error-text");
 
+// === 4. UI helpers ===
 function setStatus(connected) {
   if (!statusPill) return;
   const dot = statusPill.querySelector(".status-dot");
@@ -60,7 +61,7 @@ function setOnlineCount(count) {
   }
 }
 
-function showError(message, timeoutMs = 3000) {
+function showError(message, timeoutMs = 2500) {
   if (!errorBanner) return;
   errorText.textContent = message;
   errorBanner.classList.add("visible");
@@ -77,18 +78,15 @@ function scrollToBottom() {
   });
 }
 
-// === cooldown ===
+// === 5. Cooldown ===
 function startCooldown() {
   lastSentAt = Date.now();
   updateCooldownUI();
 
-  if (cooldownTimer) {
-    clearInterval(cooldownTimer);
-  }
+  if (cooldownTimer) clearInterval(cooldownTimer);
 
   cooldownTimer = setInterval(() => {
-    const now = Date.now();
-    const diff = now - lastSentAt;
+    const diff = Date.now() - lastSentAt;
     if (diff >= COOLDOWN_MS) {
       clearInterval(cooldownTimer);
       cooldownTimer = null;
@@ -108,7 +106,9 @@ function updateCooldownUI() {
   if (remaining <= 0) {
     cooldownIndicator.classList.add("ready");
     cooldownIndicator.innerHTML = "<span>ready</span>";
-    if (messageInput.value.trim() && currentName) {
+
+    // enable only if everything is ready
+    if (authReady && currentUser && currentName && messageInput.value.trim()) {
       sendBtn.classList.remove("disabled");
     } else {
       sendBtn.classList.add("disabled");
@@ -121,17 +121,18 @@ function updateCooldownUI() {
   }
 }
 
-// === Name ===
+// === 6. Display name ===
 function applyDisplayName(name) {
   currentName = (name || "").trim().slice(0, 32);
   displayNameInput.value = currentName;
 
-  if (!currentUser || !currentUser.uid || !currentName) return;
+  if (!authReady || !currentUser || !currentUser.uid || !currentName) return;
 
   const metaRef = firebase.database().ref(`userMeta/${currentUser.uid}`);
   metaRef.update({ name: currentName }).catch((err) => {
-    console.error("Failed to update userMeta name", err);
+    console.warn("Failed to update userMeta name", err);
   });
+  updateCooldownUI();
 }
 
 function handleSetName() {
@@ -146,14 +147,13 @@ function handleSetName() {
   }
   applyDisplayName(value);
   showError("Name updated.", 1500);
-  updateCooldownUI();
 }
 
-// === Message render ===
+// === 7. Rendering messages ===
 function renderMessage(key, msg) {
-  if (!msg || !msg.text || !msg.uid || !msg.name) return;
+  if (!msg || !msg.text || !msg.name) return;
 
-  const isSelf = currentUser && msg.uid === currentUser.uid;
+  const isSelf = currentUser && msg.uid && msg.uid === currentUser.uid;
 
   const row = document.createElement("div");
   row.className = "message-row" + (isSelf ? " self" : "");
@@ -199,7 +199,7 @@ function renderMessage(key, msg) {
   scrollToBottom();
 }
 
-// === Presence ===
+// === 8. Presence ===
 function setupPresence(user) {
   const db = firebase.database();
   const statusRef = db.ref(`/status/${user.uid}`);
@@ -213,6 +213,7 @@ function setupPresence(user) {
       if (val && val.state === "online") count++;
     });
     setOnlineCount(count);
+    // Keep onlineCount updated (optional)
     onlineCountRef.set(count).catch(() => {});
   });
 
@@ -237,33 +238,37 @@ function setupPresence(user) {
   });
 }
 
-// === Firebase init ===
+// === 9. Firebase init ===
 function initFirebaseApp() {
   if (appInitialized) return;
+
   firebase.initializeApp(firebaseConfig);
   appInitialized = true;
-
   setStatus(false);
 
   firebase.auth().onAuthStateChanged((user) => {
     if (!user) {
+      authReady = false;
       firebase
         .auth()
         .signInAnonymously()
         .catch((err) => {
           console.error("Anonymous sign-in error:", err);
-          showError("Failed to sign in anonymously.");
+          showError("Failed to connect to chat (auth).");
         });
       return;
     }
 
     currentUser = user;
+    authReady = true;
 
     const metaRef = firebase.database().ref(`userMeta/${user.uid}`);
     metaRef.once("value").then((snap) => {
       const meta = snap.val();
       if (meta && meta.name) {
         applyDisplayName(meta.name);
+      } else {
+        updateCooldownUI();
       }
     });
 
@@ -272,6 +277,7 @@ function initFirebaseApp() {
   });
 }
 
+// === 10. DB listeners ===
 function attachDatabaseListeners() {
   const db = firebase.database();
   const messagesRef = db.ref(`rooms/${ROOM_ID}/messages`).limitToLast(80);
@@ -281,22 +287,28 @@ function attachDatabaseListeners() {
   });
 }
 
-// === Sending ===
+// === 11. Sending messages ===
 function canSendNow() {
   const text = messageInput.value.trim();
-  if (!currentUser) {
-    showError("Not signed in yet. Please wait…");
+
+  if (!authReady || !currentUser) {
+    // show once in a while, not spamming
+    showError("Still connecting… try again in a moment.");
     return false;
   }
+
   if (!currentName) {
     showError("Set a display name first.");
     return false;
   }
+
   if (!text) return false;
+
   if (isInCooldown()) {
     showError("Slow down a bit—cooldown active.", 1500);
     return false;
   }
+
   return true;
 }
 
@@ -336,7 +348,7 @@ function sendMessage() {
     });
 }
 
-// === UI events ===
+// === 12. UI events ===
 function setupUI() {
   setStatus(false);
   updateCooldownUI();
@@ -356,7 +368,7 @@ function setupUI() {
   });
 
   messageInput.addEventListener("input", () => {
-    if (!isInCooldown() && messageInput.value.trim() && currentName) {
+    if (!isInCooldown() && authReady && currentUser && messageInput.value.trim() && currentName) {
       sendBtn.classList.remove("disabled");
     } else {
       sendBtn.classList.add("disabled");
@@ -371,6 +383,7 @@ function setupUI() {
   });
 }
 
+// === 13. Boot ===
 document.addEventListener("DOMContentLoaded", () => {
   setupUI();
   initFirebaseApp();
