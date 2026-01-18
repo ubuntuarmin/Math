@@ -1,12 +1,13 @@
 // === 1. Firebase config ===
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyBfAmhyoDysA6vHiXafMfQNegEZ5x4u0uc",
   authDomain: "mathchat2351.firebaseapp.com",
   databaseURL: "https://mathchat2351-default-rtdb.firebaseio.com",
   projectId: "mathchat2351",
-  storageBucket: "mathchat2351.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  storageBucket: "mathchat2351.firebasestorage.app",
+  messagingSenderId: "180804483490",
+  appId: "1:180804483490:web:e846785d6d12a822f3dafb",
+  measurementId: "G-WNZSCPC9VH"
 };
 
 // === 2. App State ===
