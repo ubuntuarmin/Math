@@ -1,3 +1,6 @@
+// Very animated full-screen welcome shown after sign-in
+let welcomePlaying = false;
+
 // Controls the full-screen welcome animation shown to returning users after sign-in
 export function showWelcome(name = "Learner") {
   const overlay = document.getElementById("welcomeOverlay");
@@ -8,11 +11,15 @@ export function showWelcome(name = "Learner") {
 
   if (!overlay || !card || !logo || !title || !sub) return;
 
+  // Prevent double-play / flicker if called twice quickly
+  if (welcomePlaying) return;
+  welcomePlaying = true;
+
   // Set copy
   title.textContent = `Welcome back, ${name}!`;
   sub.textContent = "Refer the site to friends for a bonus!";
 
-  // Clear previous state if any
+  // Reset previous state
   overlay.classList.remove("hide");
   card.classList.remove("enter", "idle", "exit");
   logo.classList.remove("enter", "idle", "exit");
@@ -20,14 +27,14 @@ export function showWelcome(name = "Learner") {
   // Show overlay and kick off enter animations
   overlay.classList.add("show");
 
-  // Force reflow to ensure animations restart when called multiple times
+  // Force reflow so CSS animations restart even if classes were used before
   // eslint-disable-next-line no-unused-expressions
   void card.offsetWidth;
 
   card.classList.add("enter");
   logo.classList.add("enter");
 
-  // When enter animation ends, switch to idle float
+  // Enter → idle
   const onCardEnterEnd = (e) => {
     if (e.target !== card) return;
     card.removeEventListener("animationend", onCardEnterEnd);
@@ -36,13 +43,9 @@ export function showWelcome(name = "Learner") {
     logo.classList.remove("enter");
     logo.classList.add("idle");
   };
-
   card.addEventListener("animationend", onCardEnterEnd);
 
-  // Total visible time: ~3.0–3.2s
-  //  - ~0.8s enter
-  //  - ~1.8–2.0s idle
-  // Then trigger exit animations
+  // Visible for ~2.8s total (including enter)
   const visibleDuration = 2800;
 
   setTimeout(() => {
@@ -61,14 +64,7 @@ export function showWelcome(name = "Learner") {
       overlay.classList.remove("show", "hide");
       card.classList.remove("enter", "idle", "exit");
       logo.classList.remove("enter", "idle", "exit");
-
-      // Ensure overlay is not capturing pointer events when hidden
-      overlay.style.display = "none";
-
-      // Small async to allow future re-show
-      setTimeout(() => {
-        overlay.style.display = "";
-      }, 10);
+      welcomePlaying = false;
     };
 
     card.addEventListener("animationend", onCardExitEnd);
