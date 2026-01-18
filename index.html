@@ -32,36 +32,373 @@
     #loginModal button { margin-top:12px; width:100%; }
 
     /* Fullscreen welcome overlay */
-    #welcomeOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index:60; pointer-events:none; }
-    #welcomeOverlay.show { display:flex; pointer-events:auto; }
-    .welcome-full {
-      width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-      background: linear-gradient(180deg, rgba(2,6,23,0.95), rgba(2,6,23,0.85));
-      backdrop-filter: blur(6px);
+    #welcomeOverlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 60;
+      pointer-events: none;
+      opacity: 0;
     }
-    .welcome-card {
-      background: linear-gradient(135deg,#0ea5a4,#7c3aed);
-      color:white; padding:30px 36px; border-radius:18px; box-shadow:0 20px 60px rgba(2,6,23,0.7);
-      transform: translateY(20px) scale(.96); opacity: 0; display:flex; gap:18px; align-items:center;
-      max-width:920px; width:90%;
+    #welcomeOverlay.show {
+      display: flex;
+      pointer-events: auto;
+      animation: welcome-overlay-fade-in 220ms ease-out forwards;
     }
-    .welcome-logo {
-      width:88px; height:88px; border-radius:16px; background:rgba(255,255,255,.12); display:flex;
-      align-items:center; justify-content:center; font-size:36px; transform-origin:center;
+    #welcomeOverlay.hide {
+      animation: welcome-overlay-fade-out 420ms ease-in forwards;
     }
 
-    @keyframes welcome-pop {
-      0% { transform: translateY(30px) scale(.94); opacity:0; }
-      60% { transform: translateY(-8px) scale(1.03); opacity:1; }
-      100% { transform: translateY(0) scale(1); opacity:1; }
+    .welcome-full {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(circle at top, rgba(56,189,248,0.22), transparent 55%),
+                  radial-gradient(circle at bottom, rgba(129,140,248,0.24), transparent 60%),
+                  linear-gradient(180deg, rgba(2,6,23,0.98), rgba(15,23,42,0.96));
+      backdrop-filter: blur(12px);
     }
-    @keyframes logo-bounce {
-      0% { transform: translateY(0) rotate(-6deg) }
-      50% { transform: translateY(-6px) rotate(8deg) }
-      100% { transform: translateY(0) rotate(0deg) }
+
+    /* Animated gradient halo behind the card */
+    .welcome-full::before {
+      content: "";
+      position: absolute;
+      width: 520px;
+      height: 520px;
+      border-radius: 999px;
+      background: conic-gradient(
+        from 0deg,
+        rgba(56,189,248,0.7),
+        rgba(147,51,234,0.8),
+        rgba(34,197,94,0.8),
+        rgba(56,189,248,0.7)
+      );
+      filter: blur(28px);
+      opacity: 0.35;
+      animation: welcome-halo-spin 7s linear infinite;
     }
-    .welcome-card.animate { animation: welcome-pop 700ms cubic-bezier(.2,.9,.3,1) forwards; }
-    .welcome-logo.animate { animation: logo-bounce 900ms cubic-bezier(.2,.9,.3,1) forwards; }
+
+    /* Faint particles */
+    .welcome-full::after {
+      content: "";
+      position: absolute;
+      inset: -30%;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,0.18) 0, transparent 45%),
+        radial-gradient(circle, rgba(56,189,248,0.22) 0, transparent 55%),
+        radial-gradient(circle, rgba(250,204,21,0.2) 0, transparent 50%);
+      background-position:
+        5% 10%,
+        80% 18%,
+        40% 85%;
+      background-size:
+        260px 260px,
+        340px 340px,
+        300px 300px;
+      opacity: 0.13;
+      animation: welcome-stars-move 16s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    .welcome-card {
+      position: relative;
+      background: linear-gradient(135deg, rgba(14,165,164,0.96), rgba(124,58,237,0.98));
+      color: white;
+      padding: 30px 36px;
+      border-radius: 18px;
+      box-shadow:
+        0 24px 70px rgba(15,23,42,0.9),
+        0 0 0 1px rgba(148,163,184,0.45);
+      transform: translateY(40px) scale(.9);
+      opacity: 0;
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      max-width: 920px;
+      width: 90%;
+      overflow: hidden;
+    }
+
+    /* glowing border sweep */
+    .welcome-card::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      background: conic-gradient(
+        from 120deg,
+        rgba(34,197,94,0.0),
+        rgba(56,189,248,0.9),
+        rgba(244,114,182,0.8),
+        rgba(34,197,94,0.0)
+      );
+      mix-blend-mode: screen;
+      opacity: 0;
+      animation: welcome-border-sweep 3s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .welcome-card-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .welcome-logo {
+      width: 88px;
+      height: 88px;
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(255,255,255,0.8), transparent 60%),
+        radial-gradient(circle at 80% 90%, rgba(96,165,250,0.6), transparent 60%),
+        rgba(15,23,42,0.6);
+      box-shadow:
+        0 0 0 1px rgba(148,163,184,0.5),
+        0 18px 35px rgba(15,23,42,0.9),
+        0 0 45px rgba(56,189,248,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      transform-origin: center;
+      color: #fefce8;
+    }
+
+    /* tiny floating sparkles around the logo */
+    .welcome-logo::before,
+    .welcome-logo::after {
+      content: "✦";
+      position: absolute;
+      font-size: 14px;
+      color: rgba(248,250,252,0.85);
+      text-shadow:
+        0 0 12px rgba(251,191,36,0.9),
+        0 0 22px rgba(251,191,36,0.7);
+      opacity: 0.9;
+    }
+    .welcome-logo::before {
+      top: -10px;
+      right: -4px;
+      animation: logo-spark-1 2.6s ease-in-out infinite;
+    }
+    .welcome-logo::after {
+      bottom: -8px;
+      left: -6px;
+      animation: logo-spark-2 3s ease-in-out infinite;
+    }
+
+    .welcome-text-primary {
+      font-size: 1.9rem;
+      line-height: 1.2;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-shadow:
+        0 8px 25px rgba(15,23,42,0.85),
+        0 0 24px rgba(248,250,252,0.45);
+    }
+
+    .welcome-text-secondary {
+      margin-top: 4px;
+      font-size: 1.05rem;
+      opacity: 0.92;
+    }
+
+    /* animation states for card + logo */
+    .welcome-card.enter {
+      animation:
+        welcome-card-in 760ms cubic-bezier(0.18, 0.97, 0.21, 1.01) forwards,
+        welcome-card-glow 2200ms ease-in-out 200ms forwards;
+    }
+
+    .welcome-card.idle {
+      animation:
+        welcome-card-float 2600ms ease-in-out infinite alternate,
+        welcome-card-glow-pulse 2600ms ease-in-out infinite alternate;
+    }
+
+    .welcome-card.exit {
+      animation:
+        welcome-card-out 420ms cubic-bezier(0.55, 0.01, 0.72, 0.23) forwards;
+    }
+
+    .welcome-logo.enter {
+      animation:
+        welcome-logo-in 820ms cubic-bezier(0.22, 0.95, 0.25, 1) forwards;
+    }
+
+    .welcome-logo.idle {
+      animation:
+        welcome-logo-float 2500ms ease-in-out infinite alternate,
+        welcome-logo-tilt 2400ms ease-in-out infinite alternate;
+    }
+
+    .welcome-logo.exit {
+      animation: welcome-logo-out 420ms ease-in forwards;
+    }
+
+    /* --- KEYFRAMES --- */
+
+    @keyframes welcome-overlay-fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes welcome-overlay-fade-out {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
+    @keyframes welcome-halo-spin {
+      from { transform: rotate(0deg) scale(1); }
+      to { transform: rotate(360deg) scale(1.05); }
+    }
+
+    @keyframes welcome-stars-move {
+      from {
+        transform: translate3d(-12px, -10px, 0) scale(1.02);
+        opacity: 0.16;
+      }
+      to {
+        transform: translate3d(10px, 12px, 0) scale(1.06);
+        opacity: 0.08;
+      }
+    }
+
+    @keyframes welcome-card-in {
+      0% {
+        transform: translateY(42px) scale(0.88) rotateX(10deg);
+        opacity: 0;
+      }
+      55% {
+        transform: translateY(-8px) scale(1.03) rotateX(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes welcome-card-glow {
+      from {
+        box-shadow:
+          0 24px 70px rgba(15,23,42,0.9),
+          0 0 0 1px rgba(148,163,184,0.45);
+      }
+      to {
+        box-shadow:
+          0 30px 90px rgba(15,23,42,0.95),
+          0 0 35px rgba(56,189,248,0.55),
+          0 0 0 1px rgba(191,219,254,0.6);
+      }
+    }
+
+    @keyframes welcome-card-float {
+      from {
+        transform: translateY(0) scale(1);
+      }
+      to {
+        transform: translateY(-10px) scale(1.01);
+      }
+    }
+
+    @keyframes welcome-card-glow-pulse {
+      0% {
+        box-shadow:
+          0 28px 80px rgba(15,23,42,0.95),
+          0 0 24px rgba(56,189,248,0.45);
+      }
+      100% {
+        box-shadow:
+          0 24px 72px rgba(15,23,42,0.9),
+          0 0 32px rgba(244,114,182,0.55);
+      }
+    }
+
+    @keyframes welcome-card-out {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(12px) scale(0.94);
+        opacity: 0;
+      }
+    }
+
+    @keyframes welcome-logo-in {
+      0% {
+        transform: scale(0.4) translateY(12px) rotate(-16deg);
+        opacity: 0;
+      }
+      55% {
+        transform: scale(1.08) translateY(-2px) rotate(10deg);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1) translateY(0) rotate(0deg);
+        opacity: 1;
+      }
+    }
+
+    @keyframes welcome-logo-float {
+      0% {
+        transform: translateY(0) scale(1);
+      }
+      100% {
+        transform: translateY(-6px) scale(1.03);
+      }
+    }
+
+    @keyframes welcome-logo-tilt {
+      0% {
+        transform: rotate(-3deg);
+      }
+      50% {
+        transform: rotate(3deg);
+      }
+      100% {
+        transform: rotate(-2deg);
+      }
+    }
+
+    @keyframes welcome-logo-out {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(8px) scale(0.92);
+        opacity: 0;
+      }
+    }
+
+    @keyframes logo-spark-1 {
+      0% { opacity: 0; transform: translate(-4px, 2px) scale(0.5); }
+      40% { opacity: 1; transform: translate(0, -4px) scale(1); }
+      100% { opacity: 0; transform: translate(3px, -10px) scale(0.6); }
+    }
+
+    @keyframes logo-spark-2 {
+      0% { opacity: 0; transform: translate(4px, -2px) scale(0.5); }
+      40% { opacity: 1; transform: translate(-2px, 2px) scale(1); }
+      100% { opacity: 0; transform: translate(-6px, 8px) scale(0.6); }
+    }
+
+    @keyframes welcome-border-sweep {
+      0% { opacity: 0; transform: rotate(0deg); }
+      20% { opacity: 0.62; }
+      60% { opacity: 0.18; }
+      100% { opacity: 0; transform: rotate(360deg); }
+    }
 
     /* Onboarding modal */
     #onboardModal { position:fixed; inset:0; z-index:70; }
@@ -420,10 +757,14 @@
   <div id="welcomeOverlay">
     <div class="welcome-full">
       <div class="welcome-card" id="welcomeCard">
-        <div class="welcome-logo" id="welcomeLogo">✨</div>
-        <div>
-          <div id="welcomeTitle" class="text-3xl font-bold">Welcome</div>
-          <div id="welcomeSub" class="text-lg opacity-90 mt-1">Ready to earn some credits?</div>
+        <div class="welcome-card-inner">
+          <div class="welcome-logo" id="welcomeLogo">✨</div>
+          <div>
+            <div id="welcomeTitle" class="welcome-text-primary">Welcome</div>
+            <div id="welcomeSub" class="welcome-text-secondary">
+              Ready to earn some credits?
+            </div>
+          </div>
         </div>
       </div>
     </div>
