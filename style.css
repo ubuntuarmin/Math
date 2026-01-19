@@ -533,3 +533,25 @@ footer.site-footer {
     align-items: flex-start;
   }
 }
+
+/* ========= ATTENTION BANNER ========= */
+
+@keyframes banner-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-banner-marquee {
+  display: inline-block;
+  will-change: transform;
+  animation: banner-marquee 18s linear infinite;
+}
+
+/* Slight speed boost on hover */
+#attentionBanner:hover .animate-banner-marquee {
+  animation-duration: 10s;
+}
