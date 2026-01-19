@@ -11,7 +11,7 @@ import { showLogin, hideLogin } from "./login.js";
 import { showWelcome } from "./welcome.js";
 import { showOnboarding } from "./onboarding.js";
 import { calculateTier } from "./tier.js";
-import { initInbox } from "./inbox.js"; // <--- ADDED INBOX IMPORT
+import { initInbox } from "./inbox.js";
 
 const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
@@ -94,7 +94,7 @@ onAuthStateChanged(auth, async user => {
             snap = await getDoc(userRef);
         }
 
-        // --- FIXED SECTION: SELF-HEALING LOGIC ---
+        // --- SELF-HEALING LOGIC (unchanged) ---
         if (!snap.exists()) {
             if (sessionStorage.getItem("justSignedUp")) {
                 return;
@@ -133,7 +133,7 @@ onAuthStateChanged(auth, async user => {
         }
 
         // --- INITIALIZE INBOX ---
-        initInbox(user.uid); // <--- ADDED CALL
+        initInbox(user.uid);
 
         hideLogin();
         header?.classList.remove("hidden");
