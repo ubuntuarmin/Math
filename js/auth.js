@@ -41,6 +41,9 @@ async function handleDailyData(uid, userData) {
     if (lastVisitDate !== todayStr) {
         updates.dailyLinkUsage = 0;
         updates.lastVisitDate = todayStr;
+
+        // NEW: clear any per-day extra limit override when a new day starts
+        updates.extraLimitMinutesToday = 0;
     }
 
     const lastVisitTimestamp = userData.lastVisitTimestamp?.toMillis() || 0;
