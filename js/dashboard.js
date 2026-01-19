@@ -1,9 +1,11 @@
-import { auth, db } from "./firebase.js";
+import { db } from "./firebase.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
-import { LINK_GROUPS, createDropdown } from "./linkGroups.js";
 
 const linksEl = document.getElementById("links");
+
+// Use global LINK_GROUPS if it exists (defined elsewhere in your scripts)
+const LINK_GROUPS = window.LINK_GROUPS || [];
 
 /**
  * Renders the dashboard link grid
@@ -16,7 +18,11 @@ export async function updateUI(userData) {
  * Render all links based on unlocked status and daily usage/limit
  */
 async function renderLinks(userData) {
-  if (!linksEl) return;
+  if (!linksEl) {
+    console.warn("dashboard.js: #links element not found");
+    return;
+  }
+
   linksEl.innerHTML = "";
 
   const unlocked = userData?.unlockedLinks || [];
@@ -29,6 +35,12 @@ async function renderLinks(userData) {
   // Effective daily limit in minutes for TODAY (tier base + temporary override)
   const effectiveLimitMinutes = (userTier.limitMinutes || 0) + extraLimitMinutesToday;
   const maxSeconds = effectiveLimitMinutes * 60;
+
+  if (!Array.isArray(LINK_GROUPS) || LINK_GROUPS.length === 0) {
+    linksEl.innerHTML =
+      '<div class="text-sm text-gray-400">No link groups configured.</div>';
+    return;
+  }
 
   try {
     const [voteSnap, destSnap] = await Promise.all([
@@ -43,7 +55,7 @@ async function renderLinks(userData) {
     destSnap.forEach((d) => (destinations[d.id] = d.data().url));
 
     LINK_GROUPS.forEach((group) => {
-      const container = group.isDropdown ? createDropdown(group) : linksEl;
+      const container = linksEl;
 
       group.links.forEach((num) => {
         const linkId = `link${num}`;
@@ -101,13 +113,9 @@ async function renderLinks(userData) {
 
         container.appendChild(card);
       });
-
-      if (group.isDropdown) {
-        linksEl.appendChild(container);
-      }
     });
   } catch (err) {
-    console.error("Failed to render links:", err);
+    console.error("dashboard.js: Failed to render links:", err);
     linksEl.innerHTML =
       '<div class="text-center text-red-400 text-sm">Failed to load links. Please reload.</div>';
   }
