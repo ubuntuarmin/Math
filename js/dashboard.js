@@ -23,11 +23,11 @@ async function renderLinks(userData) {
   const usageInSeconds = userData?.dailyLinkUsage || 0;
   const userTier = calculateTier(userData?.totalEarned || 0);
 
-  // NEW: per-day extra limit from admin
+  // per-day extra limit from admin (temp override for today only)
   const extraLimitMinutesToday = userData?.extraLimitMinutesToday || 0;
 
   // Effective daily limit in minutes for TODAY (tier base + temporary override)
-  const effectiveLimitMinutes = userTier.limitMinutes + extraLimitMinutesToday;
+  const effectiveLimitMinutes = (userTier.limitMinutes || 0) + extraLimitMinutesToday;
   const maxSeconds = effectiveLimitMinutes * 60;
 
   try {
