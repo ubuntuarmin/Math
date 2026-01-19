@@ -21,7 +21,7 @@ const searchInput = document.getElementById("adminSearch");
 const suggestionListEl = document.getElementById("suggestionList");
 const linkSubmissionListEl = document.getElementById("linkSubmissionList");
 
-// Extend-limit modal elements
+// Extend-limit modal elements (from admin.html)
 const extendLimitModal = document.getElementById("extendLimitModal");
 const extendMinutesInput = document.getElementById("extendMinutesInput");
 const extendBonusInput = document.getElementById("extendBonusInput");
@@ -36,7 +36,7 @@ const ADMIN_UID = "bnGhRvqW1YhvGek1JTLuAed6Ib63";
 const SUGGESTION_COST = 20;
 const LINK_BONUS = 150;
 
-// Field name for per-day extra limit minutes.
+// Field name for per-day extra limit minutes (temp override for today only).
 const EXTRA_LIMIT_FIELD = "extraLimitMinutesToday";
 
 // State for which user is currently being edited in the modal
@@ -69,12 +69,13 @@ async function sendNotification(targetUid, title, message, type = "admin") {
  * Open / Close Extend Limit Modal
  */
 function openExtendLimitModal(userId, userName) {
+  if (!extendLimitModal) return;
   extendTargetUserId = userId;
   extendTargetUserName = userName || "this student";
   if (extendMinutesInput) extendMinutesInput.value = "";
   if (extendBonusInput) extendBonusInput.value = "";
   if (extendLimitError) extendLimitError.textContent = "";
-  if (extendLimitModal) extendLimitModal.classList.remove("hidden");
+  extendLimitModal.classList.remove("hidden");
 }
 
 function closeExtendLimitModal() {
@@ -113,8 +114,7 @@ async function applyExtendDailyLimit() {
     const userRef = doc(db, "users", extendTargetUserId);
 
     const updateData = {
-      // TEMP OVERRIDE FOR TODAY:
-      // add on top of their base tier limit for the current day
+      // temp per-day override
       [EXTRA_LIMIT_FIELD]: increment(extraMinutes),
     };
 
@@ -172,101 +172,103 @@ function getRewardAmount(rank) {
 /**
  * Reset leaderboard + rewards
  */
-resetBtn.onclick = async () => {
-  const confirmAction = confirm(
-    "🚨 CRITICAL ACTION 🚨\n\n" +
-      "This will:\n" +
-      "1. Give bonus credits to the Top 10\n" +
-      "2. Send an Inbox message to winners\n" +
-      "3. Clear all 'This Week' minutes.\n\n" +
-      "Do you want to proceed?"
-  );
-
-  if (!confirmAction) return;
-
-  resetBtn.disabled = true;
-  const originalText = resetBtn.innerHTML;
-  resetBtn.innerHTML = `⏳ Processing Rewards...`;
-
-  try {
-    // --- STEP 1: Find Top 10 Active Users ---
-    const topQuery = query(
-      collection(db, "users"),
-      orderBy("weekMinutes", "desc"),
-      limit(10)
+if (resetBtn) {
+  resetBtn.onclick = async () => {
+    const confirmAction = confirm(
+      "🚨 CRITICAL ACTION 🚨\n\n" +
+        "This will:\n" +
+        "1. Give bonus credits to the Top 10\n" +
+        "2. Send an Inbox message to winners\n" +
+        "3. Clear all 'This Week' minutes.\n\n" +
+        "Do you want to proceed?"
     );
-    const topSnap = await getDocs(topQuery);
 
-    const batchPromises = [];
-    let rank = 1;
+    if (!confirmAction) return;
 
-    for (const userDoc of topSnap.docs) {
-      const userData = userDoc.data();
-      if ((userData.weekMinutes || 0) > 0) {
-        const reward = getRewardAmount(rank);
-        const userRef = doc(db, "users", userDoc.id);
+    resetBtn.disabled = true;
+    const originalText = resetBtn.innerHTML;
+    resetBtn.innerHTML = `⏳ Processing Rewards...`;
 
-        // Update Credits
-        batchPromises.push(
-          updateDoc(userRef, {
-            credits: increment(reward),
-            totalEarned: increment(reward),
-          })
-        );
+    try {
+      // --- STEP 1: Find Top 10 Active Users ---
+      const topQuery = query(
+        collection(db, "users"),
+        orderBy("weekMinutes", "desc"),
+        limit(10)
+      );
+      const topSnap = await getDocs(topQuery);
 
-        // Send Inbox Notification
-        batchPromises.push(
-          sendNotification(
-            userDoc.id,
-            "🏆 Leaderboard Reward!",
-            `Congratulations! You finished Rank #${rank} this week and earned ${reward} credits.`,
-            "credit"
-          )
-        );
+      const batchPromises = [];
+      let rank = 1;
 
-        rank++;
+      for (const userDoc of topSnap.docs) {
+        const userData = userDoc.data();
+        if ((userData.weekMinutes || 0) > 0) {
+          const reward = getRewardAmount(rank);
+          const userRef = doc(db, "users", userDoc.id);
+
+          // Update Credits
+          batchPromises.push(
+            updateDoc(userRef, {
+              credits: increment(reward),
+              totalEarned: increment(reward),
+            })
+          );
+
+          // Send Inbox Notification
+          batchPromises.push(
+            sendNotification(
+              userDoc.id,
+              "🏆 Leaderboard Reward!",
+              `Congratulations! You finished Rank #${rank} this week and earned ${reward} credits.`,
+              "credit"
+            )
+          );
+
+          rank++;
+        }
       }
+
+      await Promise.all(batchPromises);
+
+      // --- STEP 2: Global Reset ---
+      resetBtn.innerHTML = `🧹 Resetting Leaderboard...`;
+      const allUsersSnap = await getDocs(collection(db, "users"));
+      const resetPromises = allUsersSnap.docs.map((userDoc) => {
+        return updateDoc(doc(db, "users", userDoc.id), { weekMinutes: 0 });
+      });
+
+      await Promise.all(resetPromises);
+
+      // Optional: store next reset info
+      const settingsRef = doc(db, "settings", "leaderboard");
+      const now = new Date();
+      const nextSunday = new Date();
+      nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
+      nextSunday.setHours(0, 0, 0, 0);
+
+      await setDoc(
+        settingsRef,
+        {
+          nextReset: nextSunday,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      alert(`Success! Distributed rewards and reset minutes.`);
+    } catch (error) {
+      console.error("Critical Reset Error:", error);
+      alert("An error occurred.");
+    } finally {
+      resetBtn.disabled = false;
+      resetBtn.innerHTML = originalText;
+      loadAllUsers();
+      loadSuggestions();
+      loadLinkSubmissions();
     }
-
-    await Promise.all(batchPromises);
-
-    // --- STEP 2: Global Reset ---
-    resetBtn.innerHTML = `🧹 Resetting Leaderboard...`;
-    const allUsersSnap = await getDocs(collection(db, "users"));
-    const resetPromises = allUsersSnap.docs.map((userDoc) => {
-      return updateDoc(doc(db, "users", userDoc.id), { weekMinutes: 0 });
-    });
-
-    await Promise.all(resetPromises);
-
-    // Optional: store next reset info
-    const settingsRef = doc(db, "settings", "leaderboard");
-    const now = new Date();
-    const nextSunday = new Date();
-    nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
-    nextSunday.setHours(0, 0, 0, 0);
-
-    await setDoc(
-      settingsRef,
-      {
-        nextReset: nextSunday,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    alert(`Success! Distributed rewards and reset minutes.`);
-  } catch (error) {
-    console.error("Critical Reset Error:", error);
-    alert("An error occurred.");
-  } finally {
-    resetBtn.disabled = false;
-    resetBtn.innerHTML = originalText;
-    loadAllUsers();
-    loadSuggestions();
-    loadLinkSubmissions();
-  }
-};
+  };
+}
 
 /**
  * UI: Fetch and Render User List
@@ -287,23 +289,21 @@ async function loadAllUsers() {
       row.className =
         "border-b border-slate-800 hover:bg-slate-800/50 transition user-row";
 
-      const displayName = `${u.firstName || "???"} ${u.lastName || ""}`.trim();
-
       row.innerHTML = `
         <td class="p-4 font-bold user-name text-white">
-          ${displayName}
+          ${u.firstName || "???"} ${u.lastName || ""}
         </td>
         <td class="p-4 text-slate-400 text-xs font-mono">${u.email || "No Email"}</td>
         <td class="p-4 text-slate-400 font-medium">${u.grade || "N/A"}</td>
         <td class="p-4 text-emerald-400 font-mono font-bold">${u.credits || 0}</td>
         <td class="p-4 font-mono text-blue-400 font-bold">${u.weekMinutes || 0}m</td>
-        <td class="p-4 text-right flex flex-wrap gap-2 justify-end">
+        <td class="p-4 text-right flex gap-2 justify-end">
           <button class="msg-user-btn bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
                   data-id="${userDoc.id}" data-name="${u.firstName}">
             Message
           </button>
           <button class="extend-limit-btn bg-emerald-700/30 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition"
-                  data-id="${userDoc.id}" data-name="${displayName}">
+                  data-id="${userDoc.id}" data-name="${u.firstName || "Student"} ${u.lastName || ""}">
             Extend Limit
           </button>
           <button class="del-user-btn bg-red-900/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
@@ -736,21 +736,6 @@ async function deleteUserAccount(userId) {
       alert("Delete failed.");
     }
   }
-}
-
-// Modal button wiring
-if (extendLimitCancel) {
-  extendLimitCancel.addEventListener("click", closeExtendLimitModal);
-}
-if (extendLimitConfirm) {
-  extendLimitConfirm.addEventListener("click", applyExtendDailyLimit);
-}
-
-// Clicking backdrop closes modal
-if (extendLimitModal) {
-  extendLimitModal.addEventListener("click", (e) => {
-    if (e.target === extendLimitModal) closeExtendLimitModal();
-  });
 }
 
 initAdmin();
