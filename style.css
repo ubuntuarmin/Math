@@ -545,9 +545,9 @@ footer.site-footer {
   }
 }
 
-/* 5s per full loop; JS hides after 4 loops (~20s) */
+/* 15s per full loop; JS hides after 4 loops (~60s) */
 .banner-slide-text {
   display: inline-block;
   will-change: transform;
-  animation: banner-slide 5s linear infinite;
+  animation: banner-slide 15s linear infinite;
 }
