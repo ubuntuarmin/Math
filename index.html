@@ -485,24 +485,6 @@
 </head>
 <body class="page">
 
-  <!-- GLOBAL ATTENTION BANNER (non-dismissible) -->
-  <div id="attentionBanner" class="fixed top-0 left-0 right-0 z-[80]">
-    <div class="relative overflow-hidden bg-gradient-to-r from-amber-500 via-rose-500 to-violet-500 shadow-xl shadow-amber-900/40 border-b border-amber-300/50">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.25),_transparent_55%)] mix-blend-soft-light opacity-60 pointer-events-none"></div>
-      <div class="h-10 sm:h-12 flex items-center">
-        <div class="w-full">
-          <div class="relative w-full overflow-hidden">
-            <div class="inline-flex whitespace-nowrap animate-banner-marquee text-xs sm:text-sm md:text-base font-black tracking-[0.25em] uppercase text-slate-950 drop-shadow-[0_0_12px_rgba(255,255,255,0.75)]">
-              <span class="px-10">YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE •</span>
-              <span class="px-10">YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE •</span>
-              <span class="px-10">YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE •</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Modern global header using style.css, but preserving your IDs/buttons -->
  <!-- REPLACE your current <header id="header">...</header> with this block -->
 
@@ -623,6 +605,23 @@
       </div>
     </div>
   </nav>
+
+  <!-- ATTENTION BANNER (under the important buttons) -->
+  <div
+    id="attentionBanner"
+    class="mt-2 px-4"
+  >
+    <div class="relative overflow-hidden rounded-xl border border-amber-300/60 bg-gradient-to-r from-amber-500 via-rose-500 to-violet-500 shadow-lg shadow-amber-900/40">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.25),_transparent_55%)] mix-blend-soft-light opacity-60 pointer-events-none"></div>
+      <div class="h-10 sm:h-12 flex items-center justify-center">
+        <div class="relative flex items-center justify-center">
+          <div class="banner-spin-text text-xs sm:text-sm md:text-base font-black tracking-[0.25em] uppercase text-slate-950 drop-shadow-[0_0_12px_rgba(255,255,255,0.75)]">
+            YOUR TEXT HERE
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Existing floating inbox dropdown (kept as-is for JS) -->
   <div
@@ -808,5 +807,25 @@
   <script type="module" src="./js/account.js"></script>
   <script type="module" src="./js/welcome.js"></script>
   <script type="module" src="./js/blockExtensions.js"></script>
+
+  <!-- Small script to auto-hide the banner after ~20s (4 spins) -->
+  <script>
+    window.addEventListener("load", () => {
+      const banner = document.getElementById("attentionBanner");
+      if (!banner) return;
+
+      // banner-spin-text is 5s per full spin in CSS; 4 spins ~= 20s
+      const HIDE_AFTER_MS = 20000;
+
+      setTimeout(() => {
+        banner.style.transition = "opacity 400ms ease-out, transform 400ms ease-out";
+        banner.style.opacity = "0";
+        banner.style.transform = "translateY(-8px)";
+        setTimeout(() => {
+          banner.style.display = "none";
+        }, 450);
+      }, HIDE_AFTER_MS);
+    });
+  </script>
 </body>
 </html>
