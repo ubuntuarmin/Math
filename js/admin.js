@@ -12,6 +12,7 @@ import {
   addDoc,
   serverTimestamp,
   setDoc,
+  where,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // DOM Elements
@@ -21,7 +22,7 @@ const searchInput = document.getElementById("adminSearch");
 const suggestionListEl = document.getElementById("suggestionList");
 const linkSubmissionListEl = document.getElementById("linkSubmissionList");
 
-// Extend-limit modal elements (optional; if you later add modal to admin.html)
+// Extend-limit modal elements
 const extendLimitModal = document.getElementById("extendLimitModal");
 const extendMinutesInput = document.getElementById("extendMinutesInput");
 const extendBonusInput = document.getElementById("extendBonusInput");
@@ -69,7 +70,7 @@ async function sendNotification(targetUid, title, message, type = "admin") {
  * Open / Close Extend Limit Modal
  */
 function openExtendLimitModal(userId, userName) {
-  if (!extendLimitModal) return; // no modal in HTML yet
+  if (!extendLimitModal) return;
   extendTargetUserId = userId;
   extendTargetUserName = userName || "this student";
   if (extendMinutesInput) extendMinutesInput.value = "";
@@ -326,9 +327,427 @@ async function loadAllUsers() {
   }
 }
 
-// ... (keep your existing loadSuggestions, approveSuggestion, denySuggestion,
-// loadLinkSubmissions, approveLinkSubmission, denyLinkSubmission, manualNotify
-// exactly as in the previous full version – they are unchanged) ...
+/**
+ * SUGGESTIONS: Load and render
+ */
+async function loadSuggestions() {
+  if (!suggestionListEl) return;
+
+  suggestionListEl.innerHTML = `
+    <tr>
+      <td colspan="5" class="p-6 text-center text-slate-400 text-sm">
+        Loading suggestions...
+      </td>
+    </tr>
+  `;
+
+  try {
+    const qSuggestions = query(
+      collection(db, "suggestions"),
+      orderBy("createdAt", "desc"),
+      limit(100)
+    );
+    const snap = await getDocs(qSuggestions);
+
+    if (snap.empty) {
+      suggestionListEl.innerHTML = `
+        <tr>
+          <td colspan="5" class="p-6 text-center text-slate-500 text-sm italic">
+            No suggestions yet.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    suggestionListEl.innerHTML = "";
+
+    snap.forEach((docSnap) => {
+      const s = docSnap.data();
+      const row = document.createElement("tr");
+      row.className =
+        "border-b border-slate-800 hover:bg-slate-800/50 transition";
+
+      const statusBadge =
+        s.status === "approved"
+          ? '<span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 text-[10px] font-bold uppercase">Approved</span>'
+          : s.status === "denied"
+          ? '<span class="px-2 py-1 rounded-full bg-red-500/10 text-red-300 text-[10px] font-bold uppercase">Denied</span>'
+          : '<span class="px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-300 text-[10px] font-bold uppercase">Pending</span>';
+
+      row.innerHTML = `
+        <td class="p-3 align-top max-w-xs">
+          <div class="font-semibold text-white text-xs mb-1">${s.title || "(No title)"}</div>
+          <div class="text-xs text-slate-300 whitespace-pre-wrap">${s.text || ""}</div>
+        </td>
+        <td class="p-3 align-top text-xs text-slate-400">
+          ${s.type || "feature"}
+        </td>
+        <td class="p-3 align-top text-xs text-slate-400">
+          ${s.email || s.userId || "Unknown"}
+        </td>
+        <td class="p-3 align-top text-xs">
+          ${statusBadge}
+        </td>
+        <td class="p-3 align-top text-right text-xs space-x-2">
+          ${
+            s.status === "pending"
+              ? `
+            <button
+              class="px-3 py-1 rounded-full bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold uppercase tracking-wide text-[10px]"
+              data-sid="${docSnap.id}"
+              data-uid="${s.userId}"
+              data-email="${s.email || ""}"
+              data-title="${(s.title || "").replace(/"/g, "&quot;")}"
+            >
+              Approve & Refund
+            </button>
+            <button
+              class="px-3 py-1 rounded-full bg-red-600/80 hover:bg-red-500 text-white font-bold uppercase tracking-wide text-[10px]"
+              data-sid-deny="${docSnap.id}"
+              data-uid-deny="${s.userId}"
+              data-title-deny="${(s.title || "").replace(/"/g, "&quot;")}"
+            >
+              Deny
+            </button>
+          `
+              : "-"
+          }
+        </td>
+      `;
+
+      suggestionListEl.appendChild(row);
+    });
+
+    // Wire approve / deny buttons
+    suggestionListEl
+      .querySelectorAll("[data-sid]")
+      .forEach((btn) =>
+        btn.addEventListener("click", () =>
+          approveSuggestion(
+            btn.getAttribute("data-sid"),
+            btn.getAttribute("data-uid"),
+            btn.getAttribute("data-email"),
+            btn.getAttribute("data-title")
+          )
+        )
+      );
+
+    suggestionListEl
+      .querySelectorAll("[data-sid-deny]")
+      .forEach((btn) =>
+        btn.addEventListener("click", () =>
+          denySuggestion(
+            btn.getAttribute("data-sid-deny"),
+            btn.getAttribute("data-uid-deny"),
+            btn.getAttribute("data-title-deny")
+          )
+        )
+      );
+  } catch (err) {
+    console.error("Load suggestions error:", err);
+    suggestionListEl.innerHTML = `
+      <tr>
+        <td colspan="5" class="p-6 text-center text-red-400 text-sm">
+          Failed to load suggestions.
+        </td>
+      </tr>
+    `;
+  }
+}
+
+/**
+ * Approve suggestion: refund 20 credits, mark status, notify
+ */
+async function approveSuggestion(suggestionId, userId, email, title) {
+  if (!suggestionId || !userId) return;
+
+  const ok = confirm(
+    `Approve this suggestion and refund ${SUGGESTION_COST} credits?`
+  );
+  if (!ok) return;
+
+  try {
+    const suggestionRef = doc(db, "suggestions", suggestionId);
+    const userRef = doc(db, "users", userId);
+
+    await updateDoc(userRef, {
+      credits: increment(SUGGESTION_COST),
+    });
+
+    await updateDoc(suggestionRef, {
+      status: "approved",
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+      refundGiven: true,
+    });
+
+    await sendNotification(
+      userId,
+      "Suggestion Approved",
+      `Your suggestion "${title || ""}" was approved. Your ${SUGGESTION_COST} credit deposit was refunded and the admin may grant additional rewards separately.`,
+      "suggestion"
+    );
+
+    alert("Suggestion approved and credits refunded.");
+    loadSuggestions();
+  } catch (err) {
+    console.error("Approve suggestion error:", err);
+    alert("Failed to approve suggestion.");
+  }
+}
+
+/**
+ * Deny suggestion: mark status, notify (no refund)
+ */
+async function denySuggestion(suggestionId, userId, title) {
+  if (!suggestionId || !userId) return;
+
+  const ok = confirm(
+    "Deny this suggestion? The 20-credit deposit will not be refunded."
+  );
+  if (!ok) return;
+
+  try {
+    const suggestionRef = doc(db, "suggestions", suggestionId);
+
+    await updateDoc(suggestionRef, {
+      status: "denied",
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+    });
+
+    await sendNotification(
+      userId,
+      "Suggestion Reviewed",
+      `Your suggestion "${title || ""}" was reviewed but not approved this time. Thank you for your feedback!`,
+      "suggestion"
+    );
+
+    alert("Suggestion denied.");
+    loadSuggestions();
+  } catch (err) {
+    console.error("Deny suggestion error:", err);
+    alert("Failed to deny suggestion.");
+  }
+}
+
+/**
+ * LINK SUBMISSIONS: Load and render
+ */
+async function loadLinkSubmissions() {
+  if (!linkSubmissionListEl) return;
+
+  linkSubmissionListEl.innerHTML = `
+    <tr>
+      <td colspan="4" class="p-6 text-center text-slate-400 text-sm">
+        Loading link submissions...
+      </td>
+    </tr>
+  `;
+
+  try {
+    const qLinks = query(
+      collection(db, "linkSubmissions"),
+      orderBy("createdAt", "desc"),
+      limit(100)
+    );
+    const snap = await getDocs(qLinks);
+
+    if (snap.empty) {
+      linkSubmissionListEl.innerHTML = `
+        <tr>
+          <td colspan="4" class="p-6 text-center text-slate-500 text-sm italic">
+            No link submissions yet.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    linkSubmissionListEl.innerHTML = "";
+
+    snap.forEach((docSnap) => {
+      const l = docSnap.data();
+      const row = document.createElement("tr");
+      row.className =
+        "border-b border-slate-800 hover:bg-slate-800/50 transition";
+
+      const statusBadge =
+        l.status === "approved"
+          ? '<span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 text-[10px] font-bold uppercase">Approved</span>'
+          : l.status === "denied"
+          ? '<span class="px-2 py-1 rounded-full bg-red-500/10 text-red-300 text-[10px] font-bold uppercase">Denied</span>'
+          : '<span class="px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-300 text-[10px] font-bold uppercase">Pending</span>';
+
+      row.innerHTML = `
+        <td class="p-3 align-top max-w-xs">
+          <a href="${l.url}" target="_blank" class="text-xs text-blue-400 underline break-all">${l.url}</a>
+          <div class="text-[11px] text-slate-300 mt-1">${l.title || ""}</div>
+          <div class="text-[11px] text-slate-400 mt-1 whitespace-pre-wrap">${l.notes || ""}</div>
+        </td>
+        <td class="p-3 align-top text-xs text-slate-400">
+          ${l.email || l.userId || "Unknown"}
+        </td>
+        <td class="p-3 align-top text-xs">
+          ${statusBadge}
+        </td>
+        <td class="p-3 align-top text-right text-xs space-x-2">
+          ${
+            l.status === "pending"
+              ? `
+            <button
+              class="px-3 py-1 rounded-full bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold uppercase tracking-wide text-[10px]"
+              data-lid="${docSnap.id}"
+              data-uid="${l.userId}"
+              data-title="${(l.title || "").replace(/"/g, "&quot;")}"
+            >
+              Approve & Reward
+            </button>
+            <button
+              class="px-3 py-1 rounded-full bg-red-600/80 hover:bg-red-500 text-white font-bold uppercase tracking-wide text-[10px]"
+              data-lid-deny="${docSnap.id}"
+              data-uid-deny="${l.userId}"
+              data-title-deny="${(l.title || "").replace(/"/g, "&quot;")}"
+            >
+              Deny
+            </button>
+          `
+              : "-"
+          }
+        </td>
+      `;
+
+      linkSubmissionListEl.appendChild(row);
+    });
+
+    // Wire approve / deny buttons
+    linkSubmissionListEl
+      .querySelectorAll("[data-lid]")
+      .forEach((btn) =>
+        btn.addEventListener("click", () =>
+          approveLinkSubmission(
+            btn.getAttribute("data-lid"),
+            btn.getAttribute("data-uid"),
+            btn.getAttribute("data-title")
+          )
+        )
+      );
+
+    linkSubmissionListEl
+      .querySelectorAll("[data-lid-deny]")
+      .forEach((btn) =>
+        btn.addEventListener("click", () =>
+          denyLinkSubmission(
+            btn.getAttribute("data-lid-deny"),
+            btn.getAttribute("data-uid-deny"),
+            btn.getAttribute("data-title-deny")
+          )
+        )
+      );
+  } catch (err) {
+    console.error("Load link submissions error:", err);
+    linkSubmissionListEl.innerHTML = `
+      <tr>
+        <td colspan="4" class="p-6 text-center text-red-400 text-sm">
+          Failed to load link submissions.
+        </td>
+      </tr>
+    `;
+  }
+}
+
+/**
+ * Approve link submission: reward credits, mark status, notify
+ */
+async function approveLinkSubmission(submissionId, userId, title) {
+  if (!submissionId || !userId) return;
+
+  const ok = confirm(
+    `Approve this link and give ${LINK_BONUS} credits to the student?`
+  );
+  if (!ok) return;
+
+  try {
+    const submissionRef = doc(db, "linkSubmissions", submissionId);
+    const userRef = doc(db, "users", userId);
+
+    await updateDoc(userRef, {
+      credits: increment(LINK_BONUS),
+      totalEarned: increment(LINK_BONUS),
+    });
+
+    await updateDoc(submissionRef, {
+      status: "approved",
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+      rewardGiven: true,
+    });
+
+    await sendNotification(
+      userId,
+      "Link Approved",
+      `Your link "${title || ""}" was approved and added. You earned ${LINK_BONUS} credits!`,
+      "link"
+    );
+
+    alert("Link approved and credits awarded.");
+    loadLinkSubmissions();
+  } catch (err) {
+    console.error("Approve link error:", err);
+    alert("Failed to approve link.");
+  }
+}
+
+/**
+ * Deny link submission: mark status, notify
+ */
+async function denyLinkSubmission(submissionId, userId, title) {
+  if (!submissionId || !userId) return;
+
+  const ok = confirm("Deny this link submission? No credits will be given.");
+  if (!ok) return;
+
+  try {
+    const submissionRef = doc(db, "linkSubmissions", submissionId);
+
+    await updateDoc(submissionRef, {
+      status: "denied",
+      reviewedAt: serverTimestamp(),
+      reviewerUid: auth.currentUser?.uid || null,
+    });
+
+    await sendNotification(
+      userId,
+      "Link Reviewed",
+      `Your link "${title || ""}" was reviewed but not approved this time. Thank you for submitting!`,
+      "link"
+    );
+
+    alert("Link denied.");
+    loadLinkSubmissions();
+  } catch (err) {
+    console.error("Deny link error:", err);
+    alert("Failed to deny link.");
+  }
+}
+
+/**
+ * Manual message to a user
+ */
+async function manualNotify(userId, firstName) {
+  const msg = prompt(
+    `Send an inbox message to ${firstName || "this student"}:`
+  );
+  if (!msg) return;
+
+  try {
+    await sendNotification(userId, "Message from your teacher", msg, "admin");
+    alert("Message sent.");
+  } catch (err) {
+    alert("Failed to send message.");
+  }
+}
 
 if (searchInput) {
   searchInput.oninput = (e) => {
@@ -353,7 +772,7 @@ async function deleteUserAccount(userId) {
   }
 }
 
-// Modal button wiring (won't run if modal not in HTML)
+// Modal button wiring
 if (extendLimitCancel) {
   extendLimitCancel.addEventListener("click", closeExtendLimitModal);
 }
