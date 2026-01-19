@@ -21,12 +21,27 @@ const searchInput = document.getElementById("adminSearch");
 const suggestionListEl = document.getElementById("suggestionList");
 const linkSubmissionListEl = document.getElementById("linkSubmissionList");
 
+// Extend-limit modal elements
+const extendLimitModal = document.getElementById("extendLimitModal");
+const extendMinutesInput = document.getElementById("extendMinutesInput");
+const extendBonusInput = document.getElementById("extendBonusInput");
+const extendLimitError = document.getElementById("extendLimitError");
+const extendLimitCancel = document.getElementById("extendLimitCancel");
+const extendLimitConfirm = document.getElementById("extendLimitConfirm");
+
 // Your Unique Admin ID
 const ADMIN_UID = "bnGhRvqW1YhvGek1JTLuAed6Ib63";
 
 // Costs/bonuses (must match frontend logic)
 const SUGGESTION_COST = 20;
 const LINK_BONUS = 150;
+
+// Field name for per-day extra limit minutes.
+const EXTRA_LIMIT_FIELD = "extraLimitMinutesToday";
+
+// State for which user is currently being edited in the modal
+let extendTargetUserId = null;
+let extendTargetUserName = "";
 
 /**
  * Send Inbox Message Logic
@@ -47,6 +62,89 @@ async function sendNotification(targetUid, title, message, type = "admin") {
   } catch (error) {
     console.error("Error sending notification:", error);
     return false;
+  }
+}
+
+/**
+ * Open / Close Extend Limit Modal
+ */
+function openExtendLimitModal(userId, userName) {
+  extendTargetUserId = userId;
+  extendTargetUserName = userName || "this student";
+  if (extendMinutesInput) extendMinutesInput.value = "";
+  if (extendBonusInput) extendBonusInput.value = "";
+  if (extendLimitError) extendLimitError.textContent = "";
+  if (extendLimitModal) extendLimitModal.classList.remove("hidden");
+}
+
+function closeExtendLimitModal() {
+  extendTargetUserId = null;
+  extendTargetUserName = "";
+  if (extendLimitModal) extendLimitModal.classList.add("hidden");
+}
+
+/**
+ * Apply Extend Daily Limit + Bonus Credits
+ * TEMP override: extends today's limit only (auth.js clears it on new day).
+ */
+async function applyExtendDailyLimit() {
+  if (!extendTargetUserId) return;
+
+  const minutesRaw = extendMinutesInput?.value.trim() || "";
+  const bonusRaw = extendBonusInput?.value.trim() || "";
+
+  const extraMinutes = Number(minutesRaw);
+  const bonusCredits = bonusRaw === "" ? 0 : Number(bonusRaw);
+
+  if (!Number.isFinite(extraMinutes) || extraMinutes <= 0) {
+    if (extendLimitError)
+      extendLimitError.textContent = "Enter a positive number of minutes.";
+    return;
+  }
+  if (!Number.isFinite(bonusCredits) || bonusCredits < 0) {
+    if (extendLimitError)
+      extendLimitError.textContent = "Bonus credits must be 0 or more.";
+    return;
+  }
+
+  try {
+    if (extendLimitError) extendLimitError.textContent = "";
+
+    const userRef = doc(db, "users", extendTargetUserId);
+
+    const updateData = {
+      // TEMP OVERRIDE FOR TODAY:
+      // add on top of their base tier limit for the current day
+      [EXTRA_LIMIT_FIELD]: increment(extraMinutes),
+    };
+
+    if (bonusCredits > 0) {
+      updateData.credits = increment(bonusCredits);
+      updateData.totalEarned = increment(bonusCredits);
+    }
+
+    await updateDoc(userRef, updateData);
+
+    const msgParts = [
+      `Your daily limit was extended by ${extraMinutes} minutes for today.`,
+    ];
+    if (bonusCredits > 0) {
+      msgParts.push(`You also received ${bonusCredits} bonus credits.`);
+    }
+
+    await sendNotification(
+      extendTargetUserId,
+      "Daily Limit Extended",
+      msgParts.join(" "),
+      "limit"
+    );
+
+    closeExtendLimitModal();
+    loadAllUsers();
+  } catch (err) {
+    console.error("Extend daily limit error:", err);
+    if (extendLimitError)
+      extendLimitError.textContent = "Failed to apply. Please try again.";
   }
 }
 
@@ -189,18 +287,24 @@ async function loadAllUsers() {
       row.className =
         "border-b border-slate-800 hover:bg-slate-800/50 transition user-row";
 
+      const displayName = `${u.firstName || "???"} ${u.lastName || ""}`.trim();
+
       row.innerHTML = `
         <td class="p-4 font-bold user-name text-white">
-          ${u.firstName || "???"} ${u.lastName || ""}
+          ${displayName}
         </td>
         <td class="p-4 text-slate-400 text-xs font-mono">${u.email || "No Email"}</td>
         <td class="p-4 text-slate-400 font-medium">${u.grade || "N/A"}</td>
         <td class="p-4 text-emerald-400 font-mono font-bold">${u.credits || 0}</td>
         <td class="p-4 font-mono text-blue-400 font-bold">${u.weekMinutes || 0}m</td>
-        <td class="p-4 text-right flex gap-2 justify-end">
+        <td class="p-4 text-right flex flex-wrap gap-2 justify-end">
           <button class="msg-user-btn bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
                   data-id="${userDoc.id}" data-name="${u.firstName}">
             Message
+          </button>
+          <button class="extend-limit-btn bg-emerald-700/30 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition"
+                  data-id="${userDoc.id}" data-name="${displayName}">
+            Extend Limit
           </button>
           <button class="del-user-btn bg-red-900/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-900/40 px-3 py-1 rounded text-[10px] font-bold uppercase transition" 
                   data-id="${userDoc.id}">
@@ -214,6 +318,12 @@ async function loadAllUsers() {
     // Attach Message listeners
     document.querySelectorAll(".msg-user-btn").forEach((btn) => {
       btn.onclick = () => manualNotify(btn.dataset.id, btn.dataset.name);
+    });
+
+    // Attach Extend Limit listeners
+    document.querySelectorAll(".extend-limit-btn").forEach((btn) => {
+      btn.onclick = () =>
+        openExtendLimitModal(btn.dataset.id, btn.dataset.name);
     });
 
     // Attach delete listeners
@@ -626,6 +736,21 @@ async function deleteUserAccount(userId) {
       alert("Delete failed.");
     }
   }
+}
+
+// Modal button wiring
+if (extendLimitCancel) {
+  extendLimitCancel.addEventListener("click", closeExtendLimitModal);
+}
+if (extendLimitConfirm) {
+  extendLimitConfirm.addEventListener("click", applyExtendDailyLimit);
+}
+
+// Clicking backdrop closes modal
+if (extendLimitModal) {
+  extendLimitModal.addEventListener("click", (e) => {
+    if (e.target === extendLimitModal) closeExtendLimitModal();
+  });
 }
 
 initAdmin();
