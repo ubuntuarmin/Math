@@ -534,24 +534,29 @@ footer.site-footer {
   }
 }
 
-/* ========= ATTENTION BANNER ========= */
+/* ========= ATTENTION BANNER SPIN ========= */
 
-@keyframes banner-marquee {
+@keyframes banner-spin {
   0% {
-    transform: translateX(0%);
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(360deg) scale(1.05);
+  }
+  50% {
+    transform: rotate(720deg) scale(1);
+  }
+  75% {
+    transform: rotate(1080deg) scale(1.05);
   }
   100% {
-    transform: translateX(-50%);
+    transform: rotate(1440deg) scale(1);
   }
 }
 
-.animate-banner-marquee {
+/* 5s per full 360°*? sequence; 4 cycles ~= 20s total with JS timer */
+.banner-spin-text {
   display: inline-block;
   will-change: transform;
-  animation: banner-marquee 18s linear infinite;
-}
-
-/* Slight speed boost on hover */
-#attentionBanner:hover .animate-banner-marquee {
-  animation-duration: 10s;
+  animation: banner-spin 5s linear infinite;
 }
