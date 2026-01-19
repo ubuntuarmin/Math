@@ -486,7 +486,6 @@
 <body class="page">
 
   <!-- Modern global header using style.css, but preserving your IDs/buttons -->
- <!-- REPLACE your current <header id="header">...</header> with this block -->
 
 <header id="header" class="site-header hidden">
   <nav class="navbar">
@@ -606,17 +605,22 @@
     </div>
   </nav>
 
-  <!-- ATTENTION BANNER (under the important buttons) -->
+  <!-- ATTENTION BANNER (under the important buttons, full width to edges) -->
   <div
     id="attentionBanner"
-    class="mt-2 px-4"
+    class="mt-2 w-full"
   >
-    <div class="relative overflow-hidden rounded-xl border border-amber-300/60 bg-gradient-to-r from-amber-500 via-rose-500 to-violet-500 shadow-lg shadow-amber-900/40">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.25),_transparent_55%)] mix-blend-soft-light opacity-60 pointer-events-none"></div>
-      <div class="h-10 sm:h-12 flex items-center justify-center">
-        <div class="relative flex items-center justify-center">
-          <div class="banner-spin-text text-xs sm:text-sm md:text-base font-black tracking-[0.25em] uppercase text-slate-950 drop-shadow-[0_0_12px_rgba(255,255,255,0.75)]">
-            YOUR TEXT HERE
+    <div class="relative overflow-hidden border-y border-amber-300/40 bg-[radial-gradient(circle_at_top,_rgba(248,250,252,0.15),_transparent_55%),_linear-gradient(to_right,_#0f172a,_#1d283a,_#111827)] shadow-[0_10px_30px_rgba(15,23,42,0.9)]">
+      <div class="absolute inset-0 pointer-events-none opacity-60 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.32),_transparent_55%)] mix-blend-screen"></div>
+
+      <div class="h-10 sm:h-11 flex items-center">
+        <div class="w-full overflow-hidden">
+          <div class="relative w-full">
+            <div class="inline-flex whitespace-nowrap banner-slide-text text-[10px] sm:text-xs md:text-sm font-black tracking-[0.35em] uppercase text-amber-200 drop-shadow-[0_0_10px_rgba(250,250,210,0.9)]">
+              <span class="px-10">YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE •</span>
+              <span class="px-10">YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE •</span>
+              <span class="px-10">YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE • YOUR TEXT HERE •</span>
+            </div>
           </div>
         </div>
       </div>
@@ -808,19 +812,19 @@
   <script type="module" src="./js/welcome.js"></script>
   <script type="module" src="./js/blockExtensions.js"></script>
 
-  <!-- Small script to auto-hide the banner after ~20s (4 spins) -->
+  <!-- Small script to auto-hide the banner after ~20s -->
   <script>
     window.addEventListener("load", () => {
       const banner = document.getElementById("attentionBanner");
       if (!banner) return;
 
-      // banner-spin-text is 5s per full spin in CSS; 4 spins ~= 20s
+      // CSS banner-slide-text is 5s per full slide loop; 4 loops ~= 20s
       const HIDE_AFTER_MS = 20000;
 
       setTimeout(() => {
         banner.style.transition = "opacity 400ms ease-out, transform 400ms ease-out";
         banner.style.opacity = "0";
-        banner.style.transform = "translateY(-8px)";
+        banner.style.transform = "translateY(-6px)";
         setTimeout(() => {
           banner.style.display = "none";
         }, 450);
