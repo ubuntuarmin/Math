@@ -38,6 +38,7 @@ async function handleDailyData(uid, userData) {
     
     const updates = {};
 
+    // --- per-day resets ---
     if (lastVisitDate !== todayStr) {
         updates.dailyLinkUsage = 0;
         updates.lastVisitDate = todayStr;
@@ -45,24 +46,46 @@ async function handleDailyData(uid, userData) {
         updates.extraLimitMinutesToday = 0;
     }
 
-    const lastVisitTimestamp = userData.lastVisitTimestamp?.toMillis() || 0;
-    const diffInDays = (Date.now() - lastVisitTimestamp) / (1000 * 60 * 60 * 24);
-    
+    // --- weekMinutes reset logic ---
+    const lastVisitTimestampVal = userData.lastVisitTimestamp;
+    const lastVisitMillis =
+        lastVisitTimestampVal && typeof lastVisitTimestampVal.toMillis === "function"
+            ? lastVisitTimestampVal.toMillis()
+            : 0;
+
+    let diffInDays = 0;
+    if (lastVisitMillis > 0) {
+        diffInDays = (Date.now() - lastVisitMillis) / (1000 * 60 * 60 * 24);
+        if (!Number.isFinite(diffInDays) || diffInDays < 0) {
+            diffInDays = 0;
+        }
+    }
+
     if (diffInDays > 7 || (now.getDay() === 0 && lastVisitDate !== todayStr)) {
         updates.weekMinutes = 0;
     }
+
     updates.lastVisitTimestamp = serverTimestamp();
 
-    if (!userData.streak) {
+    // --- streak logic (visit-based) ---
+    const hasValidStreak =
+        typeof userData.streak === "number" && Number.isFinite(userData.streak);
+    const currentStreak = hasValidStreak ? userData.streak : 0;
+
+    if (!hasValidStreak) {
+        // If streak missing or invalid, initialize to 1 on this visit
         updates.streak = 1;
     } else if (lastVisitDate !== todayStr) {
+        // New calendar day; decide if streak continues or resets
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        
+
         if (lastVisitDate === yesterday.toDateString()) {
-            updates.streak = increment(1); 
+            // Consecutive day
+            updates.streak = increment(1);
         } else {
-            updates.streak = 1; 
+            // Missed 1+ days -> reset visit streak to 1
+            updates.streak = 1;
         }
     }
 
