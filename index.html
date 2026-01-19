@@ -814,22 +814,22 @@
 
   <!-- Small script to auto-hide the banner after ~20s -->
   <script>
-    window.addEventListener("load", () => {
-      const banner = document.getElementById("attentionBanner");
-      if (!banner) return;
+  window.addEventListener("load", () => {
+    const banner = document.getElementById("attentionBanner");
+    if (!banner) return;
 
-      // CSS banner-slide-text is 5s per full slide loop; 4 loops ~= 20s
-      const HIDE_AFTER_MS = 20000;
+    // CSS banner-slide-text is 15s per full slide loop; 4 loops ~= 60s
+    const HIDE_AFTER_MS = 60000; // 60,000 ms
 
+    setTimeout(() => {
+      banner.style.transition = "opacity 400ms ease-out, transform 400ms ease-out";
+      banner.style.opacity = "0";
+      banner.style.transform = "translateY(-6px)";
       setTimeout(() => {
-        banner.style.transition = "opacity 400ms ease-out, transform 400ms ease-out";
-        banner.style.opacity = "0";
-        banner.style.transform = "translateY(-6px)";
-        setTimeout(() => {
-          banner.style.display = "none";
-        }, 450);
-      }, HIDE_AFTER_MS);
-    });
-  </script>
+        banner.style.display = "none";
+      }, 450);
+    }, HIDE_AFTER_MS);
+  });
+</script>
 </body>
 </html>
