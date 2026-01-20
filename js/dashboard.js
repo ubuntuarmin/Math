@@ -26,7 +26,8 @@ const LINK_TITLES = {
     link3: "gn-math",
     link4: "Pete ZAh",
     link5: "Artic1.0",
-    link6: "PETE zah 2"
+    link6: "PETE zah 2",
+    link7: "Artic1.0 (2)"
     // others fall back to group/name + number
 };
 
