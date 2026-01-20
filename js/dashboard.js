@@ -28,7 +28,7 @@ const LINK_TITLES = {
     link5: "Artic1.0",
     link6: "PETE zah 2",
     link7: "Artic1.0 (2)",
-    link8:  "Eclipese"
+    link8:  "Eclipse"
     // others fall back to group/name + number
 };
 
