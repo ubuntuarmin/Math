@@ -155,6 +155,39 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
           </div>
         </div>
       </div>
+
+      <!-- SPECIAL LOGIN HELP POPUP FOR LINK 1 -->
+      ${
+        linkId === "link1"
+          ? `
+      <div
+        id="loginHelpPopup"
+        class="fixed top-4 right-4 z-[60] bg-slate-900/95 border border-amber-400/70 rounded-xl shadow-2xl max-w-xs p-3 text-left text-xs text-slate-100"
+      >
+        <div class="flex items-start gap-2">
+          <div class="text-lg leading-none">💡</div>
+          <div class="flex-1">
+            <div class="font-semibold text-amber-300 text-[11px] tracking-[0.16em] uppercase mb-1">
+              Steps to Log In
+            </div>
+            <ol class="list-decimal list-inside space-y-0.5 text-[11px]">
+              <li>Click on <strong>Login</strong>.</li>
+              <li>Use this username: <code class="font-mono text-[10px] bg-slate-800 px-1 py-px rounded">u4)29ccb8</code></li>
+              <li>Use this password: <code class="font-mono text-[10px] bg-slate-800 px-1 py-px rounded">3aa7%9a52+64</code></li>
+            </ol>
+            <button
+              id="loginHelpImIn"
+              class="mt-2 w-full text-[11px] font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-emerald-50 py-1 transition"
+              type="button"
+            >
+              I'M IN
+            </button>
+          </div>
+        </div>
+      </div>
+      `
+          : ""
+      }
     </div>
   `;
   document.body.appendChild(overlay);
@@ -165,8 +198,20 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
   const loader = document.getElementById("frameLoader");
   const loaderBar = document.getElementById("frameLoaderBar");
   const loaderHint = document.getElementById("frameLoaderHint");
+  const loginHelpPopup = document.getElementById("loginHelpPopup");
+  const loginHelpImInBtn = document.getElementById("loginHelpImIn");
 
   const startTime = Date.now();
+
+  // If the "I'M IN" button exists (only for link1), wire its click to hide the popup.
+  if (loginHelpImInBtn && loginHelpPopup) {
+    loginHelpImInBtn.onclick = () => {
+      loginHelpPopup.style.transition = "opacity 200ms ease-out, transform 200ms ease-out";
+      loginHelpPopup.style.opacity = "0";
+      loginHelpPopup.style.transform = "translateY(-4px)";
+      setTimeout(() => loginHelpPopup.remove(), 220);
+    };
+  }
 
   // ---- LOADER ANIMATION (about 2 seconds) ----
   let iframeLoaded = false;
@@ -213,6 +258,16 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
     setTimeout(() => {
       loader.remove();
     }, 320);
+
+    // Also auto-hide the login helper after loader finishes (if it still exists)
+    if (loginHelpPopup) {
+      loginHelpPopup.style.transition = "opacity 200ms ease-out, transform 200ms ease-out";
+      loginHelpPopup.style.opacity = "0";
+      loginHelpPopup.style.transform = "translateY(-4px)";
+      setTimeout(() => {
+        if (loginHelpPopup.parentNode) loginHelpPopup.remove();
+      }, 220);
+    }
   }
 
   iframe.onload = () => {
