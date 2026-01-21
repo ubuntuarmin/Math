@@ -118,7 +118,7 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
     <div class="relative flex-1">
       <iframe id="activeFrame" src="${finalSrc}" class="flex-1 w-full h-full border-none bg-white shadow-2xl"></iframe>
 
-      <!-- FULLSCREEN LOADING LAYER -->
+      <!-- FULLSCREEN LOADING LAYER (unchanged auto behavior) -->
       <div
         id="frameLoader"
         class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950/95 pointer-events-auto"
@@ -203,25 +203,25 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
 
   const startTime = Date.now();
 
-  // If the "I'M IN" button exists (only for link1), wire its click to hide the popup.
+  // --- NEW: Popup only hides when user clicks I'M IN ---
   if (loginHelpImInBtn && loginHelpPopup) {
     loginHelpImInBtn.onclick = () => {
       loginHelpPopup.style.transition = "opacity 200ms ease-out, transform 200ms ease-out";
       loginHelpPopup.style.opacity = "0";
       loginHelpPopup.style.transform = "translateY(-4px)";
-      setTimeout(() => loginHelpPopup.remove(), 220);
+      setTimeout(() => {
+        if (loginHelpPopup.parentNode) loginHelpPopup.remove();
+      }, 220);
     };
   }
 
-  // ---- LOADER ANIMATION (about 2 seconds) ----
+  // ---- LOADER ANIMATION (original behavior) ----
   let iframeLoaded = false;
   let loaderMinTimePassed = false;
 
-  // Fake progress bar animation
   let loaderProgress = 0;
   const loaderInterval = setInterval(() => {
     if (!loaderBar) return;
-    // Ease to 90% over ~2 seconds
     loaderProgress = Math.min(loaderProgress + 7, 90);
     loaderBar.style.width = `${loaderProgress}%`;
 
@@ -234,51 +234,37 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
     }
   }, 120);
 
-  // Minimum loader time ~2 seconds
   setTimeout(() => {
     loaderMinTimePassed = true;
     maybeHideLoader();
   }, 2000);
 
-  // Hide loader when both iframe is loaded AND min time passed
   function maybeHideLoader() {
     if (!loader) return;
     if (!iframeLoaded || !loaderMinTimePassed) return;
 
     clearInterval(loaderInterval);
-    // Smooth finish to 100%
     if (loaderBar) {
       loaderBar.style.transition = "width 300ms ease-out";
       loaderBar.style.width = "100%";
     }
 
-    // Fade out loader
     loader.style.transition = "opacity 300ms ease-out";
     loader.style.opacity = "0";
     setTimeout(() => {
       loader.remove();
     }, 320);
-
-    // Also auto-hide the login helper after loader finishes (if it still exists)
-    if (loginHelpPopup) {
-      loginHelpPopup.style.transition = "opacity 200ms ease-out, transform 200ms ease-out";
-      loginHelpPopup.style.opacity = "0";
-      loginHelpPopup.style.transform = "translateY(-4px)";
-      setTimeout(() => {
-        if (loginHelpPopup.parentNode) loginHelpPopup.remove();
-      }, 220);
-    }
+    // IMPORTANT: we do NOT touch loginHelpPopup here anymore,
+    // so it stays until the user clicks "I'M IN".
   }
 
   iframe.onload = () => {
     iframeLoaded = true;
 
-    // Try to inject our notification-blocking sandbox
     injectNotificationBlocker(iframe);
 
     maybeHideLoader();
 
-    // Existing behavior: show vote prompt after 5 seconds
     setTimeout(() => {
       const prompt = document.getElementById("promptArea");
       if (prompt) prompt.classList.remove("hidden");
@@ -306,7 +292,6 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
     }
   }, 1000);
 
-  // Save and Exit Logic
   const saveTimeAndClose = async (sessionSeconds) => {
     clearInterval(autoKickInterval);
     clearInterval(loaderInterval);
@@ -326,7 +311,6 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
     location.reload();
   };
 
-  // Voting Logic
   const castVote = async (type) => {
     const promptArea = document.getElementById("promptArea");
     try {
@@ -346,7 +330,6 @@ export function launchFrame(content, linkId, currentUsage, maxSeconds) {
     }
   };
 
-  // Event Listeners
   document.getElementById("closeIframe").onclick = () =>
     saveTimeAndClose(Math.floor((Date.now() - startTime) / 1000));
 
