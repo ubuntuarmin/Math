@@ -21,7 +21,7 @@ const LINK_GROUPS = [
  * this only changes what the user sees.
  */
 const LINK_TITLES = {
-    link1: "nodex neo",
+    link1: "SDXP",
     link2: "endiz",
     link3: "gn-math",
     link4: "Pete ZAh",
