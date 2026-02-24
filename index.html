@@ -3,833 +3,177 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Katy Math</title>
-
-  <!-- Tailwind (kept, since your JS uses the classes) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- New global modern stylesheet -->
-  <link rel="stylesheet" href="style.css">
-
+  <title>Katy Math — Down</title>
   <style>
-    /* Spinning token */
-    .token-spin { animation: spin 3s linear infinite; }
-    @keyframes spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* Loader */
-    .loader { width:64px; height:64px; border-radius:50%; border:6px solid #1f2937; border-top:6px solid #22c55e; animation: spin 1s linear infinite; }
+    :root {
+      --red: #ef4444;
+      --red-glow: rgba(239,68,68,0.55);
+      --bg: #050810;
+    }
 
-    /* Pulse effect */
-    .pulse { animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0%{opacity:.3}50%{opacity:1}100%{opacity:.3} }
+    body {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+      color: #f1f5f9;
+    }
 
-    /* Login modal */
-    #loginModal { position:fixed; inset:0; z-index:50; }
-    #loginModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); }
-    #loginModal .panel { width:320px; background:#0f172a; padding:18px; border-radius:8px; box-shadow:0 6px 30px rgba(0,0,0,0.6); border: 1px solid #1f2937; }
-    #loginModal input { width:100%; margin-top:8px; padding:8px; background:#0b1220; border:1px solid #1f2937; color:#e5e7eb; border-radius:6px; outline: none; }
-    #loginModal input:focus { border-color: #3b82f6; }
-    #loginModal button { margin-top:12px; width:100%; }
-
-    /* ===========================
-       FULLSCREEN WELCOME OVERLAY
-       =========================== */
-
-    #welcomeOverlay {
+    /* Animated radial background */
+    body::before {
+      content: "";
       position: fixed;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 60;
-      pointer-events: none;
-      opacity: 0;
-    }
-    #welcomeOverlay.show {
-      display: flex;
-      pointer-events: auto;
-      animation: welcome-overlay-fade-in 220ms ease-out forwards;
-    }
-    #welcomeOverlay.hide {
-      animation: welcome-overlay-fade-out 420ms ease-in forwards;
-    }
-
-    .welcome-full {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      overflow: hidden;
-      background: radial-gradient(circle at top, rgba(56,189,248,0.22), transparent 55%),
-                  radial-gradient(circle at bottom, rgba(129,140,248,0.24), transparent 60%),
-                  linear-gradient(180deg, rgba(2,6,23,0.98), rgba(15,23,42,0.96));
-      backdrop-filter: blur(12px);
-    }
-
-    /* Animated gradient halo behind the card */
-    .welcome-full::before {
-      content: "";
-      position: absolute;
-      width: 520px;
-      height: 520px;
-      border-radius: 999px;
-      background: conic-gradient(
-        from 0deg,
-        rgba(56,189,248,0.7),
-        rgba(147,51,234,0.8),
-        rgba(34,197,94,0.8),
-        rgba(56,189,248,0.7)
-      );
-      filter: blur(28px);
-      opacity: 0.35;
-      animation: welcome-halo-spin 7s linear infinite;
-    }
-
-    /* Faint particles */
-    .welcome-full::after {
-      content: "";
-      position: absolute;
-      inset: -30%;
-      background-image:
-        radial-gradient(circle, rgba(255,255,255,0.18) 0, transparent 45%),
-        radial-gradient(circle, rgba(56,189,248,0.22) 0, transparent 55%),
-        radial-gradient(circle, rgba(250,204,21,0.2) 0, transparent 50%);
-      background-position:
-        5% 10%,
-        80% 18%,
-        40% 85%;
-      background-size:
-        260px 260px,
-        340px 340px,
-        300px 300px;
-      opacity: 0.13;
-      animation: welcome-stars-move 16s ease-in-out infinite alternate;
+      inset: -20%;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(239,68,68,0.18), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 110%, rgba(124,58,237,0.14), transparent 65%),
+        radial-gradient(ellipse 50% 40% at 10% 90%, rgba(59,130,246,0.10), transparent 60%);
+      animation: bg-drift 8s ease-in-out infinite alternate;
       pointer-events: none;
     }
 
-    .welcome-card {
+    @keyframes bg-drift {
+      from { transform: scale(1) rotate(0deg); }
+      to   { transform: scale(1.08) rotate(3deg); }
+    }
+
+    /* Card wrapper — starts invisible, animates in over ~5 s */
+    .card {
       position: relative;
-      background: linear-gradient(135deg, rgba(14,165,164,0.96), rgba(124,58,237,0.98));
-      color: white;
-      padding: 30px 36px;
-      border-radius: 18px;
+      text-align: center;
+      padding: 3.5rem 4rem;
+      border-radius: 24px;
+      background: linear-gradient(145deg, rgba(15,20,40,0.9), rgba(8,12,28,0.95));
+      border: 1px solid rgba(239,68,68,0.25);
       box-shadow:
-        0 24px 70px rgba(15,23,42,0.9),
-        0 0 0 1px rgba(148,163,184,0.45);
-      transform: translateY(40px) scale(.9);
+        0 0 0 1px rgba(239,68,68,0.12),
+        0 32px 80px rgba(0,0,0,0.7),
+        0 0 60px rgba(239,68,68,0.12);
+      max-width: 680px;
+      width: 90vw;
+
+      /* — 5-second entrance animation — */
       opacity: 0;
-      display: flex;
-      gap: 18px;
-      align-items: center;
-      max-width: 920px;
-      width: 90%;
-      overflow: hidden;
+      transform: translateY(40px) scale(0.92);
+      animation: card-enter 5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     }
 
-    /* glowing border sweep */
-    .welcome-card::before {
+    @keyframes card-enter {
+      0%   { opacity: 0; transform: translateY(40px) scale(0.92); }
+      30%  { opacity: 1; transform: translateY(-6px) scale(1.02); }
+      60%  { transform: translateY(4px) scale(0.99); }
+      80%  { transform: translateY(-2px) scale(1.005); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Glowing border sweep */
+    .card::before {
       content: "";
       position: absolute;
       inset: -2px;
       border-radius: inherit;
       background: conic-gradient(
-        from 120deg,
-        rgba(34,197,94,0.0),
-        rgba(56,189,248,0.9),
-        rgba(244,114,182,0.8),
-        rgba(34,197,94,0.0)
+        from 0deg,
+        transparent 0%,
+        rgba(239,68,68,0.7) 25%,
+        transparent 50%
       );
-      mix-blend-mode: screen;
-      opacity: 0;
-      animation: welcome-border-sweep 3s ease-in-out infinite;
+      animation: border-spin 4s linear infinite;
+      opacity: 0.45;
       pointer-events: none;
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude;
+      padding: 2px;
     }
 
-    .welcome-card-inner {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      gap: 18px;
+    @keyframes border-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
     }
 
-    .welcome-logo {
-      width: 88px;
-      height: 88px;
-      border-radius: 20px;
-      background:
-        radial-gradient(circle at 30% 20%, rgba(255,255,255,0.8), transparent 60%),
-        radial-gradient(circle at 80% 90%, rgba(96,165,250,0.6), transparent 60%),
-        rgba(15,23,42,0.6);
-      box-shadow:
-        0 0 0 1px rgba(148,163,184,0.5),
-        0 18px 35px rgba(15,23,42,0.9),
-        0 0 45px rgba(56,189,248,0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 40px;
-      transform-origin: center;
-      color: #fefce8;
-      position: relative;
-      overflow: visible;
+    /* Icon */
+    .icon {
+      font-size: 4rem;
+      line-height: 1;
+      margin-bottom: 1.5rem;
+      display: block;
+      filter: drop-shadow(0 0 18px rgba(239,68,68,0.7));
+      animation: icon-pulse 2.4s ease-in-out infinite;
     }
 
-    /* tiny floating sparkles around the logo */
-    .welcome-logo::before,
-    .welcome-logo::after {
-      content: "✦";
-      position: absolute;
-      font-size: 14px;
-      color: rgba(248,250,252,0.85);
-      text-shadow:
-        0 0 12px rgba(251,191,36,0.9),
-        0 0 22px rgba(251,191,36,0.7);
-      opacity: 0.9;
-    }
-    .welcome-logo::before {
-      top: -10px;
-      right: -4px;
-      animation: logo-spark-1 2.6s ease-in-out infinite;
-    }
-    .welcome-logo::after {
-      bottom: -8px;
-      left: -6px;
-      animation: logo-spark-2 3s ease-in-out infinite;
+    @keyframes icon-pulse {
+      0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 18px rgba(239,68,68,0.7)); }
+      50%       { transform: scale(1.08); filter: drop-shadow(0 0 30px rgba(239,68,68,0.95)); }
     }
 
-    .welcome-text-primary {
-      font-size: 1.9rem;
-      line-height: 1.2;
-      font-weight: 800;
-      letter-spacing: 0.03em;
-      text-shadow:
-        0 8px 25px rgba(15,23,42,0.85),
-        0 0 24px rgba(248,250,252,0.45);
+    /* Heading */
+    h1 {
+      font-size: clamp(2rem, 6vw, 3.2rem);
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      margin-bottom: 1rem;
     }
 
-    .welcome-text-secondary {
-      margin-top: 4px;
-      font-size: 1.05rem;
-      opacity: 0.92;
-    }
-
-    /* animation states for card + logo */
-    .welcome-card.enter {
-      animation:
-        welcome-card-in 760ms cubic-bezier(0.18, 0.97, 0.21, 1.01) forwards,
-        welcome-card-glow 2200ms ease-in-out 200ms forwards;
-    }
-
-    .welcome-card.idle {
-      animation:
-        welcome-card-float 2600ms ease-in-out infinite alternate,
-        welcome-card-glow-pulse 2600ms ease-in-out infinite alternate;
-    }
-
-    .welcome-card.exit {
-      animation:
-        welcome-card-out 420ms cubic-bezier(0.55, 0.01, 0.72, 0.23) forwards;
-    }
-
-    .welcome-logo.enter {
-      animation:
-        welcome-logo-in 820ms cubic-bezier(0.22, 0.95, 0.25, 1) forwards;
-    }
-
-    .welcome-logo.idle {
-      animation:
-        welcome-logo-float 2500ms ease-in-out infinite alternate,
-        welcome-logo-tilt 2400ms ease-in-out infinite alternate;
-    }
-
-    .welcome-logo.exit {
-      animation: welcome-logo-out 420ms ease-in forwards;
-    }
-
-    /* --- KEYFRAMES --- */
-
-    @keyframes welcome-overlay-fade-in {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    @keyframes welcome-overlay-fade-out {
-      from { opacity: 1; }
-      to { opacity: 0; }
-    }
-
-    @keyframes welcome-halo-spin {
-      from { transform: rotate(0deg) scale(1); }
-      to { transform: rotate(360deg) scale(1.05); }
-    }
-
-    @keyframes welcome-stars-move {
-      from {
-        transform: translate3d(-12px, -10px, 0) scale(1.02);
-        opacity: 0.16;
-      }
-      to {
-        transform: translate3d(10px, 12px, 0) scale(1.06);
-        opacity: 0.08;
-      }
-    }
-
-    @keyframes welcome-card-in {
-      0% {
-        transform: translateY(42px) scale(0.88) rotateX(10deg);
-        opacity: 0;
-      }
-      55% {
-        transform: translateY(-8px) scale(1.03) rotateX(0deg);
-        opacity: 1;
-      }
-      100% {
-        transform: translateY(0) scale(1);
-        opacity: 1;
-      }
-    }
-
-    @keyframes welcome-card-glow {
-      from {
-        box-shadow:
-          0 24px 70px rgba(15,23,42,0.9),
-          0 0 0 1px rgba(148,163,184,0.45);
-      }
-      to {
-        box-shadow:
-          0 30px 90px rgba(15,23,42,0.95),
-          0 0 35px rgba(56,189,248,0.55),
-          0 0 0 1px rgba(191,219,254,0.6);
-      }
-    }
-
-    @keyframes welcome-card-float {
-      from {
-        transform: translateY(0) scale(1);
-      }
-      to {
-        transform: translateY(-10px) scale(1.01);
-      }
-    }
-
-    @keyframes welcome-card-glow-pulse {
-      0% {
-        box-shadow:
-          0 28px 80px rgba(15,23,42,0.95),
-          0 0 24px rgba(56,189,248,0.45);
-      }
-      100% {
-        box-shadow:
-          0 24px 72px rgba(15,23,42,0.9),
-          0 0 32px rgba(244,114,182,0.55);
-      }
-    }
-
-    @keyframes welcome-card-out {
-      0% {
-        transform: translateY(0) scale(1);
-        opacity: 1;
-      }
-      100% {
-        transform: translateY(12px) scale(0.94);
-        opacity: 0;
-      }
-    }
-
-    @keyframes welcome-logo-in {
-      0% {
-        transform: scale(0.4) translateY(12px) rotate(-16deg);
-        opacity: 0;
-      }
-      55% {
-        transform: scale(1.08) translateY(-2px) rotate(10deg);
-        opacity: 1;
-      }
-      100% {
-        transform: scale(1) translateY(0) rotate(0deg);
-        opacity: 1;
-      }
-    }
-
-    @keyframes welcome-logo-float {
-      0% {
-        transform: translateY(0) scale(1);
-      }
-      100% {
-        transform: translateY(-6px) scale(1.03);
-      }
-    }
-
-    @keyframes welcome-logo-tilt {
-      0% {
-        transform: rotate(-3deg);
-      }
-      50% {
-        transform: rotate(3deg);
-      }
-      100% {
-        transform: rotate(-2deg);
-      }
-    }
-
-    @keyframes welcome-logo-out {
-      0% {
-        transform: translateY(0) scale(1);
-        opacity: 1;
-      }
-      100% {
-        transform: translateY(8px) scale(0.92);
-        opacity: 0;
-      }
-    }
-
-    @keyframes logo-spark-1 {
-      0% { opacity: 0; transform: translate(-4px, 2px) scale(0.5); }
-      40% { opacity: 1; transform: translate(0, -4px) scale(1); }
-      100% { opacity: 0; transform: translate(3px, -10px) scale(0.6); }
-    }
-
-    @keyframes logo-spark-2 {
-      0% { opacity: 0; transform: translate(4px, -2px) scale(0.5); }
-      40% { opacity: 1; transform: translate(-2px, 2px) scale(1); }
-      100% { opacity: 0; transform: translate(-6px, 8px) scale(0.6); }
-    }
-
-    @keyframes welcome-border-sweep {
-      0% { opacity: 0; transform: rotate(0deg); }
-      20% { opacity: 0.62; }
-      60% { opacity: 0.18; }
-      100% { opacity: 0; transform: rotate(360deg); }
-    }
-
-    /* Onboarding modal */
-    #onboardModal { position:fixed; inset:0; z-index:70; }
-    #onboardModal:not(.hidden) { display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.8); }
-    #onboardModal .panel { width:420px; background:#071024; padding:20px; border-radius:12px; color:#e6eef8; border: 1px solid #1f2937; }
-
-    /* daily streak interactive styles */
-    .day-card { transition: transform .14s ease, box-shadow .14s ease; cursor: pointer; }
-    .day-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 12px 30px rgba(2,6,23,0.6); }
-
-    /* Custom Scrollbar for Header */
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-    /* --- INBOX STYLES --- */
-    .notification-wrapper { position: relative; }
-    #notifBadge {
-      position: absolute;
-      top: -2px;
-      right: -2px;
-      background: #ef4444;
-      color: white;
-      font-size: 10px;
-      padding: 1px 5px;
-      border-radius: 999px;
-      border: 2px solid #1f2937;
-      font-weight: bold;
-    }
-    #notifDropdown {
-      position: absolute;
-      right: 0;
-      top: 50px;
-      width: 300px;
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
-      padding: 12px;
-      z-index: 100;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    #notifDropdown h3 {
-      font-weight: bold;
-      border-bottom: 1px solid #334155;
-      padding-bottom: 8px;
-      margin-bottom: 8px;
+    /* Sub-text */
+    p {
+      font-size: clamp(0.95rem, 2.5vw, 1.15rem);
       color: #94a3b8;
+      line-height: 1.6;
+      max-width: 420px;
+      margin: 0 auto 2rem;
+    }
+
+    /* Status pill */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: #fca5a5;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      font-size: 11px;
-      letter-spacing: 0.05em;
+      padding: 6px 16px;
+      border-radius: 999px;
     }
-    .notif-item {
-      padding: 10px;
-      border-radius: 8px;
-      margin-bottom: 4px;
-      transition: background 0.2s;
-      font-size: 13px;
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+      animation: dot-blink 1.2s ease-in-out infinite;
     }
-    .notif-item.unread {
-      background: rgba(59, 130, 246, 0.1);
-      border-left: 3px solid #3b82f6;
-    }
-    .notif-item:hover {
-      background: rgba(255, 255, 255, 0.05);
+
+    @keyframes dot-blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.2; }
     }
   </style>
-
-  <script>
-    (function() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const ref = urlParams.get('ref');
-      if (ref) {
-        localStorage.setItem('pendingReferral', ref);
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    })();
-  </script>
 </head>
-<body class="page">
-
-  <!-- Modern global header using style.css, but preserving your IDs/buttons -->
-
-<header id="header" class="site-header hidden">
-  <nav class="navbar">
-    <!-- Left: Brand -->
-    <a href="index.html" class="navbar-brand">
-      <span class="navbar-brand-logo"></span>
-      <span>Katy Math</span>
-    </a>
-
-    <!-- Mobile toggle (optional JS if you want to wire it later) -->
-    <button class="nav-toggle" type="button">
-      Menu
-    </button>
-
-    <!-- Right: Main controls -->
-    <div class="navbar-nav">
-      <!-- Credits pill -->
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2 px-3 py-1 rounded-full border border-gray-700/80 bg-black/40 shadow-sm">
-          <div class="token-spin text-lg leading-none">🪙</div>
-          <div class="flex flex-col leading-tight">
-            <span class="text-[10px] uppercase tracking-[0.18em] text-gray-400 font-semibold">
-              Credits
-            </span>
-            <span id="creditCount" class="text-sm font-bold text-white">0</span>
-          </div>
-        </div>
-
-        <!-- Tier label -->
-        <button
-          id="tierBtn"
-          type="button"
-          class="px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.16em] border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition"
-        >
-          Tier:
-          <span id="tierLabel" class="ml-1">Basic</span>
-        </button>
-      </div>
-
-      <!-- Page nav buttons -->
-      <div class="hidden md:flex items-center gap-1 ml-4">
-        <button
-          type="button"
-          onclick="navigate('dashboard')"
-          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
-        >
-          Dashboard
-        </button>
-        <button
-          type="button"
-          onclick="navigate('tokens')"
-          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
-        >
-          Tokens
-        </button>
-        <button
-          type="button"
-          onclick="navigate('leaderboard')"
-          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
-        >
-          Leaderboard
-        </button>
-        <button
-          type="button"
-          onclick="navigate('account')"
-          class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
-        >
-          Account
-        </button>
-      </div>
-
-      <!-- Page nav extra: Suggest/report (kept) -->
-      <button
-        type="button"
-        onclick="window.location.href='suggestion.html'"
-        class="px-3 py-1.5 rounded-full text-xs font-medium text-gray-300 hover:text-white hover:bg-white/5 transition whitespace-nowrap"
-      >
-        Suggest/report
-      </button>
-
-      <!-- Bell + Chat + Logout -->
-      <div class="flex items-center gap-2 ml-3">
-        <!-- Notifications bell -->
-        <div class="notification-wrapper relative">
-          <button
-            id="notifBtn"
-            class="w-9 h-9 flex items-center justify-center rounded-full border border-gray-700/80 bg-black/30 hover:bg-black/60 transition relative"
-            type="button"
-          >
-            <span class="text-lg leading-none">🔔</span>
-            <span
-              id="notifBadge"
-              class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1.5 py-[1px] rounded-full border border-gray-900 font-bold"
-            >
-              0
-            </span>
-          </button>
-        </div>
-
-        <!-- Chat link -->
-        <a
-          href="tutoring.html"
-          class="hidden sm:inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-semibold border border-blue-500/60 bg-blue-500/15 text-blue-300 hover:bg-blue-500/25 transition"
-        >
-          Chat
-        </a>
-
-        <!-- Logout -->
-        <button
-          id="logoutBtn"
-          type="button"
-          class="px-3 py-1.5 rounded-full text-xs font-semibold border border-red-500/60 bg-red-500/10 text-red-300 hover:bg-red-500/25 hover:text-red-50 transition whitespace-nowrap"
-        >
-          Logout
-        </button>
-      </div>
-    </div>
-  </nav>
-
-  <!-- ATTENTION BANNER (under the important buttons, full width to edges) -->
-  <div
-    id="attentionBanner"
-    class="mt-2 w-full"
-  >
-   <div class="relative overflow-hidden border-y border-amber-300/40 bg-[radial-gradient(circle_at_top,_rgba(248,250,252,0.08),_transparent_55%),_linear-gradient(to_right,_#020617,_#0f172a,_#020617)] shadow-[0_10px_30px_rgba(15,23,42,0.9)]">
-      <div class="absolute inset-0 pointer-events-none opacity-60 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.32),_transparent_55%)] mix-blend-screen"></div>
-
-      <div class="h-10 sm:h-11 flex items-center">
-        <div class="w-full overflow-hidden">
-          <div class="relative w-full">
-            <div class="inline-flex whitespace-nowrap banner-slide-text text-xs sm:text-sm md:text-base font-black tracking-[0.18em] uppercase text-amber-200 drop-shadow-[0_0_10px_rgba(250,250,210,0.9)]">
-              <span class="px-10"> Share links/raw html for credits • Like the site? • Hire our dev team at $30/h • This site costed $90 •</span>
-              <span class="px-10"> Please report bugs • This is v1 stable • Gloabal and Private chat room now working!! • Share links for credits •</span>
-              <span class="px-10">  Hire our dev team • let us know what u want added • Hire our dev team for $30/h• Get credits for sharing links (150+)•</span>
-            </div>
-          </div>
-        </div>
-      </div>
+<body>
+  <div class="card">
+    <span class="icon">🚫</span>
+    <h1>Katy Math is Down</h1>
+    <p>This site is currently unavailable because it is a bad site.</p>
+    <div class="status">
+      <span class="status-dot"></span>
+      Service Offline
     </div>
   </div>
-
-  <!-- Existing floating inbox dropdown (kept as-is for JS) -->
-  <div
-    id="inboxDropdown"
-    class="hidden absolute right-4 top-16 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden"
-  >
-    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-800/50">
-      <h3 class="font-bold text-white text-sm">Notifications</h3>
-      <button
-        id="markAllRead"
-        class="text-[10px] text-blue-400 hover:underline uppercase font-bold tracking-[0.16em]"
-      >
-        Mark all as read
-      </button>
-    </div>
-    <div id="inboxList" class="max-h-96 overflow-y-auto p-2 space-y-2">
-      <div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>
-    </div>
-  </div>
-</header>
-
-  <main id="appContainer">
-    <div class="container">
-      <section class="surface" id="dashboardPage">
-        <div id="siteInfoBox" class="mb-8 card">
-          <button type="button" onclick="document.getElementById('siteInfoBox').remove()" class="absolute top-3 right-4 text-gray-500 hover:text-white transition text-xl">
-            &times;
-          </button>
-          <div class="flex items-start gap-4">
-            <div class="text-3xl">🚀</div>
-            <div>
-              <h3 class="text-lg font-bold text-blue-400 mb-2"> Stable 1.0</h3>
-              <div class="text-sm text-gray-300 space-y-3 leading-relaxed">
-                <p>
-                  Many bugs got fixed please hit CTRL SHIFT R to see the stable version. 
-                  Earn 150 credits for sharing links in suggest/report. Chat is now working! Please report bugs
-                </p>
-                <p>Share the site with your <strong>Referral URL</strong> to gain credits! You get 50, they get 20.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <h2 class="text-xl mb-4 font-bold text-gray-400 uppercase tracking-widest text-sm">
-          General Links
-        </h2>
-        <div id="links" class="card-grid"></div>
-      </section>
-
-      <section id="tokensPage" class="hidden space-y-6 surface">
-        <div class="card flex items-center gap-4">
-          <div class="token-spin text-4xl">🪙</div>
-          <div>
-            <div class="font-semibold text-lg">Next Reward</div>
-            <div id="nextReward" class="text-green-400 text-sm font-mono uppercase"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 class="font-bold text-gray-400 uppercase text-xs tracking-widest mb-4">
-            Daily Streak
-          </h3>
-          <div id="dailyTracker" class="grid grid-cols-5 md:grid-cols-10 gap-3"></div>
-        </div>
-      </section>
-
-      <section id="leaderboardPage" class="hidden surface">
-        <h2 class="text-xl mb-4 font-bold">Weekly Leaderboard</h2>
-        <div id="leaderboard" class="space-y-2"></div>
-      </section>
-
-      <section id="accountPage" class="hidden surface">
-        <div class="space-y-4">
-          <div id="accountInfo" class="space-y-1"></div>
-
-          <div id="editProfileForm" class="hidden border-t border-gray-700 pt-4 mt-4 space-y-3">
-            <h4 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Edit Profile</h4>
-            <div class="grid grid-cols-2 gap-3">
-              <input id="editFirst" type="text" placeholder="First Name" class="bg-gray-900 p-2 rounded border border-gray-700 outline-none focus:border-blue-500">
-              <input id="editLast" type="text" placeholder="Last Name" class="bg-gray-900 p-2 rounded border border-gray-700 outline-none focus:border-blue-500">
-            </div>
-            <select id="editGrade" class="w-full bg-gray-900 p-2 rounded border border-gray-700">
-              <option value="">Select grade</option>
-              <option>Kindergarten</option>
-              <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-              <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
-              <option>11</option><option>12</option>
-            </select>
-            <div class="flex gap-2">
-              <button id="saveProfileBtn" type="button" class="bg-green-600 px-4 py-2 rounded text-sm font-bold">Save</button>
-              <button id="cancelEditBtn" type="button" class="bg-gray-700 px-4 py-2 rounded text-sm font-bold">Cancel</button>
-            </div>
-          </div>
-
-          <button id="showEditBtn" type="button" class="text-sm text-blue-400 hover:underline">
-            Edit Profile
-          </button>
-
-          <div class="pt-4 border-t border-gray-700">
-            <div class="text-sm text-gray-400">
-              Total Minutes: <span id="totalMinutes" class="text-white font-mono">0</span>
-            </div>
-            <div id="referralArea" class="mt-3"></div>
-          </div>
-
-          <div class="pt-10 mt-10 border-t border-red-900/30">
-            <h4 class="text-xs font-bold text-red-500 uppercase tracking-widest mb-2">
-              Danger Zone
-            </h4>
-            <button
-              id="deleteAccountBtn"
-              type="button"
-              class="bg-red-900/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-900 px-4 py-2 rounded-lg text-xs font-bold transition"
-            >
-              Delete My Account
-            </button>
-          </div>
-        </div>
-      </section>
-    </div>
-  </main>
-
-  <!-- LOGIN MODAL -->
-  <div id="loginModal" class="hidden">
-    <div class="panel">
-      <h3 class="text-lg font-bold text-center mb-4 text-blue-400">Katy Math</h3>
-      <div id="loginError" class="text-red-400 text-xs mb-2 text-center"></div>
-      <input id="email" type="email" placeholder="Email" />
-      <input id="password" type="password" placeholder="Password" />
-      <input id="referralCodeInput" type="text" placeholder=" (DONT USE )" />
-      <div class="grid grid-cols-2 gap-2 mt-2">
-        <button id="signInBtn" type="button" class="bg-blue-600 py-2 rounded font-bold hover:bg-blue-500">Sign In</button>
-        <button id="signUpBtn" type="button" class="bg-green-600 py-2 rounded font-bold hover:bg-green-500">Sign Up</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ONBOARDING MODAL -->
-  <div id="onboardModal" class="hidden">
-    <div class="panel">
-      <h3 class="text-lg font-bold mb-4">Welcome!</h3>
-      <input id="onboardFirst" type="text" placeholder="First name" />
-      <input id="onboardLast" type="text" placeholder="Last name" />
-      <select id="onboardGrade" class="mt-2 w-full bg-gray-900 text-white p-2 rounded border border-gray-700">
-        <option value="">Select Grade</option>
-        <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-        <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
-        <option>11</option><option>12</option>
-      </select>
-      <button id="onboardSave" type="button" class="bg-blue-600 w-full py-2 rounded mt-4 font-bold">
-        Save & Continue
-      </button>
-    </div>
-  </div>
-
-  <!-- WELCOME OVERLAY -->
-  <div id="welcomeOverlay">
-    <div class="welcome-full">
-      <div class="welcome-card" id="welcomeCard">
-        <div class="welcome-card-inner">
-          <div class="welcome-logo" id="welcomeLogo">✨</div>
-          <div>
-            <div id="welcomeTitle" class="welcome-text-primary">Welcome</div>
-            <div id="welcomeSub" class="welcome-text-secondary">
-              Ready to earn some credits?
-            </div>
-          </div>
-        </div>a
-      </div>
-    </div>
-  </div>
-
-  <!-- Scripts (unchanged) -->
-  <script type="module" src="./js/firebase.js"></script>
-  <script type="module" src="./js/utils.js"></script>
-  <script type="module" src="./js/login.js"></script>
-  <script type="module" src="./js/onboarding.js"></script>
-  <script type="module" src="./js/auth.js"></script>
-  <script type="module" src="./js/inbox.js"></script>
-  <script type="module" src="./js/dashboard.js"></script>
-  <script type="module" src="./js/tokens.js"></script>
-  <script type="module" src="./js/leaderboard.js"></script>
-  <script type="module" src="./js/account.js"></script>
-  <script type="module" src="./js/welcome.js"></script>
-  <script type="module" src="./js/blockExtensions.js"></script>
-
-  <!-- Small script to auto-hide the banner after ~20s -->
-  <script>
-  window.addEventListener("load", () => {
-    const banner = document.getElementById("attentionBanner");
-    if (!banner) return;
-
-    // CSS banner-slide-text is 15s per full slide loop; 4 loops ~= 60s
-    const HIDE_AFTER_MS = 60000; // 60,000 ms
-
-    setTimeout(() => {
-      banner.style.transition = "opacity 400ms ease-out, transform 400ms ease-out";
-      banner.style.opacity = "0";
-      banner.style.transform = "translateY(-6px)";
-      setTimeout(() => {
-        banner.style.display = "none";
-      }, 450);
-    }, HIDE_AFTER_MS);
-  });
-</script>
 </body>
 </html>
