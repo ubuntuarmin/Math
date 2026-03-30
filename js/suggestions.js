@@ -10,6 +10,7 @@ import {
   addDoc,
   collection,
   serverTimestamp,
+  setDoc,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const SUGGESTION_COST = 20;
@@ -32,6 +33,17 @@ const linkNotesInput = document.getElementById("linkNotes");
 const linkSubmitBtn = document.getElementById("linkSubmit");
 const linkErrorEl = document.getElementById("linkError");
 const linkSuccessEl = document.getElementById("linkSuccess");
+
+function buildFallbackProfile(user) {
+  return {
+    uid: user.uid,
+    email: user.email || "",
+    firstName: "",
+    lastName: "",
+    credits: 0,
+    totalEarned: 0,
+  };
+}
 
 // ==================== AUTH GUARD ====================
 // Wait for auth state; redirect to index.html if not signed in.
@@ -206,10 +218,16 @@ async function handleLinkSubmit(e) {
     linkSubmitBtn.disabled = true;
     linkSubmitBtn.textContent = "Submitting...";
 
-    // Fetch user profile for display name
+    // Fetch user profile for display name (auto-create minimal profile if missing)
     const userRef = doc(db, "users", user.uid);
     const snap    = await getDoc(userRef);
-    const data    = snap.exists() ? snap.data() : {};
+    let data      = snap.exists() ? snap.data() : null;
+
+    if (!data) {
+      const fallbackProfile = buildFallbackProfile(user);
+      await setDoc(userRef, fallbackProfile, { merge: true });
+      data = fallbackProfile;
+    }
     const displayName =
       [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
 
@@ -262,4 +280,3 @@ async function handleLinkSubmit(e) {
 if (linkForm) {
   linkForm.addEventListener("submit", handleLinkSubmit);
 }
-
