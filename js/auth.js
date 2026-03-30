@@ -30,6 +30,33 @@ export function refreshHeaderUI(userData) {
     }
 }
 
+/**
+ * Returns true if a bi-monthly reset date (15th or 29th) has been crossed
+ * between lastVisitMillis and now.
+ */
+function hasCrossedBimonthlyReset(lastVisitMillis, now) {
+    if (!lastVisitMillis || lastVisitMillis <= 0) return false;
+    const last = new Date(lastVisitMillis);
+    const resetDays = [15, 29];
+    // Walk month-by-month from last visit up to now (cap at 24 months for safety)
+    let cursor = new Date(last.getFullYear(), last.getMonth(), 1);
+    let iterations = 0;
+    const MAX_MONTHS = 24;
+    while (cursor <= now && iterations < MAX_MONTHS) {
+        for (const d of resetDays) {
+            const resetDate = new Date(cursor.getFullYear(), cursor.getMonth(), d, 0, 0, 0, 0);
+            if (resetDate > last && resetDate <= now) {
+                return true;
+            }
+        }
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        iterations++;
+    }
+    // If more than MAX_MONTHS have passed, assume a reset occurred
+    if (iterations >= MAX_MONTHS) return true;
+    return false;
+}
+
 async function handleDailyData(uid, userData) {
     const userRef = doc(db, "users", uid);
     const now = new Date();
@@ -46,22 +73,16 @@ async function handleDailyData(uid, userData) {
         updates.extraLimitMinutesToday = 0;
     }
 
-    // --- weekMinutes reset logic ---
+    // --- leaderboard score reset logic ---
     const lastVisitTimestampVal = userData.lastVisitTimestamp;
     const lastVisitMillis =
         lastVisitTimestampVal && typeof lastVisitTimestampVal.toMillis === "function"
             ? lastVisitTimestampVal.toMillis()
             : 0;
 
-    let diffInDays = 0;
-    if (lastVisitMillis > 0) {
-        diffInDays = (Date.now() - lastVisitMillis) / (1000 * 60 * 60 * 24);
-        if (!Number.isFinite(diffInDays) || diffInDays < 0) {
-            diffInDays = 0;
-        }
-    }
-
-    if (diffInDays > 7 || (now.getDay() === 0 && lastVisitDate !== todayStr)) {
+    // --- bi-monthly leaderboard reset (15th and 29th) ---
+    const crossedReset = hasCrossedBimonthlyReset(lastVisitMillis, now);
+    if (crossedReset) {
         updates.weekMinutes = 0;
     }
 

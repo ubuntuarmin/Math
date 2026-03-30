@@ -15,9 +15,28 @@ const leaderboardContainer = document.getElementById("leaderboard");
 let timerInterval = null;
 
 /**
+ * Compute the next bi-monthly reset date (15th or 29th of a month).
+ */
+function getNextBimonthlyReset() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+
+  if (day < 15) {
+    return new Date(year, month, 15, 0, 0, 0, 0);
+  } else if (day < 29) {
+    return new Date(year, month, 29, 0, 0, 0, 0);
+  } else {
+    // Advance to the 15th of the next month
+    return new Date(year, month + 1, 15, 0, 0, 0, 0);
+  }
+}
+
+/**
  * Helper: Get next reset time:
  * 1. Try Firestore settings/leaderboard.nextReset
- * 2. Fallback to "next Sunday at 00:00" based on now
+ * 2. Fallback to next 15th or 29th of the month
  */
 async function getNextResetDate() {
   try {
@@ -38,12 +57,8 @@ async function getNextResetDate() {
     console.warn("Leaderboard: failed to fetch settings/leaderboard:", err);
   }
 
-  // Fallback: compute next Sunday at 00:00
-  const now = new Date();
-  const nextSunday = new Date();
-  nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7 || 7));
-  nextSunday.setHours(0, 0, 0, 0);
-  return nextSunday;
+  // Fallback: compute next 15th or 29th
+  return getNextBimonthlyReset();
 }
 
 /**
@@ -94,7 +109,7 @@ export async function renderLeaderboard() {
         --
       </div>
       <div class="text-[9px] text-gray-500 mt-1 italic">
-        Top 10 win bonus credits at reset!
+        Resets on the 15th &amp; 29th · Top 10 win bonus credits!
       </div>
     </div>
     <div id="leaderboardList" class="space-y-3">
