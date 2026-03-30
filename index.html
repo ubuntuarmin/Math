@@ -1,179 +1,546 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Katy Math — Down</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GameLinks — Community Game Site Sharing</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ── Tab system ─────────────────────────────────────── */
+    .tab-content   { display: none; }
+    .tab-content.active { display: block; }
 
-    :root {
-      --red: #ef4444;
-      --red-glow: rgba(239,68,68,0.55);
-      --bg: #050810;
+    /* ── Welcome overlay animations ─────────────────────── */
+    #welcomeOverlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(5,8,22,0.9);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.4s ease;
     }
-
-    body {
-      min-height: 100dvh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--bg);
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      overflow: hidden;
-      color: #f1f5f9;
-    }
-
-    /* Animated radial background */
-    body::before {
-      content: "";
-      position: fixed;
-      inset: -20%;
-      background:
-        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(239,68,68,0.18), transparent 70%),
-        radial-gradient(ellipse 60% 50% at 80% 110%, rgba(124,58,237,0.14), transparent 65%),
-        radial-gradient(ellipse 50% 40% at 10% 90%, rgba(59,130,246,0.10), transparent 60%);
-      animation: bg-drift 8s ease-in-out infinite alternate;
-      pointer-events: none;
-    }
-
-    @keyframes bg-drift {
-      from { transform: scale(1) rotate(0deg); }
-      to   { transform: scale(1.08) rotate(3deg); }
-    }
-
-    /* Card wrapper — starts invisible, animates in over ~5 s */
-    .card {
-      position: relative;
-      text-align: center;
-      padding: 3.5rem 4rem;
+    #welcomeOverlay.show { opacity: 1; pointer-events: auto; }
+    #welcomeOverlay.hide { opacity: 0; pointer-events: none; }
+    #welcomeCard {
+      background: linear-gradient(145deg,#0f172a,#060c1e);
+      border: 1px solid rgba(56,189,248,0.35);
       border-radius: 24px;
-      background: linear-gradient(145deg, rgba(15,20,40,0.9), rgba(8,12,28,0.95));
-      border: 1px solid rgba(239,68,68,0.25);
-      box-shadow:
-        0 0 0 1px rgba(239,68,68,0.12),
-        0 32px 80px rgba(0,0,0,0.7),
-        0 0 60px rgba(239,68,68,0.12);
-      max-width: 680px;
-      width: 90vw;
-
-      /* — 5-second entrance animation — */
-      opacity: 0;
-      transform: translateY(40px) scale(0.92);
-      animation: card-enter 5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      padding: 2.5rem 3rem;
+      text-align: center;
+      max-width: 380px; width: 90vw;
     }
-
-    @keyframes card-enter {
-      0%   { opacity: 0; transform: translateY(40px) scale(0.92); }
-      30%  { opacity: 1; transform: translateY(-6px) scale(1.02); }
-      60%  { transform: translateY(4px) scale(0.99); }
-      80%  { transform: translateY(-2px) scale(1.005); }
-      100% { opacity: 1; transform: translateY(0) scale(1); }
+    #welcomeCard.enter  { animation: wc-enter 0.5s cubic-bezier(0.22,1,0.36,1) forwards; }
+    #welcomeCard.idle   { animation: wc-idle  2s ease-in-out infinite; }
+    #welcomeCard.exit   { animation: wc-exit  0.4s ease-in forwards; }
+    #welcomeLogo {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: linear-gradient(135deg,#38bdf8,#a855f7);
+      margin: 0 auto 1.2rem;
+      box-shadow: 0 0 30px rgba(56,189,248,0.6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
     }
+    #welcomeLogo.enter { animation: logo-enter 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    #welcomeLogo.idle  { animation: logo-idle 2.4s ease-in-out infinite; }
+    #welcomeLogo.exit  { animation: logo-exit 0.4s ease-in forwards; }
+    @keyframes wc-enter  { from{opacity:0;transform:translateY(30px) scale(0.9)} to{opacity:1;transform:none} }
+    @keyframes wc-idle   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    @keyframes wc-exit   { to{opacity:0;transform:translateY(-20px) scale(0.95)} }
+    @keyframes logo-enter{ from{opacity:0;transform:scale(0.4)} to{opacity:1;transform:scale(1)} }
+    @keyframes logo-idle { 0%,100%{filter:drop-shadow(0 0 15px rgba(56,189,248,0.6))} 50%{filter:drop-shadow(0 0 30px rgba(56,189,248,1))} }
+    @keyframes logo-exit { to{opacity:0;transform:scale(0.4)} }
 
-    /* Glowing border sweep */
-    .card::before {
-      content: "";
-      position: absolute;
-      inset: -2px;
-      border-radius: inherit;
-      background: conic-gradient(
-        from 0deg,
-        transparent 0%,
-        rgba(239,68,68,0.7) 25%,
-        transparent 50%
-      );
-      animation: border-spin 4s linear infinite;
-      opacity: 0.45;
-      pointer-events: none;
-      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      mask-composite: exclude;
-      padding: 2px;
-    }
-
-    @keyframes border-spin {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
-    }
-
-    /* Icon */
-    .icon {
-      font-size: 4rem;
-      line-height: 1;
-      margin-bottom: 1.5rem;
-      display: block;
-      filter: drop-shadow(0 0 18px rgba(239,68,68,0.7));
-      animation: icon-pulse 2.4s ease-in-out infinite;
-    }
-
-    @keyframes icon-pulse {
-      0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 18px rgba(239,68,68,0.7)); }
-      50%       { transform: scale(1.08); filter: drop-shadow(0 0 30px rgba(239,68,68,0.95)); }
-    }
-
-    /* Heading */
-    h1 {
-      font-size: clamp(2rem, 6vw, 3.2rem);
-      font-weight: 900;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-      background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-shadow: none;
-      margin-bottom: 1rem;
-    }
-
-    /* Sub-text */
-    p {
-      font-size: clamp(0.95rem, 2.5vw, 1.15rem);
-      color: #94a3b8;
-      line-height: 1.6;
-      max-width: 420px;
-      margin: 0 auto 2rem;
-    }
-
-    /* Status pill */
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(239,68,68,0.12);
-      border: 1px solid rgba(239,68,68,0.35);
-      color: #fca5a5;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      padding: 6px 16px;
-      border-radius: 999px;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #ef4444;
-      box-shadow: 0 0 8px #ef4444;
-      animation: dot-blink 1.2s ease-in-out infinite;
-    }
-
-    @keyframes dot-blink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.2; }
+    /* ── Daily tracker grid ──────────────────────────────── */
+    #dailyTracker {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 0.75rem;
     }
   </style>
 </head>
-<body>
-  <div class="card">
-    <span class="icon">🚫</span>
-    <h1>Katy Math is Down</h1>
-    <p>This site is currently unavailable because it is a bad site.</p>
-    <div class="status">
-      <span class="status-dot"></span>
-      Service Offline
-    </div>
+<body class="page">
+
+<!-- ════════════════════════════════════════════════════════
+     WELCOME OVERLAY (shown to returning users)
+════════════════════════════════════════════════════════ -->
+<div id="welcomeOverlay">
+  <div id="welcomeCard">
+    <div id="welcomeLogo">🎮</div>
+    <h2 id="welcomeTitle" class="text-2xl font-black text-white mb-1">Welcome back!</h2>
+    <p id="welcomeSub" class="text-sm text-gray-400">Discover and share the best game sites.</p>
   </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     STICKY HEADER
+════════════════════════════════════════════════════════ -->
+<header id="header" class="site-header hidden">
+  <nav class="navbar">
+    <!-- Brand -->
+    <a href="index.html" class="navbar-brand">
+      <span class="navbar-brand-logo">🎮</span>
+      <span class="font-extrabold tracking-tight">GameLinks</span>
+    </a>
+
+    <!-- Nav items -->
+    <div class="navbar-nav" id="mainNav">
+      <button class="tab-btn active" data-tab="links">
+        🔗 Links
+      </button>
+      <button class="tab-btn" data-tab="daily">
+        🔥 Daily
+      </button>
+      <button class="tab-btn" data-tab="leaderboard">
+        🏆 Top
+      </button>
+      <button class="tab-btn" data-tab="account">
+        👤 Account
+      </button>
+
+      <a href="suggestion.html"
+         class="px-3 py-1.5 rounded-full text-xs font-bold
+                bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors
+                flex items-center gap-1 whitespace-nowrap">
+        + Share Link
+      </a>
+
+      <a href="inbox.html"
+         class="relative flex items-center gap-1 px-3 py-1.5 rounded-full text-xs
+                text-gray-300 hover:text-white hover:bg-white/5 border border-transparent
+                hover:border-white/10 transition whitespace-nowrap" id="notifBtn">
+        🔔
+        <span id="notifBadge"
+              class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white
+                     text-[9px] font-bold rounded-full flex items-center justify-center hidden">
+          0
+        </span>
+      </a>
+
+      <!-- Credits + Tier -->
+      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                  bg-yellow-500/10 border border-yellow-500/30 text-xs font-bold text-yellow-300">
+        🪙 <span id="creditCount">0</span>
+        <span class="text-gray-500">·</span>
+        <span id="tierLabel" class="text-xs"></span>
+      </div>
+
+      <button id="logoutBtn"
+              class="px-3 py-1.5 rounded-full text-xs text-gray-400
+                     hover:text-white hover:bg-white/5 border border-transparent
+                     hover:border-white/10 transition">
+        Sign Out
+      </button>
+    </div>
+
+    <!-- Mobile toggle placeholder -->
+    <button class="nav-toggle md:hidden text-gray-400 text-sm" id="navToggle">☰ Menu</button>
+  </nav>
+
+  <!-- Inbox mini-dropdown (hover/click on bell) -->
+  <div id="inboxDropdown"
+       class="hidden absolute right-4 top-16 z-50 w-80 max-h-[70vh] overflow-y-auto
+              bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-3">
+    <div class="flex justify-between items-center mb-3 px-1">
+      <span class="text-xs font-bold text-gray-300 uppercase tracking-widest">Notifications</span>
+      <button id="markAllRead"
+              class="text-[10px] text-blue-400 hover:text-blue-300 transition">
+        Mark all read
+      </button>
+    </div>
+    <div id="inboxList"></div>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════
+     MAIN APP CONTAINER (hidden until auth)
+════════════════════════════════════════════════════════ -->
+<main id="appContainer" class="hidden flex-1">
+  <div class="container">
+
+    <!-- ── HERO ─────────────────────────────────────────── -->
+    <div class="mb-8 text-center">
+      <div class="inline-flex items-center gap-2 mb-3 px-4 py-1.5 rounded-full
+                  bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-bold
+                  uppercase tracking-widest">
+        <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+        Community Link Sharing
+      </div>
+      <h1 class="text-4xl md:text-5xl font-black text-white mb-3 leading-tight">
+        Discover & Share <br class="hidden sm:block"/>
+        <span class="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+          Game Sites
+        </span>
+      </h1>
+      <p class="text-gray-400 max-w-md mx-auto text-sm leading-relaxed">
+        Share game sites with the community and earn credits.
+        Community-powered quality: 3+ reports removes a bad link instantly.
+      </p>
+      <div class="mt-5 flex flex-wrap gap-3 justify-center">
+        <a href="suggestion.html"
+           class="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500
+                  text-white font-bold text-sm transition-colors shadow-lg
+                  shadow-blue-500/30 flex items-center gap-2">
+          🔗 Share a Link <span class="text-blue-200">(+50 credits)</span>
+        </a>
+        <a href="inbox.html"
+           class="px-5 py-2.5 rounded-full bg-gray-800 hover:bg-gray-700
+                  text-gray-200 font-bold text-sm transition-colors border border-gray-700
+                  flex items-center gap-2">
+          📬 Inbox
+        </a>
+      </div>
+    </div>
+
+    <!-- ── TAB CONTENTS ──────────────────────────────────── -->
+
+    <!-- LINKS TAB -->
+    <div id="tab-links" class="tab-content active">
+      <!-- Search + refresh row -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+        <div>
+          <h2 class="text-lg font-bold text-white">Community Links</h2>
+          <p class="text-xs text-gray-500">All links submitted by the community — vote with your reports.</p>
+        </div>
+        <button id="refreshLinksBtn"
+                class="text-xs text-blue-400 hover:text-blue-300 border border-blue-500/30
+                       hover:border-blue-500/60 px-3 py-1.5 rounded-full transition-colors">
+          ↺ Refresh
+        </button>
+      </div>
+
+      <!-- Loading spinner -->
+      <div id="linksLoading" class="col-span-full flex justify-center py-16">
+        <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent
+                    rounded-full animate-spin"></div>
+      </div>
+
+      <!-- Empty state -->
+      <div id="linksEmpty" class="hidden text-center py-20">
+        <div class="text-5xl mb-4">🎮</div>
+        <h3 class="text-white font-bold text-lg mb-2">No links yet!</h3>
+        <p class="text-gray-400 text-sm mb-5">Be the first to share a game site.</p>
+        <a href="suggestion.html"
+           class="inline-block px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500
+                  text-white font-bold text-sm transition-colors">
+          Share the First Link
+        </a>
+      </div>
+
+      <!-- Links grid -->
+      <div id="linksGrid"
+           class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      </div>
+    </div>
+
+    <!-- DAILY TAB -->
+    <div id="tab-daily" class="tab-content">
+      <div class="surface">
+        <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <span class="badge">Daily Streak</span>
+            <h2 class="mt-2">Claim Daily Credits</h2>
+            <p class="text-sm text-gray-400">
+              Claim every day to build your streak. Miss a day and it resets.
+            </p>
+          </div>
+          <div id="nextReward" class="text-sm text-blue-300 font-semibold"></div>
+        </div>
+        <div id="dailyTracker"></div>
+      </div>
+    </div>
+
+    <!-- LEADERBOARD TAB -->
+    <div id="tab-leaderboard" class="tab-content">
+      <div class="surface">
+        <span class="badge">Weekly Rankings</span>
+        <h2 class="mt-2 mb-6">Top Contributors</h2>
+        <div id="leaderboard"></div>
+      </div>
+    </div>
+
+    <!-- ACCOUNT TAB -->
+    <div id="tab-account" class="tab-content">
+      <div class="surface">
+        <span class="badge">Your Profile</span>
+        <h2 class="mt-2 mb-6">Account</h2>
+
+        <div id="accountInfo" class="mb-6"></div>
+
+        <!-- Edit profile form (hidden by default) -->
+        <div id="editProfileForm" class="hidden mb-6 bg-gray-900/60 p-4 rounded-2xl
+                                         border border-gray-700 space-y-3 max-w-sm">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">First Name</label>
+            <input id="editFirst" type="text"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg
+                          px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Last Name</label>
+            <input id="editLast" type="text"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg
+                          px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Grade</label>
+            <select id="editGrade"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg
+                           px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+              <option value="">Select grade...</option>
+              <option value="6">Grade 6</option>
+              <option value="7">Grade 7</option>
+              <option value="8">Grade 8</option>
+              <option value="9">Grade 9</option>
+              <option value="10">Grade 10</option>
+              <option value="11">Grade 11</option>
+              <option value="12">Grade 12</option>
+            </select>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button id="saveProfileBtn"
+                    class="flex-1 py-2 rounded-full bg-blue-600 hover:bg-blue-500
+                           text-white text-xs font-bold transition-colors">
+              Save Changes
+            </button>
+            <button id="cancelEditBtn"
+                    class="px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600
+                           text-gray-300 text-xs font-bold transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mb-6">
+          <button id="showEditBtn"
+                  class="px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600
+                         text-gray-200 text-xs font-bold transition-colors border border-gray-700">
+            ✏️ Edit Profile
+          </button>
+          <button id="deleteAccountBtn"
+                  class="px-4 py-2 rounded-full bg-red-900/40 hover:bg-red-800/60
+                         text-red-400 text-xs font-bold transition-colors border border-red-800/40">
+            Delete Account
+          </button>
+        </div>
+
+        <div id="referralArea"></div>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+</main>
+
+<!-- ════════════════════════════════════════════════════════
+     LOGIN MODAL (shown when not authenticated)
+════════════════════════════════════════════════════════ -->
+<div id="loginModal"
+     class="fixed inset-0 z-[100] flex items-center justify-center
+            bg-gray-950/95 backdrop-blur-sm hidden">
+
+  <!-- Glow orbs -->
+  <div class="absolute top-[-10%] left-[-5%] w-[40%] h-[40%]
+              bg-blue-600/15 rounded-full blur-[120px] pointer-events-none"></div>
+  <div class="absolute bottom-[5%] right-[-5%] w-[35%] h-[35%]
+              bg-purple-600/15 rounded-full blur-[100px] pointer-events-none"></div>
+
+  <div class="relative bg-gray-900/95 border border-gray-700/80 rounded-3xl
+              p-8 w-full max-w-md shadow-2xl mx-4">
+
+    <!-- Logo -->
+    <div class="flex justify-center mb-6">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600
+                  flex items-center justify-center text-3xl shadow-lg">
+        🎮
+      </div>
+    </div>
+
+    <h1 class="text-center text-2xl font-black text-white mb-1">GameLinks</h1>
+    <p class="text-center text-gray-400 text-sm mb-7">
+      Share game sites, earn credits, build community.
+    </p>
+
+    <!-- Error message -->
+    <div id="loginError" class="text-xs text-red-400 text-center min-h-[1.25rem] mb-3"></div>
+
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1.5">Email</label>
+        <input id="email" type="email" placeholder="your@email.com"
+               class="w-full bg-gray-800/80 border border-gray-700 rounded-xl
+                      px-4 py-3 text-sm text-white outline-none
+                      focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
+                      transition placeholder-gray-600" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1.5">Password</label>
+        <input id="password" type="password" placeholder="••••••••"
+               class="w-full bg-gray-800/80 border border-gray-700 rounded-xl
+                      px-4 py-3 text-sm text-white outline-none
+                      focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
+                      transition placeholder-gray-600" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1.5">
+          Referral Code <span class="text-gray-600">(optional)</span>
+        </label>
+        <input id="referralCodeInput" type="text" placeholder="e.g. ABC123"
+               class="w-full bg-gray-800/80 border border-gray-700 rounded-xl
+                      px-4 py-3 text-sm text-white outline-none
+                      focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
+                      transition placeholder-gray-600 uppercase" />
+      </div>
+    </div>
+
+    <div class="mt-5 flex gap-3">
+      <button id="signInBtn"
+              class="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500
+                     text-white font-bold text-sm transition-colors shadow-lg
+                     shadow-blue-500/20 active:scale-95">
+        Sign In
+      </button>
+      <button id="signUpBtn"
+              class="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600
+                     text-white font-bold text-sm transition-colors active:scale-95">
+        Sign Up
+      </button>
+    </div>
+
+    <p class="mt-5 text-center text-[10px] text-gray-600">
+      By signing in you agree to use this app responsibly.
+      New users get 20 starter credits.
+    </p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     ONBOARDING MODAL (new users only)
+════════════════════════════════════════════════════════ -->
+<div id="onboardModal"
+     class="fixed inset-0 z-[200] flex items-center justify-center
+            bg-gray-950/95 backdrop-blur-sm hidden"
+     aria-hidden="true">
+  <div class="panel bg-gray-900 border border-gray-700 rounded-3xl
+              p-8 w-full max-w-sm mx-4 shadow-2xl">
+    <div class="text-center mb-6">
+      <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600
+                  rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">
+        🎮
+      </div>
+      <h2 class="text-xl font-black text-white">Quick Setup</h2>
+      <p class="text-gray-400 text-xs mt-1">Just a few details to personalise your profile.</p>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">First Name *</label>
+        <input id="onboardFirst" type="text" placeholder="e.g. Alex"
+               class="w-full bg-gray-800 border border-gray-700 rounded-xl
+                      px-3 py-2.5 text-sm text-white outline-none
+                      focus:border-blue-500 transition" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Last Name (optional)</label>
+        <input id="onboardLast" type="text" placeholder="e.g. Smith"
+               class="w-full bg-gray-800 border border-gray-700 rounded-xl
+                      px-3 py-2.5 text-sm text-white outline-none
+                      focus:border-blue-500 transition" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Grade *</label>
+        <select id="onboardGrade"
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl
+                       px-3 py-2.5 text-sm text-white outline-none
+                       focus:border-blue-500 transition">
+          <option value="">Select your grade...</option>
+          <option value="6">Grade 6</option>
+          <option value="7">Grade 7</option>
+          <option value="8">Grade 8</option>
+          <option value="9">Grade 9</option>
+          <option value="10">Grade 10</option>
+          <option value="11">Grade 11</option>
+          <option value="12">Grade 12</option>
+        </select>
+      </div>
+    </div>
+    <div id="onboardError" class="text-xs text-red-400 mt-3 min-h-[1rem]"></div>
+    <button id="onboardSave"
+            class="mt-5 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500
+                   text-white font-bold text-sm transition-colors shadow-lg active:scale-95">
+      Save & Continue
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════════════ -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <span>© 2026 GameLinks</span>
+    <span class="text-xs text-gray-600">Community link sharing · Earn credits · Report bad links</span>
+    <a href="admin.html" class="text-xs text-gray-700 hover:text-gray-500 transition">Admin</a>
+  </div>
+</footer>
+
+<!-- ════════════════════════════════════════════════════════
+     SCRIPTS
+════════════════════════════════════════════════════════ -->
+<script type="module" src="./js/firebase.js"></script>
+<script type="module" src="./js/auth.js"></script>
+<script type="module" src="./js/login.js"></script>
+<script type="module" src="./js/welcome.js"></script>
+<script type="module" src="./js/onboarding.js"></script>
+<script type="module" src="./js/inbox.js"></script>
+<script type="module" src="./js/tokens.js"></script>
+<script type="module" src="./js/leaderboard.js"></script>
+<script type="module" src="./js/account.js"></script>
+
+<script>
+  // ── Tab switcher ──────────────────────────────────────────
+  document.querySelectorAll(".tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      // Update button states
+      document.querySelectorAll(".tab-btn").forEach((b) =>
+        b.classList.toggle("active", b === btn)
+      );
+      // Show/hide tab contents
+      document.querySelectorAll(".tab-content").forEach((el) =>
+        el.classList.toggle("active", el.id === `tab-${tab}`)
+      );
+    });
+  });
+
+  // ── Mobile nav toggle ─────────────────────────────────────
+  document.getElementById("navToggle")?.addEventListener("click", () => {
+    document.body.classList.toggle("nav-open");
+  });
+
+  // ── Refresh links button ─────────────────────────────────
+  document.getElementById("refreshLinksBtn")?.addEventListener("click", () => {
+    // Trigger auth re-sync by dispatching a custom event
+    const evt = document.createEvent("Event");
+    evt.initEvent("refreshLinks", true, true);
+    document.dispatchEvent(evt);
+  });
+
+  // Style active tab button
+  const styleTabBtns = () => {
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      if (btn.classList.contains("active")) {
+        btn.style.color = "#38bdf8";
+        btn.style.borderBottom = "2px solid #38bdf8";
+      } else {
+        btn.style.color = "";
+        btn.style.borderBottom = "";
+      }
+    });
+  };
+  document.querySelectorAll(".tab-btn").forEach((btn) =>
+    btn.addEventListener("click", styleTabBtns)
+  );
+  styleTabBtns();
+</script>
 </body>
 </html>

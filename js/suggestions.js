@@ -10,7 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const SUGGESTION_COST = 20;
-const LINK_BONUS = 150;
+const LINK_BONUS      = 50;   // awarded immediately on submission
 
 // ----- Suggestion form elements -----
 const form = document.getElementById("suggestionForm");
@@ -161,12 +161,12 @@ async function handleLinkSubmit(e) {
     return;
   }
 
-  const url = (linkUrlInput?.value || "").trim();
+  const url   = (linkUrlInput?.value || "").trim();
   const title = (linkTitleInput?.value || "").trim();
   const notes = (linkNotesInput?.value || "").trim();
 
   // Basic validation
-  if (!url || !url.startsWith("http")) {
+  if (!url || !/^https?:\/\//i.test(url)) {
     if (linkErrorEl) linkErrorEl.textContent = "Please enter a valid URL (must start with http or https).";
     return;
   }
@@ -178,7 +178,7 @@ async function handleLinkSubmit(e) {
 
   if (!notes || notes.length < 10) {
     if (linkErrorEl) linkErrorEl.textContent =
-      "Please explain why this link is good for math (at least 10 characters).";
+      "Please add a short description (at least 10 characters).";
     return;
   }
 
@@ -186,37 +186,46 @@ async function handleLinkSubmit(e) {
     linkSubmitBtn.disabled = true;
     linkSubmitBtn.textContent = "Submitting...";
 
-    // Fetch user data (for email)
+    // Fetch user profile for display name
     const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
-    const data = snap.exists() ? snap.data() : {};
+    const snap    = await getDoc(userRef);
+    const data    = snap.exists() ? snap.data() : {};
+    const displayName =
+      [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
 
-    // 1) Create link submission document
-    await addDoc(collection(db, "linkSubmissions"), {
-      userId: user.uid,
-      email: data.email || user.email || "",
+    // 1) Add to sharedLinks — auto-approved and immediately live
+    await addDoc(collection(db, "sharedLinks"), {
       url,
       title,
-      notes,
-      status: "pending",
-      createdAt: serverTimestamp(),
-      reviewedAt: null,
-      reviewerUid: null,
-      bonus: LINK_BONUS,
-      rewardGiven: false,
+      description:     notes,
+      submittedBy:     user.uid,
+      submittedByName: displayName,
+      status:          "active",
+      reportCount:     0,
+      reports:         [],
+      rewardGiven:     true,
+      creditsAwarded:  LINK_BONUS,
+      creditsReversed: false,
+      createdAt:       serverTimestamp(),
     });
 
-    // 2) Notify user
+    // 2) Award credits immediately
+    await updateDoc(userRef, {
+      credits:     increment(LINK_BONUS),
+      totalEarned: increment(LINK_BONUS),
+    });
+
+    // 3) Inbox confirmation
     await sendSelfNotification(
       user.uid,
-      "Link Submitted",
-      `Your link "${title}" was submitted for review. If the admin approves and uses it, you'll receive ${LINK_BONUS} bonus credits.`,
+      "Link Shared — Credits Awarded!",
+      `Your link "${title}" is now live in the community! You earned +${LINK_BONUS} credits. If 3 or more users report it as fake your credits will be reversed.`,
       "link"
     );
 
     if (linkSuccessEl) {
       linkSuccessEl.textContent =
-        `Thanks! Your link was submitted. If approved and added, you’ll earn ${LINK_BONUS} credits.`;
+        `Your link is live! You earned +${LINK_BONUS} credits.`;
     }
     linkForm.reset();
   } catch (err) {
@@ -224,8 +233,8 @@ async function handleLinkSubmit(e) {
     if (linkErrorEl) linkErrorEl.textContent = "Failed to submit link. Please try again.";
   } finally {
     if (linkSubmitBtn) {
-      linkSubmitBtn.disabled = false;
-      linkSubmitBtn.textContent = "Submit Link for Review (+150 if approved)";
+      linkSubmitBtn.disabled    = false;
+      linkSubmitBtn.textContent = `Share Link (+${LINK_BONUS} credits)`;
     }
   }
 }
@@ -233,3 +242,4 @@ async function handleLinkSubmit(e) {
 if (linkForm) {
   linkForm.addEventListener("submit", handleLinkSubmit);
 }
+
