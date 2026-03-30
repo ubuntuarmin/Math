@@ -321,6 +321,9 @@ document.addEventListener("click", () => {
   document.querySelectorAll(".report-dropdown").forEach((d) => d.classList.add("hidden"));
 });
 
+// ─── Refresh links when the header "Refresh" button is clicked ───────────────
+document.addEventListener("refreshLinks", () => loadLinks());
+
 // ─── XSS-safe helpers ────────────────────────────────────────────────────────
 function escapeHtml(str) {
   return String(str)

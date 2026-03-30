@@ -12,6 +12,7 @@ import {
   writeBatch,
   getDocs,
   deleteDoc,
+  getDoc,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 /**
@@ -29,9 +30,10 @@ document.addEventListener("click", (e) => {
 
   const target = e.target;
 
-  // 1. Bell icon toggle
+  // 1. Bell icon toggle — prevent navigation, show dropdown instead
   if (notifBtn.contains(target)) {
     e.stopPropagation();
+    e.preventDefault();
     inboxDropdown.classList.toggle("hidden");
     return;
   }
@@ -69,9 +71,34 @@ document.addEventListener("click", (e) => {
   }
 });
 
+let _inboxInitialized = false;
+
 export function initInbox() {
+  // Guard against duplicate calls (e.g. imported by multiple modules)
+  if (_inboxInitialized) return;
+  _inboxInitialized = true;
+
   onAuthStateChanged(auth, (user) => {
-    if (!user) return;
+    if (!user) {
+      // If on a sub-page without a login modal, redirect to index
+      const loginModal = document.getElementById("loginModal");
+      if (!loginModal) {
+        window.location.href = "index.html";
+      }
+      return;
+    }
+
+    // Populate totalEarnedInbox on inbox.html
+    const totalEarnedEl = document.getElementById("totalEarnedInbox");
+    if (totalEarnedEl) {
+      getDoc(doc(db, "users", user.uid))
+        .then((snap) => {
+          if (snap.exists()) {
+            totalEarnedEl.textContent = snap.data().totalEarned ?? 0;
+          }
+        })
+        .catch((err) => console.error("Failed to load totalEarned:", err));
+    }
 
     // --- DATA LISTENER ---
     const q = query(
