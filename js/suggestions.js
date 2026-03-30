@@ -1,5 +1,8 @@
 import { auth, db } from "./firebase.js";
 import {
+  onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import {
   doc,
   getDoc,
   updateDoc,
@@ -29,6 +32,23 @@ const linkNotesInput = document.getElementById("linkNotes");
 const linkSubmitBtn = document.getElementById("linkSubmit");
 const linkErrorEl = document.getElementById("linkError");
 const linkSuccessEl = document.getElementById("linkSuccess");
+
+// ==================== AUTH GUARD ====================
+// Wait for auth state; redirect to index.html if not signed in.
+// Disable submit buttons until auth is known.
+if (linkSubmitBtn) linkSubmitBtn.disabled = true;
+if (submitBtn)     submitBtn.disabled = true;
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    // No login modal on this page — send the user to sign in first
+    window.location.href = "index.html";
+    return;
+  }
+  // Auth is confirmed: enable the submit buttons
+  if (linkSubmitBtn) linkSubmitBtn.disabled = false;
+  if (submitBtn)     submitBtn.disabled = false;
+});
 
 /**
  * Helper: send a notification message to the current user

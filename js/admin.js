@@ -21,6 +21,8 @@ const resetBtn = document.getElementById("resetLeaderboardBtn");
 const searchInput = document.getElementById("adminSearch");
 const suggestionListEl = document.getElementById("suggestionList");
 const linkSubmissionListEl = document.getElementById("linkSubmissionList");
+const activeSharedLinksEl = document.getElementById("activeSharedLinksList");
+const removedSharedLinksEl = document.getElementById("removedSharedLinksList");
 
 // Extend-limit modal elements
 const extendLimitModal = document.getElementById("extendLimitModal");
@@ -43,6 +45,16 @@ const EXTRA_LIMIT_FIELD = "extraLimitMinutesToday";
 // State for which user is currently being edited in the modal
 let extendTargetUserId = null;
 let extendTargetUserName = "";
+
+// ─── XSS-safe helpers ────────────────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 /**
  * Send Inbox Message Logic
@@ -159,6 +171,7 @@ async function initAdmin() {
     } else {
       loadAllUsers();
       loadSuggestions();
+      loadSharedLinks();
       loadLinkSubmissions();
     }
   });
@@ -260,6 +273,7 @@ if (resetBtn) {
       resetBtn.innerHTML = originalText;
       loadAllUsers();
       loadSuggestions();
+      loadSharedLinks();
       loadLinkSubmissions();
     }
   };
@@ -529,6 +543,154 @@ async function denySuggestion(suggestionId, userId, title) {
   } catch (err) {
     console.error("Deny suggestion error:", err);
     alert("Failed to deny suggestion.");
+  }
+}
+
+/**
+ * COMMUNITY SHARED LINKS: Load and render active + removed
+ */
+async function loadSharedLinks() {
+  // Helper to render one table
+  async function renderTable(el, status, colSpan) {
+    if (!el) return;
+    el.innerHTML = `<tr><td colspan="${colSpan}" class="p-6 text-center text-slate-400 text-sm">Loading…</td></tr>`;
+
+    try {
+      const q = query(
+        collection(db, "sharedLinks"),
+        where("status", "==", status),
+        orderBy("createdAt", "desc"),
+        limit(100)
+      );
+      const snap = await getDocs(q);
+
+      if (snap.empty) {
+        el.innerHTML = `<tr><td colspan="${colSpan}" class="p-6 text-center text-slate-500 text-sm italic">None found.</td></tr>`;
+        return;
+      }
+
+      el.innerHTML = "";
+
+      snap.forEach((docSnap) => {
+        const l = docSnap.data();
+        const isActive = status === "active";
+        const row = document.createElement("tr");
+        row.className = "border-b border-slate-800 hover:bg-slate-800/50 transition";
+
+        const reportBadge = l.reportCount > 0
+          ? `<span class="text-orange-400 font-bold">${Number(l.reportCount)}</span>`
+          : `<span class="text-slate-500">0</span>`;
+
+        const creditBadge = l.creditsReversed
+          ? '<span class="text-red-400 text-[10px] font-bold uppercase">Yes — reversed</span>'
+          : '<span class="text-emerald-400 text-[10px]">No</span>';
+
+        // Build action cell using DOM (safe, no XSS risk)
+        const actionTd = document.createElement("td");
+        actionTd.className = "p-3 text-right";
+
+        const actionBtn = document.createElement("button");
+        actionBtn.className = isActive
+          ? "shared-remove-btn px-3 py-1 rounded-full bg-red-600/80 hover:bg-red-500 text-white font-bold uppercase tracking-wide text-[10px]"
+          : "shared-restore-btn px-3 py-1 rounded-full bg-emerald-600/80 hover:bg-emerald-500 text-white font-bold uppercase tracking-wide text-[10px]";
+        actionBtn.textContent = isActive ? "Remove" : "Restore";
+        actionBtn.dataset.id    = docSnap.id;
+        actionBtn.dataset.title = l.title || "";
+        actionBtn.dataset.uid   = l.submittedBy || "";
+        actionTd.appendChild(actionBtn);
+
+        // Safe: use escapeHtml for any user-supplied text rendered via innerHTML
+        row.innerHTML = `
+          <td class="p-3 align-top max-w-xs">
+            <div class="font-semibold text-white text-xs">${escapeHtml(l.title || "Untitled")}</div>
+            <a href="${escapeHtml(l.url || "#")}" target="_blank" rel="noopener noreferrer"
+               class="text-blue-400 text-[10px] hover:underline break-all">${escapeHtml(l.url || "")}</a>
+            ${l.description ? `<div class="text-[10px] text-slate-400 mt-1 line-clamp-2">${escapeHtml(l.description)}</div>` : ""}
+          </td>
+          <td class="p-3 align-top text-xs text-slate-400">${escapeHtml(l.submittedByName || "Anonymous")}</td>
+          <td class="p-3 align-top text-xs">${reportBadge}</td>
+          ${!isActive ? `<td class="p-3 align-top text-xs">${creditBadge}</td>` : ""}
+        `;
+        row.appendChild(actionTd);
+
+        el.appendChild(row);
+      });
+
+      // Wire remove buttons
+      el.querySelectorAll(".shared-remove-btn").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          adminRemoveSharedLink(
+            btn.dataset.id,
+            btn.dataset.title,
+            btn.dataset.uid
+          )
+        );
+      });
+
+      // Wire restore buttons
+      el.querySelectorAll(".shared-restore-btn").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          adminRestoreSharedLink(btn.dataset.id, btn.dataset.title)
+        );
+      });
+    } catch (err) {
+      console.error("Load shared links error:", err);
+      el.innerHTML = `<tr><td colspan="${colSpan}" class="p-6 text-center text-red-400 text-sm">Failed to load. Check connection.</td></tr>`;
+    }
+  }
+
+  await Promise.all([
+    renderTable(activeSharedLinksEl, "active", 4),
+    renderTable(removedSharedLinksEl, "removed", 5),
+  ]);
+}
+
+async function adminRemoveSharedLink(linkId, title, submittedByUid) {
+  if (!linkId) return;
+  const ok = confirm(`Manually remove "${title || "this link"}"?`);
+  if (!ok) return;
+
+  try {
+    await updateDoc(doc(db, "sharedLinks", linkId), {
+      status: "removed",
+      removedAt: serverTimestamp(),
+      removedByAdmin: true,
+    });
+
+    if (submittedByUid) {
+      await sendNotification(
+        submittedByUid,
+        "Your Link Was Removed",
+        `Your shared link "${title || ""}" was manually removed by an administrator.`,
+        "link"
+      );
+    }
+
+    alert("Link removed.");
+    loadSharedLinks();
+  } catch (err) {
+    console.error("Admin remove link error:", err);
+    alert("Failed to remove link.");
+  }
+}
+
+async function adminRestoreSharedLink(linkId, title) {
+  if (!linkId) return;
+  const ok = confirm(`Restore "${title || "this link"}" to active?`);
+  if (!ok) return;
+
+  try {
+    await updateDoc(doc(db, "sharedLinks", linkId), {
+      status: "active",
+      removedAt: null,
+      removedByAdmin: false,
+    });
+
+    alert("Link restored.");
+    loadSharedLinks();
+  } catch (err) {
+    console.error("Admin restore link error:", err);
+    alert("Failed to restore link.");
   }
 }
 

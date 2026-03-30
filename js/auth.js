@@ -155,8 +155,8 @@ onAuthStateChanged(auth, async user => {
             }
         }
 
-        // --- INITIALIZE INBOX ---
-        initInbox(user.uid);
+        // inbox.js auto-initialises itself on import; no need to call again
+        // initInbox() is idempotent, so calling it here would be a no-op anyway
 
         hideLogin();
         header?.classList.remove("hidden");
