@@ -260,7 +260,7 @@
     <!-- LEADERBOARD TAB -->
     <div id="tab-leaderboard" class="tab-content">
       <div class="surface">
-        <span class="badge">Weekly Rankings</span>
+        <span class="badge">Bi-Monthly Rankings</span>
         <h2 class="mt-2 mb-6">Top Contributors</h2>
         <div id="leaderboard"></div>
       </div>
@@ -490,6 +490,73 @@
 </footer>
 
 <!-- ════════════════════════════════════════════════════════
+     IFRAME MODAL (opens links securely in-app)
+════════════════════════════════════════════════════════ -->
+<div id="iframeModal"
+     class="hidden fixed inset-0 z-[300] flex flex-col bg-gray-950/97 backdrop-blur-sm">
+  <!-- Header bar -->
+  <div class="flex items-center justify-between px-4 py-3
+              bg-gray-900 border-b border-gray-800 shrink-0">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600
+                  flex items-center justify-center text-base shrink-0">
+        🎮
+      </div>
+      <span id="iframeTitle" class="text-white font-bold text-sm truncate max-w-[60vw]">
+        Loading…
+      </span>
+    </div>
+    <button onclick="closeIframeModal()"
+            class="text-gray-400 hover:text-white transition-colors p-2 rounded-lg
+                   hover:bg-white/5 text-lg leading-none shrink-0">
+      ✕
+    </button>
+  </div>
+
+  <!-- Loading animation (visible while iframe loads) -->
+  <div id="iframeLoader"
+       class="absolute inset-0 top-[52px] flex flex-col items-center justify-center
+              bg-gray-950 z-10 gap-4">
+    <div class="relative w-16 h-16">
+      <div class="absolute inset-0 rounded-full border-4 border-blue-500/20"></div>
+      <div class="absolute inset-0 rounded-full border-4 border-transparent
+                  border-t-blue-500 animate-spin"></div>
+      <div class="absolute inset-[6px] rounded-full border-4 border-transparent
+                  border-t-purple-500 animate-spin" style="animation-direction:reverse;animation-duration:0.8s"></div>
+    </div>
+    <p class="text-gray-400 text-sm animate-pulse">Loading game site…</p>
+    <p class="text-gray-600 text-xs text-center max-w-xs">
+      Some sites may not support embedding. If it doesn't load, try again shortly.
+    </p>
+  </div>
+
+  <!-- The iframe itself -->
+  <iframe id="iframeFrame"
+          class="flex-1 w-full border-0 opacity-0 transition-opacity duration-300"
+          sandbox="allow-scripts allow-forms allow-popups allow-pointer-lock allow-modals"
+          allowfullscreen
+          title="Game Site Viewer">
+  </iframe>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     PROFILE MODAL (view other users' profiles)
+════════════════════════════════════════════════════════ -->
+<div id="profileModal"
+     class="hidden fixed inset-0 z-[300] flex items-center justify-center
+            bg-gray-950/90 backdrop-blur-sm p-4">
+  <div class="relative bg-gray-900 border border-gray-700 rounded-3xl
+              p-7 w-full max-w-sm shadow-2xl">
+    <button onclick="closeProfileModal()"
+            class="absolute top-4 right-4 text-gray-500 hover:text-white
+                   transition-colors p-1 rounded-lg hover:bg-white/5 text-lg leading-none">
+      ✕
+    </button>
+    <div id="profileModalContent"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
      SCRIPTS
 ════════════════════════════════════════════════════════ -->
 <script type="module" src="./js/firebase.js"></script>
@@ -526,6 +593,14 @@
   // ── Refresh links button ─────────────────────────────────
   document.getElementById("refreshLinksBtn")?.addEventListener("click", () => {
     document.dispatchEvent(new CustomEvent("refreshLinks"));
+  });
+
+  // ── Close modals on Escape key ───────────────────────────
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (typeof closeIframeModal  === "function") closeIframeModal();
+      if (typeof closeProfileModal === "function") closeProfileModal();
+    }
   });
 
   // Style active tab button
