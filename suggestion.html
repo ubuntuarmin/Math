@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Suggestions | Katy Math</title>
+  <title>Share a Link | GameLinks</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="page">
-  <!-- Top header reused (simpler version): brand + back -->
+
   <header class="site-header">
     <nav class="navbar">
       <a href="index.html" class="navbar-brand">
-        <span class="navbar-brand-logo"></span>
-        <span>Katy Math</span>
+        <span class="navbar-brand-logo">🎮</span>
+        <span>GameLinks</span>
       </a>
       <a href="index.html" class="btn-outline text-xs">
-        ← Back to Dashboard
+        &larr; Back to Links
       </a>
     </nav>
   </header>
@@ -25,78 +25,90 @@
   <main>
     <div class="container">
       <section class="surface">
-        <!-- TOP: Submit a Link (eye-catching) -->
-        <header class="mb-4">
+
+        <!-- SHARE A LINK -->
+        <header class="mb-6">
           <span class="badge">Earn Credits</span>
-          <h1>Submit a Resource Link</h1>
-          <p class="text-sm text-gray-300">
-            Know a great math website, game, or tool? Share it here.
-            If the admin approves it and adds it to the system, you’ll earn
-            <span class="text-emerald-400 font-bold">150 bonus credits</span>.
+          <h1 class="mt-2">Share a Game Site</h1>
+          <p class="text-sm text-gray-300 max-w-xl">
+            Know a great game site? Share it and it goes
+            <strong class="text-white">live immediately</strong> — no approval needed.
+            You earn <span class="text-emerald-400 font-bold">+50 credits</span> right away.
           </p>
+          <div class="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 bg-emerald-400 rounded-full"></span>
+              Instantly live
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 bg-yellow-400 rounded-full"></span>
+              +50 credits on submit
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 bg-red-400 rounded-full"></span>
+              3+ fake reports reverses credits
+            </div>
+          </div>
         </header>
 
         <form id="linkSubmissionForm" class="space-y-4 max-w-xl mb-10">
           <div>
-            <label for="linkUrl">Link URL</label>
+            <label for="linkUrl">Link URL *</label>
             <input
               id="linkUrl"
               type="url"
-              placeholder="https://awesome-math-site.com"
+              placeholder="https://awesome-game-site.com"
               class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
             />
             <p class="text-[11px] text-gray-500 mt-1">
-              Make sure the site is safe, school-appropriate, and helpful for math practice.
+              Must start with https:// and be a site you can actually visit.
             </p>
           </div>
 
           <div>
-            <label for="linkTitle">Name of the site</label>
+            <label for="linkTitle">Name of the site *</label>
             <input
               id="linkTitle"
               type="text"
-              placeholder="Short name (e.g. 'Cool Fractions Game')"
+              placeholder="e.g. 'Cool Racing Game'"
               class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
             />
           </div>
 
           <div>
-            <label for="linkNotes">Why is this good?</label>
+            <label for="linkNotes">Short description *</label>
             <textarea
               id="linkNotes"
               rows="3"
-              placeholder="Explain why this is safe, helpful, and what math it practices."
+              placeholder="What is it? Why is it good? At least 10 characters."
               class="w-full bg-gray-900 p-2 rounded border border-gray-700 mt-1 text-sm outline-none focus:border-blue-500"
             ></textarea>
           </div>
 
-          <p class="text-xs text-gray-400">
-            No credits are deducted for link submissions. If the admin approves and adds your link,
-            you’ll receive <span class="text-emerald-400 font-bold">150 bonus credits</span>.
-          </p>
+          <div class="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20 text-xs text-yellow-300/80">
+            Warning: Do not submit fake, broken, or inappropriate links.
+            If 3 or more community members report your link as fake, your 50 credits will be
+            reversed and the link will be removed.
+          </div>
 
-          <div id="linkError" class="text-xs text-red-400"></div>
-          <div id="linkSuccess" class="text-xs text-emerald-400"></div>
+          <div id="linkError" class="text-xs text-red-400 min-h-[1rem]"></div>
+          <div id="linkSuccess" class="text-xs text-emerald-400 min-h-[1rem]"></div>
 
-          <button
-            id="linkSubmit"
-            type="submit"
-            class="btn-outline"
-          >
-            Submit Link for Review (+150 if approved)
+          <button id="linkSubmit" type="submit">
+            Share Link (+50 credits)
           </button>
         </form>
 
         <hr class="my-8 border-gray-800">
 
-        <!-- BELOW: Regular suggestions / bug reports -->
+        <!-- FEEDBACK / BUG REPORT -->
         <header class="mb-4">
           <span class="badge">Feedback</span>
           <h2 class="mt-2 text-lg font-bold">Leave a Suggestion</h2>
-          <p class="text-sm text-gray-300">
-            Share ideas for new features or report bugs. Each suggestion costs
-            <strong>20 credits</strong> to submit. If your suggestion is helpful,
-            the admin can refund your 20 credits and you will most likely receive bonus credits.
+          <p class="text-sm text-gray-300 max-w-xl">
+            Have an idea or found a bug in GameLinks itself? Let us know.
+            Each suggestion costs <strong>20 credits</strong>. If accepted
+            you get a full refund plus likely bonus credits.
           </p>
         </header>
 
@@ -133,33 +145,28 @@
           </div>
 
           <p class="text-xs text-gray-400">
-            Submitting a suggestion will temporarily deduct
-            <span class="text-emerald-400 font-bold">20 credits</span> from your account.
-            If the suggestion is accepted, you will be refunded and will most likely receive bonus credits.
+            Submitting deducts <span class="text-emerald-400 font-bold">20 credits</span>.
+            Accepted suggestions get a full refund and likely bonus credits.
           </p>
 
-          <div id="suggestionError" class="text-xs text-red-400"></div>
-          <div id="suggestionSuccess" class="text-xs text-emerald-400"></div>
+          <div id="suggestionError" class="text-xs text-red-400 min-h-[1rem]"></div>
+          <div id="suggestionSuccess" class="text-xs text-emerald-400 min-h-[1rem]"></div>
 
-          <button
-            id="suggestionSubmit"
-            type="submit"
-            class="btn"
-          >
-            Submit Suggestion (‑20 credits)
+          <button id="suggestionSubmit" type="submit" class="btn">
+            Submit Suggestion (-20 credits)
           </button>
         </form>
+
       </section>
     </div>
   </main>
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <span>© 2026 Katy Math</span>
+      <span>&copy; 2026 GameLinks</span>
     </div>
   </footer>
 
-  <!-- Firebase + auth context needed -->
   <script type="module" src="./js/firebase.js"></script>
   <script type="module" src="./js/auth.js"></script>
   <script type="module" src="./js/suggestions.js"></script>

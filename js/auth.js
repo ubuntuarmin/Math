@@ -3,7 +3,7 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // UI modules
-import { updateUI } from "./dashboard.js";
+import { updateUI } from "./links.js";
 import { renderDaily } from "./tokens.js";
 import { updateAccount } from "./account.js";
 import { renderLeaderboard } from "./leaderboard.js";

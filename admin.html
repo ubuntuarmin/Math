@@ -134,24 +134,82 @@
           </div>
         </section>
 
-        <!-- LINK SUBMISSIONS SECTION -->
+        <!-- COMMUNITY SHARED LINKS SECTION -->
         <section class="mt-8">
           <header class="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <div class="text-xs text-gray-400 uppercase tracking-[0.16em] font-bold">
-                Link Submissions
+                Community Shared Links
               </div>
               <p class="text-xs text-gray-500 max-w-xl">
-                Students can submit resource links from the Suggestions page. Approving a link
-                and adding it to your system should reward the student with
-                <span class="font-semibold text-emerald-300">150 credits</span>.
+                All community-submitted links. Removed links were flagged by 3+ users.
+                You can manually remove any active link or restore a removed one.
+                Credits are <strong class="text-emerald-300">auto-awarded (+50)</strong> on submission
+                and <strong class="text-red-400">reversed</strong> if the link was flagged as fake.
               </p>
             </div>
             <div class="text-[10px] text-gray-500 italic">
-              Tip: Only approve links that are safe, school-appropriate, and useful for math.
+              Tip: Links marked fake have credits already reversed by the system.
             </div>
           </header>
 
+          <!-- Active links -->
+          <div class="mb-2 text-xs text-gray-400 uppercase tracking-widest font-bold">Active Links</div>
+          <div class="table-wrapper mb-6">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-900/70 text-xs text-slate-400 uppercase tracking-widest">
+                  <th class="p-3 text-left">Title / URL</th>
+                  <th class="p-3 text-left">Submitted By</th>
+                  <th class="p-3 text-left">Reports</th>
+                  <th class="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="activeSharedLinksList">
+                <tr>
+                  <td colspan="4" class="p-6 text-center text-slate-400 text-sm">
+                    Loading active links...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Removed links -->
+          <div class="mb-2 text-xs text-gray-400 uppercase tracking-widest font-bold">Removed Links</div>
+          <div class="table-wrapper">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-900/70 text-xs text-slate-400 uppercase tracking-widest">
+                  <th class="p-3 text-left">Title / URL</th>
+                  <th class="p-3 text-left">Submitted By</th>
+                  <th class="p-3 text-left">Reports</th>
+                  <th class="p-3 text-left">Credits Reversed?</th>
+                  <th class="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="removedSharedLinksList">
+                <tr>
+                  <td colspan="5" class="p-6 text-center text-slate-400 text-sm">
+                    Loading removed links...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Legacy link submissions (old pending queue) -->
+        <section class="mt-8">
+          <header class="mb-4">
+            <div class="text-xs text-gray-400 uppercase tracking-[0.16em] font-bold">
+              Legacy Link Submissions (Pending Queue)
+            </div>
+            <p class="text-xs text-gray-500 max-w-xl">
+              Old-style pending submissions awaiting admin review.
+              New submissions go directly to Community Shared Links above.
+            </p>
+          </header>
           <div class="table-wrapper">
             <table class="w-full text-sm">
               <thead>
