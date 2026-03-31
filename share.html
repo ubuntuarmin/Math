@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Share a Link | GameLinks</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="page">
+
+  <header class="site-header">
+    <nav class="navbar">
+      <a href="index.html" class="navbar-brand">
+        <span class="navbar-brand-logo">🎮</span>
+        <span class="font-extrabold tracking-tight">GameLinks</span>
+      </a>
+      <a href="index.html" class="btn-outline text-xs">
+        ← Back to Links
+      </a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="container">
+      <section class="surface max-w-2xl mx-auto">
+
+        <!-- Hero -->
+        <div class="text-center mb-8">
+          <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600
+                      rounded-2xl flex items-center justify-center text-3xl
+                      mx-auto mb-4 shadow-lg shadow-blue-500/30">
+            🔗
+          </div>
+          <h1 class="text-3xl font-black text-white mb-2">Share a Link</h1>
+          <p class="text-gray-400 text-sm max-w-md mx-auto leading-relaxed">
+            Know a great game site? Share it with the community — it goes
+            <strong class="text-white">live immediately</strong>, no approval needed.
+          </p>
+        </div>
+
+        <!-- Credit reward info -->
+        <div class="grid grid-cols-3 gap-3 mb-8">
+          <div class="bg-gray-900/60 border border-emerald-500/20 rounded-xl p-3 text-center">
+            <div class="text-emerald-400 text-xl font-black mb-1">+50</div>
+            <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Credits</div>
+            <div class="text-gray-500 text-[10px] mt-1">on submit</div>
+          </div>
+          <div class="bg-gray-900/60 border border-blue-500/20 rounded-xl p-3 text-center">
+            <div class="text-blue-400 text-xl font-black mb-1">⚡</div>
+            <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Instant</div>
+            <div class="text-gray-500 text-[10px] mt-1">live immediately</div>
+          </div>
+          <div class="bg-gray-900/60 border border-yellow-500/20 rounded-xl p-3 text-center">
+            <div class="text-yellow-400 text-xl font-black mb-1">+10</div>
+            <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Per upvote</div>
+            <div class="text-gray-500 text-[10px] mt-1">others earn too</div>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <form id="shareForm" class="space-y-5">
+
+          <div>
+            <label for="shareUrl" class="block text-sm font-semibold text-gray-300 mb-1.5">
+              Link URL <span class="text-red-400">*</span>
+            </label>
+            <input
+              id="shareUrl"
+              type="url"
+              placeholder="https://awesome-game-site.com"
+              autocomplete="off"
+              class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700
+                     text-sm text-white outline-none
+                     focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 transition"
+            />
+            <p class="text-[11px] text-gray-500 mt-1.5">
+              Must start with <code class="text-blue-400">https://</code> and be a site anyone can visit.
+            </p>
+          </div>
+
+          <div>
+            <label for="shareTitle" class="block text-sm font-semibold text-gray-300 mb-1.5">
+              Site name <span class="text-red-400">*</span>
+            </label>
+            <input
+              id="shareTitle"
+              type="text"
+              placeholder="e.g. Cool Racing Game"
+              maxlength="80"
+              class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700
+                     text-sm text-white outline-none
+                     focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 transition"
+            />
+          </div>
+
+          <div>
+            <label for="shareDesc" class="block text-sm font-semibold text-gray-300 mb-1.5">
+              Short description <span class="text-red-400">*</span>
+            </label>
+            <textarea
+              id="shareDesc"
+              rows="3"
+              maxlength="300"
+              placeholder="What is it? Why is it good? (at least 10 characters)"
+              class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700
+                     text-sm text-white outline-none resize-none
+                     focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 transition"
+            ></textarea>
+            <p class="text-[11px] text-gray-500 mt-1">
+              <span id="descCharCount">0</span>/300 characters
+            </p>
+          </div>
+
+          <!-- Warning box -->
+          <div class="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20 text-xs text-yellow-300/80 leading-relaxed">
+            ⚠️ Do not submit fake, broken, or inappropriate links.
+            If 3 or more community members report your link as fake, your
+            <strong class="text-yellow-300">50 credits will be reversed</strong> and the link removed.
+          </div>
+
+          <div id="shareError"   class="text-sm text-red-400 min-h-[1.25rem] hidden"></div>
+          <div id="shareSuccess" class="text-sm text-emerald-400 min-h-[1.25rem] hidden"></div>
+
+          <button
+            id="shareSubmit"
+            type="submit"
+            class="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide
+                   bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500
+                   text-white transition-all shadow-lg shadow-blue-500/30
+                   disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+          >
+            Share Link <span class="text-blue-200">(+50 credits)</span>
+          </button>
+        </form>
+
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <span>© 2026 GameLinks</span>
+      <span class="text-xs text-gray-600">Community link sharing · Earn credits · Report bad links</span>
+    </div>
+  </footer>
+
+  <script type="module" src="./js/firebase.js"></script>
+  <script type="module" src="./js/share.js"></script>
+</body>
+</html>

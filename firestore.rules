@@ -8,14 +8,9 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return request.auth != null
-          && request.auth.uid == "bnGhRvqW1YhvGek1JTLuAed6Ib63";
-    }
-
     // ─── Users ───────────────────────────────────────────────────────────────
     // Any signed-in user can read user profiles (needed for leaderboard /
-    // profile modals).  Only the owner or admin can create the document.
+    // profile modals).  Only the owner can create their own document.
     // Updates: the owner can change any field; other authenticated users may
     // only increment the credit-related fields (used by the upvote flow).
     match /users/{userId} {
@@ -25,24 +20,23 @@ service cloud.firestore {
 
       allow update: if isAuthenticated() && (
         request.auth.uid == userId
-        || isAdmin()
         // Upvotes award credits to another user – allow only those fields.
         || request.resource.data.diff(resource.data)
              .affectedKeys()
              .hasOnly(['credits', 'totalEarned', 'upvotedUsers'])
       );
 
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
 
     // ─── Shared links ─────────────────────────────────────────────────────────
     // Authenticated users can read, submit, and interact with (upvote / report)
-    // shared links.  Deletion is admin-only.
+    // shared links.  Only the submitter can delete their own link.
     match /sharedLinks/{linkId} {
       allow read:   if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated(); // upvotes, reports, status changes
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && resource.data.submittedBy == request.auth.uid;
     }
 
     // ─── Messages / inbox ────────────────────────────────────────────────────
@@ -56,25 +50,11 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.to == request.auth.uid;
     }
 
-    // ─── Suggestions ─────────────────────────────────────────────────────────
-    // Any authenticated user may submit a suggestion.
-    // Reading the full list is restricted to admin.
-    match /suggestions/{suggestionId} {
-      allow create: if isAuthenticated();
-      allow read:   if isAdmin();
-      allow update, delete: if isAdmin();
-    }
-
     // ─── App settings ────────────────────────────────────────────────────────
-    // Leaderboard reset timestamps, etc.
+    // Leaderboard reset timestamps, etc. — read-only for users.
     match /settings/{settingId} {
       allow read:  if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // ─── Legacy link-submission staging collection ───────────────────────────
-    match /linkSubmissions/{docId} {
-      allow read, write: if isAdmin();
+      allow write: if false;
     }
   }
 }
