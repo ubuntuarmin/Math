@@ -5,10 +5,10 @@ import {
   getDoc,
   setDoc,
   collection,
-  addDoc,
   increment,
   serverTimestamp,
   writeBatch,
+  addDoc,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const LINK_BONUS = 50;
@@ -159,10 +159,10 @@ async function handleSubmit(e) {
       createdAt:       serverTimestamp(),
     });
 
-    batch.update(userRef, {
+    batch.set(userRef, {
       credits:     increment(LINK_BONUS),
       totalEarned: increment(LINK_BONUS),
-    });
+    }, { merge: true });
 
     await batch.commit();
 
