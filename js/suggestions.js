@@ -5,12 +5,13 @@ import {
 import {
   doc,
   getDoc,
-  updateDoc,
   increment,
   addDoc,
   collection,
   serverTimestamp,
   setDoc,
+  writeBatch,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const SUGGESTION_COST = 20;
@@ -114,43 +115,46 @@ async function handleSuggestionSubmit(e) {
     submitBtn.disabled = true;
     submitBtn.textContent = "Submitting...";
 
-    // Get current user data to check credits and email
     const userRef = doc(db, "users", user.uid);
-    const snap = await getDoc(userRef);
-    if (!snap.exists()) {
-      if (errorEl) errorEl.textContent = "User profile not found. Please try again later.";
-      return;
-    }
 
-    const data = snap.data();
-    const currentCredits = data.credits || 0;
+    // Use a transaction to atomically check credits, deduct them, and create
+    // the suggestion so that credits are never lost without a matching record.
+    let submitterEmail = "";
+    const newSuggestionRef = doc(collection(db, "suggestions"));
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(userRef);
+      if (!snap.exists()) {
+        const err = new Error("User profile not found.");
+        err.code = "no_profile";
+        throw err;
+      }
 
-    if (currentCredits < SUGGESTION_COST) {
-      if (errorEl) errorEl.textContent = `You need at least ${SUGGESTION_COST} credits to submit a suggestion.`;
-      return;
-    }
+      const data = snap.data();
+      submitterEmail = data.email || user.email || "";
+      if ((data.credits || 0) < SUGGESTION_COST) {
+        const err = new Error("Insufficient credits.");
+        err.code = "no_credits";
+        throw err;
+      }
 
-    // 1) Deduct credits
-    await updateDoc(userRef, {
-      credits: increment(-SUGGESTION_COST),
+      // Deduct credits and create suggestion atomically
+      transaction.update(userRef, { credits: increment(-SUGGESTION_COST) });
+      transaction.set(newSuggestionRef, {
+        userId: user.uid,
+        email: submitterEmail,
+        type,
+        title,
+        text,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        reviewedAt: null,
+        reviewerUid: null,
+        cost: SUGGESTION_COST,
+        refundGiven: false,
+      });
     });
 
-    // 2) Create suggestion document
-    await addDoc(collection(db, "suggestions"), {
-      userId: user.uid,
-      email: data.email || user.email || "",
-      type,
-      title,
-      text,
-      status: "pending",
-      createdAt: serverTimestamp(),
-      reviewedAt: null,
-      reviewerUid: null,
-      cost: SUGGESTION_COST,
-      refundGiven: false,
-    });
-
-    // 3) Send confirmation to inbox
+    // Send confirmation to inbox (non-critical — failure doesn't roll back the suggestion)
     await sendSelfNotification(
       user.uid,
       "Suggestion Submitted",
@@ -164,8 +168,14 @@ async function handleSuggestionSubmit(e) {
     }
     form.reset();
   } catch (err) {
-    console.error("Suggestion submit error:", err);
-    if (errorEl) errorEl.textContent = "Failed to submit suggestion. Please try again.";
+    if (err.code === "no_profile") {
+      if (errorEl) errorEl.textContent = "User profile not found. Please try again later.";
+    } else if (err.code === "no_credits") {
+      if (errorEl) errorEl.textContent = `You need at least ${SUGGESTION_COST} credits to submit a suggestion.`;
+    } else {
+      console.error("Suggestion submit error:", err);
+      if (errorEl) errorEl.textContent = "Failed to submit suggestion. Please try again.";
+    }
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -214,6 +224,7 @@ async function handleLinkSubmit(e) {
     return;
   }
 
+  let submitted = false;
   try {
     linkSubmitBtn.disabled = true;
     linkSubmitBtn.textContent = "Submitting...";
@@ -231,8 +242,11 @@ async function handleLinkSubmit(e) {
     const displayName =
       [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
 
-    // 1) Add to sharedLinks — auto-approved and immediately live
-    await addDoc(collection(db, "sharedLinks"), {
+    // Use a batch write to atomically add the link and award credits so the
+    // link is never live without the corresponding credit reward being given.
+    const batch = writeBatch(db);
+    const newLinkRef = doc(collection(db, "sharedLinks"));
+    batch.set(newLinkRef, {
       url,
       title,
       description:     notes,
@@ -246,14 +260,13 @@ async function handleLinkSubmit(e) {
       creditsReversed: false,
       createdAt:       serverTimestamp(),
     });
-
-    // 2) Award credits immediately
-    await updateDoc(userRef, {
+    batch.update(userRef, {
       credits:     increment(LINK_BONUS),
       totalEarned: increment(LINK_BONUS),
     });
+    await batch.commit();
 
-    // 3) Inbox confirmation
+    // Inbox confirmation (non-critical — failure doesn't roll back the submission)
     await sendSelfNotification(
       user.uid,
       "Link Shared — Credits Awarded!",
@@ -261,6 +274,7 @@ async function handleLinkSubmit(e) {
       "link"
     );
 
+    submitted = true;
     if (linkSuccessEl) {
       linkSuccessEl.textContent =
         `Your link is live! You earned +${LINK_BONUS} credits. Redirecting…`;
@@ -276,7 +290,8 @@ async function handleLinkSubmit(e) {
     console.error("Link submit error:", err);
     if (linkErrorEl) linkErrorEl.textContent = "Failed to submit link. Please try again.";
   } finally {
-    if (linkSubmitBtn) {
+    // Only re-enable the button on failure; on success the page redirects.
+    if (!submitted && linkSubmitBtn) {
       linkSubmitBtn.disabled    = false;
       linkSubmitBtn.textContent = `Share Link (+${LINK_BONUS} credits)`;
     }
