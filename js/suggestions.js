@@ -263,9 +263,15 @@ async function handleLinkSubmit(e) {
 
     if (linkSuccessEl) {
       linkSuccessEl.textContent =
-        `Your link is live! You earned +${LINK_BONUS} credits.`;
+        `Your link is live! You earned +${LINK_BONUS} credits. Redirecting…`;
     }
     linkForm.reset();
+
+    // Redirect back to the main page after a short delay so the user
+    // can see their submitted link appear in the community grid.
+    setTimeout(() => {
+      window.location.href = "index.html";
+    }, 1500);
   } catch (err) {
     console.error("Link submit error:", err);
     if (linkErrorEl) linkErrorEl.textContent = "Failed to submit link. Please try again.";
