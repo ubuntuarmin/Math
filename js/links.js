@@ -3,7 +3,6 @@ import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   doc,
   getDoc,
@@ -62,22 +61,33 @@ async function loadLinks() {
   linksGrid.innerHTML = "";
 
   try {
+    // Use a simple equality filter only (no orderBy on a different field) to
+    // avoid requiring a composite Firestore index.  Sort by createdAt
+    // client-side instead.
     const q = query(
       collection(db, "sharedLinks"),
-      where("status", "==", "active"),
-      orderBy("createdAt", "desc")
+      where("status", "==", "active")
     );
     const snap = await getDocs(q);
 
     if (linksLoading) linksLoading.classList.add("hidden");
 
-    if (snap.empty) {
+    // Collect, sort newest-first, then render
+    const docs = [];
+    snap.forEach((docSnap) => docs.push({ id: docSnap.id, data: docSnap.data() }));
+    docs.sort((a, b) => {
+      const aMs = a.data.createdAt?.toMillis?.() ?? Date.now();
+      const bMs = b.data.createdAt?.toMillis?.() ?? Date.now();
+      return bMs - aMs;
+    });
+
+    if (docs.length === 0) {
       if (linksEmpty) linksEmpty.classList.remove("hidden");
       return;
     }
 
     const uid = auth.currentUser?.uid ?? "";
-    snap.forEach((docSnap) => renderLinkCard(docSnap.id, docSnap.data(), uid));
+    docs.forEach(({ id, data }) => renderLinkCard(id, data, uid));
   } catch (err) {
     console.error("Links load error:", err);
     if (linksLoading) linksLoading.classList.add("hidden");
