@@ -742,14 +742,16 @@ async function loadLinkSubmissions() {
           ? '<span class="px-2 py-1 rounded-full bg-red-500/10 text-red-300 text-[10px] font-bold uppercase">Denied</span>'
           : '<span class="px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-300 text-[10px] font-bold uppercase">Pending</span>';
 
+      // Only allow http/https URLs in the href to block javascript: or data: attacks.
+      const safeHref = /^https?:\/\//i.test(l.url || "") ? escapeHtml(l.url) : "#";
       row.innerHTML = `
         <td class="p-3 align-top max-w-xs">
-          <a href="${l.url}" target="_blank" class="text-xs text-blue-400 underline break-all">${l.url}</a>
-          <div class="text-[11px] text-slate-300 mt-1">${l.title || ""}</div>
-          <div class="text-[11px] text-slate-400 mt-1 whitespace-pre-wrap">${l.notes || ""}</div>
+          <a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-xs text-blue-400 underline break-all">${escapeHtml(l.url || "")}</a>
+          <div class="text-[11px] text-slate-300 mt-1">${escapeHtml(l.title || "")}</div>
+          <div class="text-[11px] text-slate-400 mt-1 whitespace-pre-wrap">${escapeHtml(l.notes || "")}</div>
         </td>
         <td class="p-3 align-top text-xs text-slate-400">
-          ${l.email || l.userId || "Unknown"}
+          ${escapeHtml(l.email || l.userId || "Unknown")}
         </td>
         <td class="p-3 align-top text-xs">
           ${statusBadge}
