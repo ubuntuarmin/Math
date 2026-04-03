@@ -12,7 +12,8 @@ service cloud.firestore {
     // Any signed-in user can read user profiles (needed for leaderboard /
     // profile modals).  Only the owner can create their own document.
     // Updates: the owner can change any field; other authenticated users may
-    // only increment the credit-related fields (used by the upvote flow).
+    // only modify the credit-related fields and referral list (used by the
+    // upvote and referral flows).
     match /users/{userId} {
       allow read: if isAuthenticated();
 
@@ -20,10 +21,11 @@ service cloud.firestore {
 
       allow update: if isAuthenticated() && (
         request.auth.uid == userId
-        // Upvotes award credits to another user – allow only those fields.
+        // Upvotes / referral payouts update credits and list fields on
+        // another user's document – allow only those specific fields.
         || request.resource.data.diff(resource.data)
              .affectedKeys()
-             .hasOnly(['credits', 'totalEarned', 'upvotedUsers'])
+             .hasOnly(['credits', 'totalEarned', 'upvotedUsers', 'referrals'])
       );
 
       allow delete: if isAuthenticated() && request.auth.uid == userId;
