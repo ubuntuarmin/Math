@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
   arrayUnion,
   increment,
   addDoc,
@@ -24,6 +25,8 @@ const linksEmpty   = document.getElementById("linksEmpty");
 const LINK_CREDITS        = 50;
 const UPVOTE_CREDITS      = 10;
 const REPORT_THRESHOLD    = 3;
+const APPEAL_VOTE_CREDITS   = 10;
+const APPEAL_VOTE_THRESHOLD = 10;
 const RATING_REQUIRED_MS  = 10000; // 10 seconds minimum to unlock rating
 const IFRAME_LOAD_TIMEOUT_MS = 15000; // 15 seconds before showing embed-blocked error
 
@@ -48,6 +51,8 @@ let ratingTimerOut    = null;
 let iframeLoadTimeout = null; // 15-second embed-detection timeout
 let currentBlobUrl    = null; // active Blob URL for HTML submissions
 let setupDone         = false;
+let pendingDelete     = null; // { linkId, data, cardEl }
+let appealsLoaded     = false;
 
 // Exported: called by auth.js after sign-in
 export function updateUI(userData) {
@@ -61,6 +66,8 @@ export function updateUI(userData) {
     setupDone = true;
     setupSearchSort();
     setupRatingModal();
+    setupDeleteModal();
+    setupAppealsTab();
   }
   loadLinks();
 }
@@ -280,15 +287,30 @@ function renderLinkCard(id, data, currentUid) {
       'data-id="' + id + '" data-type="blocked"><span>\u26D4</span> Blocked / Broken</button>' +
       '</div></div>';
 
-  const upvoteSection = hasUpvoted
-    ? '<span class="text-[10px] text-blue-400 font-bold flex items-center gap-1">' +
-      '\uD83D\uDC4D ' + upvoteCount + '</span>'
-    : '<button class="upvote-btn text-[10px] text-gray-500 hover:text-blue-400 ' +
+  const isOwner = submittedBy === currentUid;
+
+  // Owners see a delete button instead of the report section; they also can't upvote their own
+  const actionSection = isOwner
+    ? '<button class="delete-link-btn text-[10px] text-red-500 hover:text-red-400 ' +
       'transition-colors px-2 py-1 rounded border border-gray-700 ' +
-      'hover:border-blue-500/60 leading-none flex items-center gap-1" ' +
-      'data-id="' + id + '" data-submitter="' + submittedBy + '">' +
-      '\uD83D\uDC4D ' + (upvoteCount > 0 ? upvoteCount : "Upvote") +
-      ' <span class="text-emerald-400">(+' + UPVOTE_CREDITS + '\u2728)</span></button>';
+      'hover:border-red-500/60 leading-none flex items-center gap-1" ' +
+      'data-id="' + id + '">\uD83D\uDDD1\uFE0F Delete</button>'
+    : reportSection;
+
+  const upvoteSection = isOwner
+    ? (upvoteCount > 0
+        ? '<span class="text-[10px] text-blue-400 font-bold flex items-center gap-1">' +
+          '\uD83D\uDC4D ' + upvoteCount + '</span>'
+        : '')
+    : (hasUpvoted
+        ? '<span class="text-[10px] text-blue-400 font-bold flex items-center gap-1">' +
+          '\uD83D\uDC4D ' + upvoteCount + '</span>'
+        : '<button class="upvote-btn text-[10px] text-gray-500 hover:text-blue-400 ' +
+          'transition-colors px-2 py-1 rounded border border-gray-700 ' +
+          'hover:border-blue-500/60 leading-none flex items-center gap-1" ' +
+          'data-id="' + id + '" data-submitter="' + submittedBy + '">' +
+          '\uD83D\uDC4D ' + (upvoteCount > 0 ? upvoteCount : "Upvote") +
+          ' <span class="text-emerald-400">(+' + UPVOTE_CREDITS + '\u2728)</span></button>');
 
   const card = document.createElement("div");
   card.dataset.linkId = id;
@@ -325,7 +347,7 @@ function renderLinkCard(id, data, currentUid) {
           : "") +
         (ratingHtml ? ' \u00B7 ' + ratingHtml : "") +
       '</div>' +
-      '<div class="flex items-center gap-2">' + upvoteSection + reportSection + '</div>' +
+      '<div class="flex items-center gap-2">' + upvoteSection + actionSection + '</div>' +
     '</div>';
 
   card.querySelector(".open-link-btn").addEventListener("click", () => {
@@ -372,6 +394,14 @@ function renderLinkCard(id, data, currentUid) {
       await handleReport(linkId, type, card);
     });
   });
+
+  const deleteBtn = card.querySelector(".delete-link-btn");
+  if (deleteBtn) {
+    deleteBtn.addEventListener("click", () => {
+      if (!auth.currentUser) { alert("You must be signed in."); return; }
+      openDeleteConfirmModal(id, data, card);
+    });
+  }
 
   linksGrid.appendChild(card);
 }
@@ -697,6 +727,401 @@ function showToast(msg) {
     toast.style.transition = "opacity 0.4s ease";
     setTimeout(() => toast.remove(), 400);
   }, 2500);
+}
+
+// ── Delete link ───────────────────────────────────────────────────────────────
+
+// Setup delete confirm modal event listeners (called once)
+function setupDeleteModal() {
+  document.getElementById("deleteConfirmCancelBtn")?.addEventListener("click", closeDeleteConfirmModal);
+  document.getElementById("deleteConfirmBtn")?.addEventListener("click", handleDeleteLink);
+}
+
+// Open delete confirm modal
+function openDeleteConfirmModal(linkId, data, cardEl) {
+  pendingDelete = { linkId, data, cardEl };
+  const modal = document.getElementById("deleteConfirmModal");
+  const msgEl = document.getElementById("deleteConfirmMsg");
+  if (!modal) return;
+  if (msgEl) {
+    msgEl.textContent = (data.rewardGiven && !data.creditsReversed)
+      ? "You will lose " + LINK_CREDITS + " credits."
+      : "No credits will be deducted (already reversed).";
+  }
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+// Close delete confirm modal
+function closeDeleteConfirmModal() {
+  const modal = document.getElementById("deleteConfirmModal");
+  if (modal) modal.classList.add("hidden");
+  document.body.style.overflow = "";
+  pendingDelete = null;
+}
+
+// Execute the link deletion after user confirms
+async function handleDeleteLink() {
+  if (!pendingDelete) return;
+  const { linkId, data, cardEl } = pendingDelete;
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  const confirmBtn = document.getElementById("deleteConfirmBtn");
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = "Deleting\u2026"; }
+
+  try {
+    const batch   = writeBatch(db);
+    const linkRef = doc(db, "sharedLinks", linkId);
+    batch.delete(linkRef);
+
+    // Deduct credits only if they were awarded and not already reversed
+    if (data.rewardGiven && !data.creditsReversed) {
+      batch.update(doc(db, "users", uid), {
+        credits: increment(-LINK_CREDITS),
+      });
+    }
+
+    await batch.commit();
+
+    await sendNotification(
+      uid,
+      "Link Deleted",
+      'You deleted your link "' + (data.title || "Untitled") + '".' +
+        ((data.rewardGiven && !data.creditsReversed)
+          ? " \u2212" + LINK_CREDITS + " credits deducted."
+          : ""),
+      "link"
+    );
+
+    // Animate card out
+    cardEl.style.transition = "opacity 0.3s ease, transform 0.3s ease";
+    cardEl.style.opacity    = "0";
+    cardEl.style.transform  = "scale(0.95)";
+    setTimeout(() => {
+      cardEl.remove();
+      if (linksGrid && linksGrid.querySelectorAll(".link-card").length === 0) {
+        if (linksEmpty) linksEmpty.classList.remove("hidden");
+      }
+    }, 300);
+
+    allDocs = allDocs.filter(d => d.id !== linkId);
+    closeDeleteConfirmModal();
+    showToast("\uD83D\uDDD1\uFE0F Link deleted.");
+  } catch (err) {
+    console.error("Delete error:", err);
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = "\uD83D\uDDD1\uFE0F Delete"; }
+    alert("Failed to delete. Please try again.");
+  }
+}
+
+// ── Appeals ───────────────────────────────────────────────────────────────────
+
+// Wire up the appeals tab so data loads on first visit
+function setupAppealsTab() {
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    if (btn.dataset.tab === "appeals") {
+      btn.addEventListener("click", () => {
+        if (!appealsLoaded) {
+          appealsLoaded = true;
+          loadAppeals();
+        }
+      });
+    }
+  });
+  document.addEventListener("refreshAppeals", () => {
+    appealsLoaded = false;
+    loadAppeals();
+  });
+}
+
+// Load appeals data
+async function loadAppeals() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  const appealsGrid      = document.getElementById("appealsGrid");
+  const appealsLoading   = document.getElementById("appealsLoading");
+  const appealsEmptyEl   = document.getElementById("appealsEmpty");
+  const myRemovedSection = document.getElementById("myRemovedSection");
+  const myRemovedLinks   = document.getElementById("myRemovedLinks");
+  if (!appealsGrid) return;
+
+  if (appealsLoading)   appealsLoading.classList.remove("hidden");
+  if (appealsEmptyEl)   appealsEmptyEl.classList.add("hidden");
+  appealsGrid.innerHTML = "";
+  if (myRemovedLinks)   myRemovedLinks.innerHTML = "";
+  if (myRemovedSection) myRemovedSection.classList.add("hidden");
+
+  try {
+    // Community appeals: links currently under vote
+    const appealsQ    = query(collection(db, "sharedLinks"), where("status", "==", "appealing"));
+    const appealsSnap = await getDocs(appealsQ);
+
+    // Owner's own links: query by submitter, filter removed client-side
+    const myLinksQ    = query(collection(db, "sharedLinks"), where("submittedBy", "==", uid));
+    const myLinksSnap = await getDocs(myLinksQ);
+
+    if (appealsLoading) appealsLoading.classList.add("hidden");
+
+    // Populate "My Removed Links" section
+    const myRemoved = [];
+    myLinksSnap.forEach(s => {
+      const d = s.data();
+      if (d.status === "removed" && !d.appealClosed) {
+        myRemoved.push({ id: s.id, data: d });
+      }
+    });
+
+    if (myRemoved.length > 0 && myRemovedSection && myRemovedLinks) {
+      myRemovedSection.classList.remove("hidden");
+      myRemoved.forEach(({ id, data }) => renderRemovedCard(id, data, myRemovedLinks));
+    }
+
+    // Populate community voting section (exclude own appeals)
+    const votableAppeals = [];
+    appealsSnap.forEach(s => {
+      if (s.data().submittedBy !== uid) {
+        votableAppeals.push({ id: s.id, data: s.data() });
+      }
+    });
+
+    if (votableAppeals.length === 0) {
+      if (appealsEmptyEl) appealsEmptyEl.classList.remove("hidden");
+    } else {
+      votableAppeals.forEach(({ id, data }) => renderAppealCard(id, data, uid, appealsGrid));
+    }
+  } catch (err) {
+    console.error("Appeals load error:", err);
+    if (appealsLoading) appealsLoading.classList.add("hidden");
+    if (appealsGrid) {
+      appealsGrid.innerHTML =
+        '<p class="text-red-400 text-sm text-center py-6">Failed to load appeals. Please refresh.</p>';
+    }
+  }
+}
+
+// Render an owner's removed link card (with Appeal button)
+function renderRemovedCard(id, data, container) {
+  const safeTitle = escapeHtml(data.title || "Untitled");
+  const safeDesc  = data.description ? escapeHtml(data.description) : "";
+
+  const card = document.createElement("div");
+  card.className =
+    "flex flex-col gap-2 p-4 rounded-2xl bg-gray-900/80 border border-red-700/40";
+  card.innerHTML =
+    '<div class="flex items-start justify-between gap-2">' +
+      '<div class="flex-1 min-w-0">' +
+        '<div class="text-white font-bold text-sm truncate">' + safeTitle + '</div>' +
+        (safeDesc ? '<p class="text-gray-500 text-xs mt-0.5 line-clamp-2">' + safeDesc + '</p>' : '') +
+        '<div class="text-[10px] text-orange-400 mt-1">\u26A0 Removed \u00B7 ' +
+          (data.reportCount || 0) + ' report' + ((data.reportCount || 0) !== 1 ? 's' : '') + '</div>' +
+      '</div>' +
+      '<button class="appeal-btn shrink-0 px-3 py-1.5 rounded-full bg-blue-600/80 hover:bg-blue-500 ' +
+        'text-white text-xs font-bold transition-colors whitespace-nowrap" data-id="' + id + '">' +
+        '\u2696\uFE0F Appeal' +
+      '</button>' +
+    '</div>';
+
+  card.querySelector(".appeal-btn").addEventListener("click", async () => {
+    const btn = card.querySelector(".appeal-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Submitting\u2026"; }
+    await handleAppeal(id, data, card);
+  });
+
+  container.appendChild(card);
+}
+
+// Render a community appeal card (with vote buttons)
+function renderAppealCard(id, data, uid, container) {
+  const safeTitle = escapeHtml(data.title || "Untitled");
+  const safeDesc  = data.description ? escapeHtml(data.description) : "";
+  const safeName  = escapeHtml(data.submittedByName || "Anonymous");
+
+  const totalVotes  = data.appealVoteCount || 0;
+  const reinstateCt = data.reinstateCount  || 0;
+  const removeCt    = totalVotes - reinstateCt;
+  const alreadyVoted = Array.isArray(data.appealVotes) &&
+    data.appealVotes.some(v => v.uid === uid);
+  const progressPct = Math.min(Math.round((totalVotes / APPEAL_VOTE_THRESHOLD) * 100), 100);
+
+  const card = document.createElement("div");
+  card.dataset.appealId = id;
+  card.className =
+    "flex flex-col gap-3 p-4 rounded-2xl bg-gray-900/80 border border-yellow-700/40";
+  card.innerHTML =
+    '<div class="flex-1 min-w-0">' +
+      '<div class="text-white font-bold text-sm truncate">' + safeTitle + '</div>' +
+      (safeDesc ? '<p class="text-gray-500 text-xs mt-0.5 line-clamp-2">' + safeDesc + '</p>' : '') +
+      '<div class="text-[10px] text-gray-500 mt-1">Submitted by ' + safeName +
+        ' \u00B7 \u26A0 ' + (data.reportCount || 0) + ' reports</div>' +
+    '</div>' +
+    '<div class="flex items-center gap-2">' +
+      '<div class="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">' +
+        '<div class="bg-blue-500 h-full rounded-full transition-all" ' +
+          'style="width:' + progressPct + '%"></div>' +
+      '</div>' +
+      '<span class="text-[10px] text-gray-500 shrink-0">' +
+        totalVotes + '/' + APPEAL_VOTE_THRESHOLD + ' votes</span>' +
+    '</div>' +
+    '<div class="flex items-center gap-3 text-[10px] text-gray-500">' +
+      '<span class="text-green-400">\u2705 Reinstate: ' + reinstateCt + '</span>' +
+      '<span class="text-red-400">\u274C Keep Removed: ' + removeCt + '</span>' +
+      '<span class="ml-auto text-emerald-400 font-bold">(+' + APPEAL_VOTE_CREDITS + ' \u2728 per vote)</span>' +
+    '</div>' +
+    (alreadyVoted
+      ? '<div class="text-center text-xs text-gray-500 italic py-1">You already voted on this appeal.</div>'
+      : '<div class="flex gap-2">' +
+          '<button class="appeal-vote-btn flex-1 py-2 rounded-xl bg-green-700/60 hover:bg-green-600 ' +
+            'text-white text-xs font-bold transition-colors" ' +
+            'data-id="' + id + '" data-vote="reinstate">\u2705 Reinstate</button>' +
+          '<button class="appeal-vote-btn flex-1 py-2 rounded-xl bg-red-800/60 hover:bg-red-700 ' +
+            'text-white text-xs font-bold transition-colors" ' +
+            'data-id="' + id + '" data-vote="remove">\u274C Keep Removed</button>' +
+        '</div>');
+
+  card.querySelectorAll(".appeal-vote-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      card.querySelectorAll(".appeal-vote-btn").forEach(b => { b.disabled = true; });
+      await handleAppealVote(id, btn.dataset.vote, data, card);
+    });
+  });
+
+  container.appendChild(card);
+}
+
+// Owner submits an appeal for a removed link
+async function handleAppeal(linkId, data, cardEl) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || data.submittedBy !== uid) return;
+
+  try {
+    await updateDoc(doc(db, "sharedLinks", linkId), {
+      status:          "appealing",
+      appealedAt:      serverTimestamp(),
+      appealVotes:     [],
+      appealVoteCount: 0,
+      reinstateCount:  0,
+    });
+
+    await sendNotification(
+      uid,
+      "Appeal Submitted \u2696\uFE0F",
+      'Your appeal for "' + (data.title || "Untitled") + '" has been submitted. ' +
+        "The community will vote — " + APPEAL_VOTE_THRESHOLD + " votes needed to reach a decision.",
+      "link"
+    );
+
+    cardEl.style.transition = "opacity 0.3s ease";
+    cardEl.style.opacity    = "0";
+    setTimeout(() => {
+      cardEl.remove();
+      const myRemovedLinks   = document.getElementById("myRemovedLinks");
+      const myRemovedSection = document.getElementById("myRemovedSection");
+      if (myRemovedLinks && myRemovedLinks.children.length === 0 && myRemovedSection) {
+        myRemovedSection.classList.add("hidden");
+      }
+    }, 300);
+
+    showToast("Appeal submitted! The community will vote. \u2696\uFE0F");
+  } catch (err) {
+    console.error("Appeal error:", err);
+    const btn = cardEl.querySelector(".appeal-btn");
+    if (btn) { btn.disabled = false; btn.textContent = "\u2696\uFE0F Appeal"; }
+    alert("Failed to submit appeal. Please try again.");
+  }
+}
+
+// Community member votes on an appeal
+async function handleAppealVote(linkId, vote, data, cardEl) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  // Prevent double-voting (client-side guard matching the stored array)
+  const alreadyVoted = Array.isArray(data.appealVotes) &&
+    data.appealVotes.some(v => v.uid === uid);
+  if (alreadyVoted) {
+    alert("You have already voted on this appeal.");
+    cardEl.querySelectorAll(".appeal-vote-btn").forEach(b => { b.disabled = false; });
+    return;
+  }
+
+  try {
+    const newVote      = { uid, vote, votedAt: new Date().toISOString() };
+    const newTotal     = (data.appealVoteCount || 0) + 1;
+    const newReinstate = (data.reinstateCount  || 0) + (vote === "reinstate" ? 1 : 0);
+    const newRemove    = newTotal - newReinstate;
+
+    const batch   = writeBatch(db);
+    const linkRef = doc(db, "sharedLinks", linkId);
+
+    const linkUpdate = {
+      appealVotes:     arrayUnion(newVote),
+      appealVoteCount: increment(1),
+    };
+    if (vote === "reinstate") {
+      linkUpdate.reinstateCount = increment(1);
+    }
+
+    // If threshold reached, enact the decision
+    let decisionMade = false;
+    let reinstated   = false;
+    if (newTotal >= APPEAL_VOTE_THRESHOLD) {
+      decisionMade         = true;
+      reinstated           = newReinstate > newRemove;
+      linkUpdate.status    = reinstated ? "active" : "removed";
+      linkUpdate.appealClosed = true;
+
+      if (reinstated && data.creditsReversed && data.submittedBy) {
+        // Restore credits to original submitter
+        batch.update(doc(db, "users", data.submittedBy), {
+          credits:     increment(LINK_CREDITS),
+          totalEarned: increment(LINK_CREDITS),
+        });
+      }
+    }
+
+    batch.update(linkRef, linkUpdate);
+
+    // Award the voter for participating
+    batch.update(doc(db, "users", uid), {
+      credits:     increment(APPEAL_VOTE_CREDITS),
+      totalEarned: increment(APPEAL_VOTE_CREDITS),
+    });
+
+    await batch.commit();
+
+    // Notify the link owner when a decision has been reached
+    if (decisionMade && data.submittedBy) {
+      await sendNotification(
+        data.submittedBy,
+        reinstated ? "Appeal Successful! \uD83C\uDF89" : "Appeal Closed",
+        reinstated
+          ? 'The community voted to reinstate your link "' + (data.title || "Untitled") + '"!' +
+              (data.creditsReversed ? " Your " + LINK_CREDITS + " credits have been restored." : "")
+          : 'The community voted to keep your link "' + (data.title || "Untitled") + '" removed.',
+        "link"
+      );
+    }
+
+    // Animate card out after voting
+    cardEl.style.transition = "opacity 0.3s ease";
+    cardEl.style.opacity    = "0";
+    setTimeout(() => {
+      cardEl.remove();
+      const appealsGrid  = document.getElementById("appealsGrid");
+      const appealsEmpty = document.getElementById("appealsEmpty");
+      if (appealsGrid && appealsGrid.children.length === 0 && appealsEmpty) {
+        appealsEmpty.classList.remove("hidden");
+      }
+    }, 300);
+
+    showToast("Vote cast! +" + APPEAL_VOTE_CREDITS + " credits \u2728");
+  } catch (err) {
+    console.error("Appeal vote error:", err);
+    cardEl.querySelectorAll(".appeal-vote-btn").forEach(b => { b.disabled = false; });
+    alert("Failed to cast vote. Please try again.");
+  }
 }
 
 // Open profile modal
@@ -1083,9 +1508,10 @@ async function handleReport(linkId, type, cardEl) {
       const msg = majorityFake
         ? 'Your shared link "' + data.title + '" was removed after ' + newCount + ' users ' +
           'reported it as fake or spam. The ' + LINK_CREDITS + ' credits originally ' +
-          'awarded have been reversed.'
+          'awarded have been reversed. You can appeal this in the \u2696\uFE0F Appeals tab.'
         : 'Your shared link "' + data.title + '" was removed after ' + newCount + ' users ' +
-          'reported it as blocked or broken. Your credits have been kept.';
+          'reported it as blocked or broken. Your credits have been kept. ' +
+          'You can appeal this in the \u2696\uFE0F Appeals tab.';
 
       await sendNotification(data.submittedBy, "Your Link Was Removed", msg, "link");
 
@@ -1162,9 +1588,10 @@ document.addEventListener("click", () => {
 document.addEventListener("refreshLinks", () => loadLinks());
 
 // Expose modal close functions globally
-window.closeIframeModal  = closeIframeModal;
-window.closeProfileModal = closeProfileModal;
-window.closeRatingModal  = closeRatingModal;
+window.closeIframeModal       = closeIframeModal;
+window.closeProfileModal      = closeProfileModal;
+window.closeRatingModal       = closeRatingModal;
+window.closeDeleteConfirmModal = closeDeleteConfirmModal;
 
 // XSS-safe helper
 function escapeHtml(str) {
