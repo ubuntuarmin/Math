@@ -136,10 +136,10 @@ function checkInactivity(userData) {
     const daysUntilDelete = Math.max(0, INACTIVE_DELETE_DAYS - daysRounded);
     if (countdown) {
         if (daysUntilDelete <= 0) {
-            countdown.textContent = "⚠️ Account flagged for deletion — log in now to save it!";
-            countdown.classList.add("text-red-400");
+            countdown.textContent = "✅ Account reactivated! You were flagged for deletion — logging in has saved your account.";
+            countdown.classList.add("text-green-400");
         } else {
-            countdown.textContent = `Account will be flagged for deletion in ${daysUntilDelete} day${daysUntilDelete !== 1 ? "s" : ""}.`;
+            countdown.textContent = `You have ${daysUntilDelete} day${daysUntilDelete !== 1 ? "s" : ""} before your account is flagged for deletion. Log in regularly to stay active!`;
         }
     }
 

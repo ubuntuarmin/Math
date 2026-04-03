@@ -39,12 +39,14 @@ let searchTerm   = "";
 let sortMode     = "newest";
 
 // Iframe / rating state
-let iframeOpenTime = 0;
-let iframeLoaded   = false;
-let pendingRating  = null; // { linkId, title, submittedBy }
-let selectedStars  = 0;
-let ratingTimerOut = null;
-let setupDone      = false;
+let iframeOpenTime    = 0;
+let iframeLoaded      = false;
+let pendingRating     = null; // { linkId, title, submittedBy }
+let selectedStars     = 0;
+let ratingTimerOut    = null;
+let iframeLoadTimeout = null; // 15-second embed-detection timeout
+let currentBlobUrl    = null; // active Blob URL for HTML submissions
+let setupDone         = false;
 
 // Exported: called by auth.js after sign-in
 export function updateUI(userData) {
@@ -398,36 +400,42 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   pendingRating  = { linkId: linkId || null, title, submittedBy: submittedBy || null };
 
   if (ratingTimerOut) { clearTimeout(ratingTimerOut); ratingTimerOut = null; }
+  if (iframeLoadTimeout) { clearTimeout(iframeLoadTimeout); iframeLoadTimeout = null; }
 
   // 15-second timeout: if load event hasn't fired, assume site blocks embedding
-  let loadTimeout = setTimeout(() => {
-    if (!iframeLoaded) {
-      loader.classList.add("hidden");
-      showIframeError(url, title);
-    }
-  }, 15000);
+  // (only for URL submissions; HTML blobs always load)
+  if (!htmlContent) {
+    iframeLoadTimeout = setTimeout(() => {
+      if (!iframeLoaded) {
+        loader.classList.add("hidden");
+        showIframeError(url, title);
+      }
+    }, 15000);
+  }
 
   frame.onload = () => {
-    clearTimeout(loadTimeout);
+    if (iframeLoadTimeout) { clearTimeout(iframeLoadTimeout); iframeLoadTimeout = null; }
 
-    // Detect sites that refuse embedding:
-    // - If cross-origin (SecurityError thrown), site loaded successfully
-    // - If href is about:blank / empty after load, site likely blocked embedding
-    let blockedByXFrame = false;
-    try {
-      const href = frame.contentWindow?.location?.href ?? "";
-      if (!href || href === "about:blank") {
-        blockedByXFrame = true;
+    if (!htmlContent) {
+      // Detect sites that refuse embedding via X-Frame-Options:
+      // - SecurityError (cross-origin) means site loaded successfully
+      // - href === "about:blank" or empty means site likely blocked embedding
+      let blockedByXFrame = false;
+      try {
+        const href = frame.contentWindow?.location?.href ?? "";
+        if (!href || href === "about:blank") {
+          blockedByXFrame = true;
+        }
+      } catch (_e) {
+        // SecurityError = cross-origin = loaded successfully
+        blockedByXFrame = false;
       }
-    } catch (_e) {
-      // SecurityError = cross-origin = loaded successfully, no block
-      blockedByXFrame = false;
-    }
 
-    if (blockedByXFrame && !htmlContent) {
-      loader.classList.add("hidden");
-      showIframeError(url, title);
-      return;
+      if (blockedByXFrame) {
+        loader.classList.add("hidden");
+        showIframeError(url, title);
+        return;
+      }
     }
 
     loader.classList.add("hidden");
@@ -442,12 +450,11 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   };
 
   if (htmlContent) {
-    // HTML-code submission: create a blob URL so the content renders in the frame
+    // HTML-code submission: create a blob URL so the content renders in the frame.
+    // Store the URL so closeIframeModal can revoke it immediately.
     const blob    = new Blob([htmlContent], { type: "text/html" });
-    const blobUrl = URL.createObjectURL(blob);
-    frame.src     = blobUrl;
-    // Revoke after a moment so memory isn't held forever
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    currentBlobUrl = URL.createObjectURL(blob);
+    frame.src      = currentBlobUrl;
   } else {
     frame.src = url;
   }
@@ -497,7 +504,9 @@ function closeIframeModal() {
   const errEl   = document.getElementById("iframeError");
   if (!modal) return;
 
-  if (ratingTimerOut) { clearTimeout(ratingTimerOut); ratingTimerOut = null; }
+  if (ratingTimerOut)     { clearTimeout(ratingTimerOut);     ratingTimerOut     = null; }
+  if (iframeLoadTimeout)  { clearTimeout(iframeLoadTimeout);  iframeLoadTimeout  = null; }
+  if (currentBlobUrl)     { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
   if (rateBtn) rateBtn.classList.add("hidden");
   if (errEl)   errEl.classList.add("hidden");
   if (frame) frame.src = "";

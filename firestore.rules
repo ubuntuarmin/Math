@@ -9,14 +9,8 @@ service cloud.firestore {
     }
 
     // Anti-hack: how much a numeric field is increasing in this write.
-    // Returns 0 if the field is unchanged or decreasing.
-    function creditDelta(field) {
-      let before = resource.data.get(field, 0);
-      let after  = request.resource.data.get(field, 0);
-      return after > before ? after - before : 0;
-    }
-
-    function minutesDelta(field) {
+    // Returns 0 when the field is unchanged or decreasing.
+    function fieldDelta(field) {
       let before = resource.data.get(field, 0);
       let after  = request.resource.data.get(field, 0);
       return after > before ? after - before : 0;
@@ -37,10 +31,10 @@ service cloud.firestore {
         // Owner: may update any field but credit/minute additions are capped.
         (
           request.auth.uid == userId
-          && creditDelta('credits')     <= 500
-          && creditDelta('totalEarned') <= 500
-          && minutesDelta('weekMinutes')  <= 500
-          && minutesDelta('totalMinutes') <= 600
+          && fieldDelta('credits')      <= 500
+          && fieldDelta('totalEarned')  <= 500
+          && fieldDelta('weekMinutes')  <= 500
+          && fieldDelta('totalMinutes') <= 500
           && request.resource.data.get('weekMinutes',  0) <= 10000
           && request.resource.data.get('totalMinutes', 0) <= 999999
         )
@@ -49,8 +43,8 @@ service cloud.firestore {
           request.resource.data.diff(resource.data)
                .affectedKeys()
                .hasOnly(['credits', 'totalEarned', 'upvotedUsers'])
-          && creditDelta('credits')     <= 500
-          && creditDelta('totalEarned') <= 500
+          && fieldDelta('credits')     <= 500
+          && fieldDelta('totalEarned') <= 500
         )
       );
 

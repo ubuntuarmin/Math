@@ -68,7 +68,7 @@ export async function updateAccount(userData) {
     const bio = data.bio ? escapeHtml(data.bio) : "";
     const joinDate = data.createdAt?.toMillis
         ? new Date(data.createdAt.toMillis()).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-        : "Veteran";
+        : "—";
 
     if (accountInfo) {
         accountInfo.innerHTML = `

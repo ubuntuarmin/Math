@@ -158,8 +158,8 @@ async function handleSubmit(e) {
     }
   } else {
     htmlContent = (htmlInput?.value || "").trim();
-    if (htmlContent.length < 20) {
-      showError("Please enter at least 20 characters of HTML code.");
+    if (htmlContent.length < 100) {
+      showError("Please enter at least 100 characters of HTML code.");
       htmlInput?.focus();
       return;
     }
