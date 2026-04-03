@@ -7,6 +7,18 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .type-tab { transition: all 0.2s ease; }
+    .type-tab.active {
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #fff;
+      box-shadow: 0 0 20px rgba(37,99,235,0.4);
+    }
+    .type-tab:not(.active) {
+      background: rgba(31,41,55,0.8);
+      color: #9ca3af;
+    }
+  </style>
 </head>
 <body class="page">
 
@@ -33,9 +45,9 @@
                       mx-auto mb-4 shadow-lg shadow-blue-500/30">
             🔗
           </div>
-          <h1 class="text-3xl font-black text-white mb-2">Share a Link</h1>
+          <h1 class="text-3xl font-black text-white mb-2">Share with the Community</h1>
           <p class="text-gray-400 text-sm max-w-md mx-auto leading-relaxed">
-            Know a great game site? Share it with the community — it goes
+            Share a game site URL or embed your own HTML game — it goes
             <strong class="text-white">live immediately</strong>, no approval needed.
           </p>
         </div>
@@ -59,10 +71,24 @@
           </div>
         </div>
 
+        <!-- Submission type toggle -->
+        <div class="mb-6">
+          <div class="text-xs text-gray-400 uppercase font-bold tracking-wider mb-3">Submission Type</div>
+          <div class="flex gap-2">
+            <button id="typeUrlBtn" class="type-tab active flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+              🔗 URL / Link
+            </button>
+            <button id="typeHtmlBtn" class="type-tab flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+              💻 HTML Code
+            </button>
+          </div>
+        </div>
+
         <!-- Form -->
         <form id="shareForm" class="space-y-5">
 
-          <div>
+          <!-- URL field (visible by default) -->
+          <div id="urlField">
             <label for="shareUrl" class="block text-sm font-semibold text-gray-300 mb-1.5">
               Link URL <span class="text-red-400">*</span>
             </label>
@@ -78,6 +104,31 @@
             <p class="text-[11px] text-gray-500 mt-1.5">
               Must start with <code class="text-blue-400">https://</code> and be a site anyone can visit.
             </p>
+          </div>
+
+          <!-- HTML Code field (hidden by default) -->
+          <div id="htmlField" class="hidden">
+            <label for="shareHtml" class="block text-sm font-semibold text-gray-300 mb-1.5">
+              HTML Code <span class="text-red-400">*</span>
+            </label>
+            <textarea
+              id="shareHtml"
+              rows="8"
+              maxlength="50000"
+              placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html&gt;&#10;  &lt;body&gt;&#10;    &lt;h1&gt;My Game&lt;/h1&gt;&#10;    &lt;canvas id=&quot;game&quot;&gt;&lt;/canvas&gt;&#10;    &lt;script&gt;/* your game logic */&lt;/script&gt;&#10;  &lt;/body&gt;&#10;&lt;/html&gt;"
+              class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700
+                     text-sm text-white outline-none resize-y font-mono
+                     focus:border-purple-500 focus:ring-1 focus:ring-purple-500/40 transition"
+            ></textarea>
+            <div class="flex justify-between items-center mt-1">
+              <p class="text-[11px] text-gray-500">
+                Paste a complete HTML page. Scripts, canvas, and styles are supported.
+              </p>
+              <span class="text-[11px] text-gray-600"><span id="htmlCharCount">0</span>/50000</span>
+            </div>
+            <div class="mt-2 p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 text-[11px] text-purple-300/80 leading-relaxed">
+              💡 Your HTML will be sandboxed in a safe iframe. External requests and popups are allowed but the page cannot access GameLinks data.
+            </div>
           </div>
 
           <div>
@@ -134,9 +185,9 @@
 
           <!-- Warning box -->
           <div class="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20 text-xs text-yellow-300/80 leading-relaxed">
-            ⚠️ Do not submit fake, broken, or inappropriate links.
-            If 3 or more community members report your link as fake, your
-            <strong class="text-yellow-300">50 credits will be reversed</strong> and the link removed.
+            ⚠️ Do not submit fake, broken, or inappropriate links/code.
+            If 3 or more community members report your submission as fake, your
+            <strong class="text-yellow-300">50 credits will be reversed</strong> and the submission removed.
           </div>
 
           <div id="shareError"   class="text-sm text-red-400 min-h-[1.25rem] hidden"></div>
@@ -150,7 +201,7 @@
                    text-white transition-all shadow-lg shadow-blue-500/30
                    disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
           >
-            Share Link <span class="text-blue-200">(+50 credits)</span>
+            Share <span class="text-blue-200">(+50 credits)</span>
           </button>
         </form>
 

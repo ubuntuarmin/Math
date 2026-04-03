@@ -18,6 +18,10 @@ const appContainer = document.getElementById("appContainer");
 const logoutBtn = document.getElementById("logoutBtn");
 const tierLabel = document.getElementById("tierLabel");
 
+// Inactivity constants
+const INACTIVE_WARN_DAYS  = 30;   // show warning after 30 days
+const INACTIVE_DELETE_DAYS = 37;  // mark for deletion after 37 days
+
 export function refreshHeaderUI(userData) {
     if (!userData) return;
     const creditCount = document.getElementById("creditCount");
@@ -38,7 +42,6 @@ function hasCrossedBimonthlyReset(lastVisitMillis, now) {
     if (!lastVisitMillis || lastVisitMillis <= 0) return false;
     const last = new Date(lastVisitMillis);
     const resetDays = [15, 29];
-    // Walk month-by-month from last visit up to now (cap at 24 months for safety)
     let cursor = new Date(last.getFullYear(), last.getMonth(), 1);
     let iterations = 0;
     const MAX_MONTHS = 24;
@@ -52,7 +55,6 @@ function hasCrossedBimonthlyReset(lastVisitMillis, now) {
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
         iterations++;
     }
-    // If more than MAX_MONTHS have passed, assume a reset occurred
     if (iterations >= MAX_MONTHS) return true;
     return false;
 }
@@ -65,22 +67,18 @@ async function handleDailyData(uid, userData) {
     
     const updates = {};
 
-    // --- per-day resets ---
     if (lastVisitDate !== todayStr) {
         updates.dailyLinkUsage = 0;
         updates.lastVisitDate = todayStr;
-        // clear any per-day extra limit override when a new day starts
         updates.extraLimitMinutesToday = 0;
     }
 
-    // --- leaderboard score reset logic ---
     const lastVisitTimestampVal = userData.lastVisitTimestamp;
     const lastVisitMillis =
         lastVisitTimestampVal && typeof lastVisitTimestampVal.toMillis === "function"
             ? lastVisitTimestampVal.toMillis()
             : 0;
 
-    // --- bi-monthly leaderboard reset (15th and 29th) ---
     const crossedReset = hasCrossedBimonthlyReset(lastVisitMillis, now);
     if (crossedReset) {
         updates.weekMinutes = 0;
@@ -88,24 +86,19 @@ async function handleDailyData(uid, userData) {
 
     updates.lastVisitTimestamp = serverTimestamp();
 
-    // --- streak logic (visit-based) ---
     const hasValidStreak =
         typeof userData.streak === "number" && Number.isFinite(userData.streak);
     const currentStreak = hasValidStreak ? userData.streak : 0;
 
     if (!hasValidStreak) {
-        // If streak missing or invalid, initialize to 1 on this visit
         updates.streak = 1;
     } else if (lastVisitDate !== todayStr) {
-        // New calendar day; decide if streak continues or resets
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
 
         if (lastVisitDate === yesterday.toDateString()) {
-            // Consecutive day
             updates.streak = increment(1);
         } else {
-            // Missed 1+ days -> reset visit streak to 1
             updates.streak = 1;
         }
     }
@@ -116,6 +109,45 @@ async function handleDailyData(uid, userData) {
         return snap.data();
     }
     return userData;
+}
+
+/**
+ * Check if the user has been inactive for 30+ days and show warning.
+ */
+function checkInactivity(userData) {
+    const lastVisitTs = userData.lastVisitTimestamp;
+    if (!lastVisitTs || typeof lastVisitTs.toMillis !== "function") return;
+
+    const lastMillis = lastVisitTs.toMillis();
+    const nowMillis  = Date.now();
+    const diffDays   = (nowMillis - lastMillis) / (1000 * 60 * 60 * 24);
+
+    if (diffDays < INACTIVE_WARN_DAYS) return;
+
+    const modal      = document.getElementById("inactiveWarningModal");
+    const daysEl     = document.getElementById("inactiveDays");
+    const countdown  = document.getElementById("inactiveCountdown");
+    const dismissBtn = document.getElementById("inactiveDismissBtn");
+    if (!modal) return;
+
+    const daysRounded = Math.floor(diffDays);
+    if (daysEl) daysEl.textContent = daysRounded;
+
+    const daysUntilDelete = Math.max(0, INACTIVE_DELETE_DAYS - daysRounded);
+    if (countdown) {
+        if (daysUntilDelete <= 0) {
+            countdown.textContent = "⚠️ Account flagged for deletion — log in now to save it!";
+            countdown.classList.add("text-red-400");
+        } else {
+            countdown.textContent = `Account will be flagged for deletion in ${daysUntilDelete} day${daysUntilDelete !== 1 ? "s" : ""}.`;
+        }
+    }
+
+    modal.classList.remove("hidden");
+
+    dismissBtn?.addEventListener("click", () => {
+        modal.classList.add("hidden");
+    }, { once: true });
 }
 
 // --- MAIN AUTH LISTENER ---
@@ -138,7 +170,6 @@ onAuthStateChanged(auth, async user => {
             snap = await getDoc(userRef);
         }
 
-        // --- SELF-HEALING LOGIC (unchanged) ---
         if (!snap.exists()) {
             if (sessionStorage.getItem("justSignedUp")) {
                 return;
@@ -152,6 +183,8 @@ onAuthStateChanged(auth, async user => {
                 firstName: "Student", 
                 lastName: "",
                 grade: "",
+                bio: "",
+                avatarColor: "ocean",
                 credits: 20,          
                 totalEarned: 20,
                 totalMinutes: 0,
@@ -176,9 +209,6 @@ onAuthStateChanged(auth, async user => {
             }
         }
 
-        // inbox.js auto-initialises itself on import; no need to call again
-        // initInbox() is idempotent, so calling it here would be a no-op anyway
-
         hideLogin();
         header?.classList.remove("hidden");
         appContainer?.classList.remove("hidden");
@@ -186,6 +216,8 @@ onAuthStateChanged(auth, async user => {
         let currentUserData = snap.data();
             
         if (!sessionStorage.getItem("justSignedUp")) {
+            // Check inactivity BEFORE updating the visit timestamp
+            checkInactivity(currentUserData);
             currentUserData = await handleDailyData(user.uid, currentUserData);
         }
 
