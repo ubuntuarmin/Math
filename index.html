@@ -95,6 +95,9 @@
       <button class="tab-btn" data-tab="leaderboard">
         🏆 Top
       </button>
+      <button class="tab-btn" data-tab="appeals">
+        ⚖️ Appeals
+      </button>
       <button class="tab-btn" data-tab="account">
         👤 Account
       </button>
@@ -292,6 +295,47 @@
         <span class="badge">Bi-Monthly Rankings</span>
         <h2 class="mt-2 mb-6">Top Contributors</h2>
         <div id="leaderboard"></div>
+      </div>
+    </div>
+
+    <!-- APPEALS TAB -->
+    <div id="tab-appeals" class="tab-content">
+
+      <!-- My Removed Links (owner-only, hidden until data loads) -->
+      <div id="myRemovedSection" class="hidden mb-6">
+        <div class="surface">
+          <span class="badge">Your Links</span>
+          <h2 class="mt-2 mb-1">Your Removed Links</h2>
+          <p class="text-xs text-gray-500 mb-4">
+            These links were removed by the community. Submit an appeal and let 10 community
+            members decide whether to reinstate them.
+          </p>
+          <div id="myRemovedLinks" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <!-- Community Voting -->
+      <div class="surface">
+        <span class="badge">Community Service</span>
+        <h2 class="mt-2 mb-1">Link Appeals</h2>
+        <p class="text-xs text-gray-500 mb-4">
+          Help decide which removed links deserve a second chance.
+          You earn <strong class="text-emerald-400">+10 credits</strong> for every vote you cast. ✨
+        </p>
+
+        <!-- Loading spinner -->
+        <div id="appealsLoading" class="hidden flex justify-center py-10">
+          <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="appealsEmpty" class="hidden text-center py-10">
+          <div class="text-4xl mb-3">✅</div>
+          <p class="text-gray-400 text-sm">No links currently under appeal.</p>
+        </div>
+
+        <!-- Appeals grid -->
+        <div id="appealsGrid" class="space-y-4"></div>
       </div>
     </div>
 
@@ -702,6 +746,40 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════
+     DELETE CONFIRM MODAL
+════════════════════════════════════════════════════════ -->
+<div id="deleteConfirmModal"
+     class="hidden fixed inset-0 z-[400] flex items-center justify-center
+            bg-gray-950/90 backdrop-blur-sm p-4">
+  <div class="bg-gray-900 border border-red-800/50 rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
+    <div class="w-14 h-14 bg-red-500/20 rounded-2xl flex items-center justify-center
+                text-3xl mx-auto mb-4 border border-red-500/30">
+      🗑️
+    </div>
+    <h3 class="text-white font-bold text-lg mb-2">Delete This Link?</h3>
+    <p class="text-gray-400 text-sm leading-relaxed mb-1">
+      This action cannot be undone. The link will be permanently removed.
+    </p>
+    <p id="deleteConfirmMsg" class="text-red-400 text-sm font-semibold mb-6">
+      You will lose 50 credits.
+    </p>
+    <div class="flex gap-3">
+      <button id="deleteConfirmCancelBtn"
+              class="flex-1 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600
+                     text-gray-300 font-bold text-sm transition-colors">
+        Cancel
+      </button>
+      <button id="deleteConfirmBtn"
+              class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500
+                     text-white font-bold text-sm transition-colors
+                     disabled:opacity-40 disabled:cursor-not-allowed">
+        🗑️ Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
      SCRIPTS
 ════════════════════════════════════════════════════════ -->
 <script type="module" src="./js/firebase.js"></script>
@@ -743,9 +821,10 @@
   // ── Close modals on Escape key ───────────────────────────
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      if (typeof closeIframeModal  === "function") closeIframeModal();
-      if (typeof closeProfileModal === "function") closeProfileModal();
-      if (typeof closeRatingModal  === "function") closeRatingModal();
+      if (typeof closeIframeModal        === "function") closeIframeModal();
+      if (typeof closeProfileModal       === "function") closeProfileModal();
+      if (typeof closeRatingModal        === "function") closeRatingModal();
+      if (typeof closeDeleteConfirmModal === "function") closeDeleteConfirmModal();
     }
   });
 
