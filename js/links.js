@@ -50,6 +50,7 @@ let selectedStars     = 0;
 let ratingTimerOut    = null;
 let iframeLoadTimeout = null; // 15-second embed-detection timeout
 let currentBlobUrl    = null; // active Blob URL for HTML submissions
+let loadingFrame      = null; // cached reference to Babylon.js loading iframe
 let setupDone         = false;
 let pendingDelete     = null; // { linkId, data, cardEl }
 let appealsLoaded     = false;
@@ -419,6 +420,9 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   if (titleEl) titleEl.textContent = title || "Loading\u2026";
   frame.src = "";
   loader.classList.remove("hidden");
+  // Restart the Babylon.js loading animation from the beginning on each open
+  if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
+  if (loadingFrame) { loadingFrame.src = "loading.html"; }
   frame.classList.add("opacity-0");
   if (rateBtn) rateBtn.classList.add("hidden");
   if (errEl)   errEl.classList.add("hidden");
@@ -541,6 +545,9 @@ function closeIframeModal() {
   if (rateBtn) rateBtn.classList.add("hidden");
   if (errEl)   errEl.classList.add("hidden");
   if (frame) frame.src = "";
+  // Stop the Babylon.js animation to free GPU resources
+  if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
+  if (loadingFrame) { loadingFrame.src = "about:blank"; }
   modal.classList.add("hidden");
   document.body.style.overflow = "";
 
