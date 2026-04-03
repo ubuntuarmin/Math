@@ -21,10 +21,11 @@ const tierLabel    = document.getElementById("tierLabel");
 const linksLoading = document.getElementById("linksLoading");
 const linksEmpty   = document.getElementById("linksEmpty");
 
-const LINK_CREDITS       = 50;
-const UPVOTE_CREDITS     = 10;
-const REPORT_THRESHOLD   = 3;
-const RATING_REQUIRED_MS = 10000; // 10 seconds minimum to unlock rating
+const LINK_CREDITS        = 50;
+const UPVOTE_CREDITS      = 10;
+const REPORT_THRESHOLD    = 3;
+const RATING_REQUIRED_MS  = 10000; // 10 seconds minimum to unlock rating
+const IFRAME_LOAD_TIMEOUT_MS = 15000; // 15 seconds before showing embed-blocked error
 
 // Helper: compute average rating string ("4.2") or null
 function calcAvgRating(ratingSum, ratingCount) {
@@ -410,7 +411,7 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
         loader.classList.add("hidden");
         showIframeError(url, title);
       }
-    }, 15000);
+    }, IFRAME_LOAD_TIMEOUT_MS);
   }
 
   frame.onload = () => {

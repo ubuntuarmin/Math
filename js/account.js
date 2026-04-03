@@ -75,7 +75,7 @@ export async function updateAccount(userData) {
             <!-- Social-media-style profile header -->
             <div class="relative mb-8">
               <!-- Cover banner -->
-              <div class="h-24 rounded-2xl mb-0" style="background: ${avatarGradient}; opacity: 0.3; filter: blur(0px);"></div>
+            <div class="h-24 rounded-2xl mb-0" style="background: ${avatarGradient}; opacity: 0.3;"></div>
               <div class="h-24 rounded-2xl absolute inset-0" style="background: ${avatarGradient}; opacity: 0.15;"></div>
               <!-- Avatar -->
               <div class="absolute -bottom-8 left-6">

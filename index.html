@@ -335,9 +335,11 @@
               <option value="12">Grade 12</option>
             </select>
           </div>
+          <!-- Bio -->
           <div>
-            <label class="block text-xs text-gray-400 mb-1">Bio <span class="text-gray-600">(max 200 chars)</span></label>
+            <label for="editBio" class="block text-xs text-gray-400 mb-1">Bio <span class="text-gray-600">(max 200 chars)</span></label>
             <textarea id="editBio" rows="3" maxlength="200"
+                      aria-label="Profile bio"
                       placeholder="Tell the community about yourself…"
                       class="w-full bg-gray-800 border border-gray-700 rounded-lg
                              px-3 py-2 text-sm text-white outline-none focus:border-blue-500

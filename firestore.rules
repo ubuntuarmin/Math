@@ -35,7 +35,7 @@ service cloud.firestore {
           && fieldDelta('totalEarned')  <= 500
           && fieldDelta('weekMinutes')  <= 500
           && fieldDelta('totalMinutes') <= 500
-          && request.resource.data.get('weekMinutes',  0) <= 10000
+          && request.resource.data.get('weekMinutes',  0) <= 10000  // ~167 hours; prevents leaderboard abuse
           && request.resource.data.get('totalMinutes', 0) <= 999999
         )
         // Other users: upvotes may only touch the three credit/tracking fields.

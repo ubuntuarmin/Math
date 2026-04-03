@@ -12,6 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const LINK_BONUS = 50;
+const MIN_HTML_LENGTH = 100; // minimum chars for a meaningful HTML submission
 
 const form        = document.getElementById("shareForm");
 const urlInput    = document.getElementById("shareUrl");
@@ -158,8 +159,8 @@ async function handleSubmit(e) {
     }
   } else {
     htmlContent = (htmlInput?.value || "").trim();
-    if (htmlContent.length < 100) {
-      showError("Please enter at least 100 characters of HTML code.");
+    if (htmlContent.length < MIN_HTML_LENGTH) {
+      showError(`Please enter at least ${MIN_HTML_LENGTH} characters of HTML code.`);
       htmlInput?.focus();
       return;
     }
