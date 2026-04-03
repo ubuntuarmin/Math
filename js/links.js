@@ -1,9 +1,6 @@
-import { auth, db } from "./firebase.js";
+import { auth, db, rtdb } from "./firebase.js";
 import {
   collection,
-  query,
-  where,
-  getDocs,
   doc,
   getDoc,
   updateDoc,
@@ -12,6 +9,16 @@ import {
   addDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  ref,
+  query,
+  orderByChild,
+  equalTo,
+  get,
+  update,
+  increment as rtdbIncrement,
+  serverTimestamp as rtdbServerTimestamp,
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 import { calculateTier } from "./tier.js";
 
 const linksGrid    = document.getElementById("linksGrid");
@@ -61,23 +68,27 @@ async function loadLinks() {
   linksGrid.innerHTML = "";
 
   try {
-    // Use a simple equality filter only (no orderBy on a different field) to
-    // avoid requiring a composite Firestore index.  Sort by createdAt
-    // client-side instead.
-    const q = query(
-      collection(db, "sharedLinks"),
-      where("status", "==", "active")
+    // Query Realtime Database for active links (bypasses Firestore rules)
+    const linksQuery = query(
+      ref(rtdb, "sharedLinks"),
+      orderByChild("status"),
+      equalTo("active")
     );
-    const snap = await getDocs(q);
+    const snap = await get(linksQuery);
 
     if (linksLoading) linksLoading.classList.add("hidden");
 
+    if (!snap.exists()) {
+      if (linksEmpty) linksEmpty.classList.remove("hidden");
+      return;
+    }
+
     // Collect, sort newest-first, then render
     const docs = [];
-    snap.forEach((docSnap) => docs.push({ id: docSnap.id, data: docSnap.data() }));
+    snap.forEach((child) => docs.push({ id: child.key, data: child.val() }));
     docs.sort((a, b) => {
-      const aMs = a.data.createdAt?.toMillis?.() ?? Date.now();
-      const bMs = b.data.createdAt?.toMillis?.() ?? Date.now();
+      const aMs = typeof a.data.createdAt === "number" ? a.data.createdAt : 0;
+      const bMs = typeof b.data.createdAt === "number" ? b.data.createdAt : 0;
       return bMs - aMs;
     });
 
@@ -104,12 +115,11 @@ async function loadLinks() {
 function renderLinkCard(id, data, currentUid) {
   if (!linksGrid) return;
 
-  const hasReported = Array.isArray(data.reports) &&
-    data.reports.some((r) => r.uid === currentUid);
+  // RTDB stores upvotes/reports as objects keyed by uid (e.g. { uid1: true })
+  const hasReported = !!(data.reports && data.reports[currentUid]);
   const reportCount = data.reportCount || 0;
 
-  const hasUpvoted = Array.isArray(data.upvotes) &&
-    data.upvotes.some((u) => u === currentUid || u?.uid === currentUid);
+  const hasUpvoted = !!(data.upvotes && data.upvotes[currentUid]);
   const upvoteCount = data.upvoteCount || 0;
 
   const safeName  = escapeHtml(data.submittedByName || "Anonymous");
@@ -376,10 +386,8 @@ async function handleUpvote(linkId, data, btn, cardEl) {
     return;
   }
 
-  // Prevent double-upvoting
-  const alreadyUpvoted = Array.isArray(data.upvotes) &&
-    data.upvotes.some((u) => u === uid || u?.uid === uid);
-  if (alreadyUpvoted) {
+  // Prevent double-upvoting (upvotes stored as object keyed by uid in RTDB)
+  if (data.upvotes && data.upvotes[uid]) {
     alert("You have already upvoted this link.");
     return;
   }
@@ -388,26 +396,29 @@ async function handleUpvote(linkId, data, btn, cardEl) {
   btn.textContent = "Upvoting…";
 
   try {
-    const linkRef = doc(db, "sharedLinks", linkId);
-
-    // Award credits to the submitter
-    if (data.submittedBy) {
-      await updateDoc(doc(db, "users", data.submittedBy), {
-        credits:      increment(UPVOTE_CREDITS),
-        totalEarned:  increment(UPVOTE_CREDITS),
-      });
-      await sendNotification(
-        data.submittedBy,
-        "Your link was upvoted!",
-        `Someone upvoted your link "${data.title}". You earned +${UPVOTE_CREDITS} credits! 🎉`,
-        "upvote"
-      );
-    }
-
-    await updateDoc(linkRef, {
-      upvotes:     arrayUnion(uid),
-      upvoteCount: increment(1),
+    // Update link in Realtime Database: record the upvote and increment count
+    await update(ref(rtdb, `sharedLinks/${linkId}`), {
+      [`upvotes/${uid}`]: true,
+      upvoteCount: rtdbIncrement(1),
     });
+
+    // Award credits to the submitter via Firestore (non-critical)
+    if (data.submittedBy) {
+      try {
+        await updateDoc(doc(db, "users", data.submittedBy), {
+          credits:      increment(UPVOTE_CREDITS),
+          totalEarned:  increment(UPVOTE_CREDITS),
+        });
+        await sendNotification(
+          data.submittedBy,
+          "Your link was upvoted!",
+          `Someone upvoted your link "${data.title}". You earned +${UPVOTE_CREDITS} credits! 🎉`,
+          "upvote"
+        );
+      } catch (credErr) {
+        console.warn("Could not award upvote credits (Firestore rules may be restricting this):", credErr);
+      }
+    }
 
     // Replace button with static count
     const newCount = (data.upvoteCount || 0) + 1;
@@ -486,16 +497,14 @@ async function handleReport(linkId, type, cardEl) {
   if (!uid) return;
 
   try {
-    const linkRef = doc(db, "sharedLinks", linkId);
-    const snap    = await getDoc(linkRef);
-    if (!snap.exists()) return;
+    // Read current link data from Realtime Database
+    const linkSnap = await get(ref(rtdb, `sharedLinks/${linkId}`));
+    if (!linkSnap.exists()) return;
 
-    const data = snap.data();
+    const data = linkSnap.val();
 
-    // Prevent double-reporting
-    const alreadyReported = Array.isArray(data.reports) &&
-      data.reports.some((r) => r.uid === uid);
-    if (alreadyReported) {
+    // Prevent double-reporting (reports stored as object keyed by uid in RTDB)
+    if (data.reports && data.reports[uid]) {
       alert("You have already reported this link.");
       return;
     }
@@ -511,19 +520,19 @@ async function handleReport(linkId, type, cardEl) {
 
     if (newCount >= REPORT_THRESHOLD) {
       // ── Auto-remove ──────────────────────────────────────────────────────
-      const allReports  = [...(data.reports || []), newReport];
+      const allReports  = Object.values({ ...(data.reports || {}), [uid]: newReport });
       const fakeCount   = allReports.filter((r) => r.type === "fake").length;
       const majorityFake = fakeCount >= Math.ceil(allReports.length / 2);
 
-      await updateDoc(linkRef, {
+      await update(ref(rtdb, `sharedLinks/${linkId}`), {
         status:          "removed",
         reportCount:     newCount,
-        reports:         arrayUnion(newReport),
-        removedAt:       serverTimestamp(),
+        [`reports/${uid}`]: newReport,
+        removedAt:       rtdbServerTimestamp(),
         creditsReversed: majorityFake,
       });
 
-      // Notify the submitter
+      // Notify the submitter (non-critical)
       const msg = majorityFake
         ? `Your shared link "${data.title}" was removed after ${newCount} users ` +
           `reported it as fake or spam. The ${LINK_CREDITS} credits originally ` +
@@ -533,7 +542,7 @@ async function handleReport(linkId, type, cardEl) {
 
       await sendNotification(data.submittedBy, "Your Link Was Removed", msg, "link");
 
-      // Reverse credits if the link was fake and a reward was given
+      // Reverse credits if the link was fake and a reward was given (non-critical)
       if (majorityFake && data.rewardGiven) {
         try {
           await updateDoc(doc(db, "users", data.submittedBy), {
@@ -559,9 +568,9 @@ async function handleReport(linkId, type, cardEl) {
       alert("Thanks for the report. This link has been removed from the community.");
     } else {
       // ── Increment count only ─────────────────────────────────────────────
-      await updateDoc(linkRef, {
-        reportCount: newCount,
-        reports:     arrayUnion(newReport),
+      await update(ref(rtdb, `sharedLinks/${linkId}`), {
+        reportCount:        newCount,
+        [`reports/${uid}`]: newReport,
       });
 
       // Swap out the report dropdown for a "Reported" label

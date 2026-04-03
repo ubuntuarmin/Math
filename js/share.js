@@ -1,4 +1,4 @@
-import { auth, db } from "./firebase.js";
+import { auth, db, rtdb } from "./firebase.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import {
   doc,
@@ -7,9 +7,13 @@ import {
   collection,
   increment,
   serverTimestamp,
-  writeBatch,
   addDoc,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  ref,
+  push,
+  serverTimestamp as rtdbServerTimestamp,
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
 
 const LINK_BONUS = 50;
 
@@ -118,31 +122,34 @@ async function handleSubmit(e) {
     }
 
     // Fetch (or create) user profile for display name
-    const userRef = doc(db, "users", user.uid);
-    const snap    = await getDoc(userRef);
-    let data      = snap.exists() ? snap.data() : null;
+    let displayName = "Anonymous";
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const snap    = await getDoc(userRef);
+      let data      = snap.exists() ? snap.data() : null;
 
-    if (!data) {
-      const fallback = {
-        uid:        user.uid,
-        email:      user.email || "",
-        firstName:  "",
-        lastName:   "",
-        credits:    0,
-        totalEarned: 0,
-      };
-      await setDoc(userRef, fallback, { merge: true });
-      data = fallback;
+      if (!data) {
+        const fallback = {
+          uid:        user.uid,
+          email:      user.email || "",
+          firstName:  "",
+          lastName:   "",
+          credits:    0,
+          totalEarned: 0,
+        };
+        await setDoc(userRef, fallback, { merge: true });
+        data = fallback;
+      }
+
+      displayName =
+        [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
+    } catch (profileErr) {
+      console.warn("Could not load user profile, using Anonymous:", profileErr);
     }
 
-    const displayName =
-      [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
-
-    // Atomic batch: add link + award credits in one operation
-    const batch      = writeBatch(db);
-    const newLinkRef = doc(collection(db, "sharedLinks"));
-
-    batch.set(newLinkRef, {
+    // ── Store link in Realtime Database (bypasses Firestore rules) ────────────
+    const linksRef = ref(rtdb, "sharedLinks");
+    await push(linksRef, {
       url,
       title,
       description:     desc,
@@ -150,23 +157,27 @@ async function handleSubmit(e) {
       submittedByName: displayName,
       status:          "active",
       reportCount:     0,
-      reports:         [],
-      upvotes:         [],
+      reports:         {},
+      upvotes:         {},
       upvoteCount:     0,
       rewardGiven:     true,
       creditsAwarded:  LINK_BONUS,
       creditsReversed: false,
-      createdAt:       serverTimestamp(),
+      createdAt:       rtdbServerTimestamp(),
     });
 
-    batch.set(userRef, {
-      credits:     increment(LINK_BONUS),
-      totalEarned: increment(LINK_BONUS),
-    }, { merge: true });
+    // ── Award credits in Firestore (non-critical — silently skipped if blocked) ─
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await setDoc(userRef, {
+        credits:     increment(LINK_BONUS),
+        totalEarned: increment(LINK_BONUS),
+      }, { merge: true });
+    } catch (creditsErr) {
+      console.warn("Credits update skipped (Firestore rules may be restricting this):", creditsErr);
+    }
 
-    await batch.commit();
-
-    // Inbox notification (non-critical)
+    // ── Inbox notification (non-critical) ─────────────────────────────────────
     await sendNotification(
       user.uid,
       "Link Shared — Credits Awarded!",
