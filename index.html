@@ -203,16 +203,45 @@
 
     <!-- LINKS TAB -->
     <div id="tab-links" class="tab-content active">
-      <!-- Search + refresh row -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
+      <!-- Search + sort + refresh row -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
         <div>
           <h2 class="text-lg font-bold text-white">Community Links</h2>
           <p class="text-xs text-gray-500">All links submitted by the community — vote with your reports.</p>
         </div>
-        <button id="refreshLinksBtn"
-                class="text-xs text-blue-400 hover:text-blue-300 border border-blue-500/30
-                       hover:border-blue-500/60 px-3 py-1.5 rounded-full transition-colors">
-          ↺ Refresh
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Search bar -->
+          <div class="relative">
+            <input id="linksSearch" type="text" placeholder="Search links or names…"
+                   class="bg-gray-800/80 border border-gray-700 rounded-full pl-3 pr-7 py-1.5
+                          text-xs text-white outline-none focus:border-blue-500 transition
+                          w-44 placeholder-gray-500" />
+            <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none">🔍</span>
+          </div>
+          <!-- Sort dropdown -->
+          <select id="linksSort"
+                  class="bg-gray-800 border border-gray-700 rounded-full px-3 py-1.5
+                         text-xs text-gray-300 outline-none focus:border-blue-500 transition">
+            <option value="newest">Newest</option>
+            <option value="upvotes">Most Upvoted</option>
+            <option value="rating">Highest Rated</option>
+          </select>
+          <button id="refreshLinksBtn"
+                  class="text-xs text-blue-400 hover:text-blue-300 border border-blue-500/30
+                         hover:border-blue-500/60 px-3 py-1.5 rounded-full transition-colors">
+            ↺ Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Active filter bar -->
+      <div id="activeFilterBar" class="hidden mb-3 flex items-center gap-2 text-xs text-gray-400
+                                       bg-gray-800/50 border border-gray-700/60 rounded-full
+                                       px-3 py-1.5 w-fit">
+        <span id="activeFilterText"></span>
+        <button id="clearFilterBtn"
+                class="text-blue-400 hover:text-blue-300 transition-colors ml-1">
+          ✕ Clear
         </button>
       </div>
 
@@ -501,15 +530,23 @@
                   flex items-center justify-center text-base shrink-0">
         🎮
       </div>
-      <span id="iframeTitle" class="text-white font-bold text-sm truncate max-w-[60vw]">
+      <span id="iframeTitle" class="text-white font-bold text-sm truncate max-w-[50vw]">
         Loading…
       </span>
     </div>
-    <button onclick="closeIframeModal()"
-            class="text-gray-400 hover:text-white transition-colors p-2 rounded-lg
-                   hover:bg-white/5 text-lg leading-none shrink-0">
-      ✕
-    </button>
+    <div class="flex items-center gap-2 shrink-0">
+      <button id="iframeRateBtn"
+              class="hidden px-3 py-1.5 rounded-full text-xs font-bold
+                     bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300
+                     border border-yellow-500/30 transition-colors">
+        ⭐ Rate
+      </button>
+      <button onclick="closeIframeModal()"
+              class="text-gray-400 hover:text-white transition-colors p-2 rounded-lg
+                     hover:bg-white/5 text-lg leading-none">
+        ✕
+      </button>
+    </div>
   </div>
 
   <!-- Loading animation (visible while iframe loads) -->
@@ -552,6 +589,51 @@
       ✕
     </button>
     <div id="profileModalContent"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     RATE LINK MODAL
+════════════════════════════════════════════════════════ -->
+<div id="rateModal"
+     class="hidden fixed inset-0 z-[400] flex items-center justify-center
+            bg-gray-950/90 backdrop-blur-sm p-4">
+  <div class="bg-gray-900 border border-gray-700 rounded-3xl p-7 w-full max-w-sm shadow-2xl">
+    <h3 class="text-white font-bold text-lg mb-1 flex items-center gap-2">
+      <span>⭐</span> Rate this link
+    </h3>
+    <p id="rateLinkTitle" class="text-gray-400 text-xs mb-5 truncate"></p>
+
+    <!-- Stars -->
+    <div class="flex justify-center gap-2 mb-3" id="starRating">
+      <button class="star-btn text-4xl text-gray-600 transition-colors leading-none" data-star="1">★</button>
+      <button class="star-btn text-4xl text-gray-600 transition-colors leading-none" data-star="2">★</button>
+      <button class="star-btn text-4xl text-gray-600 transition-colors leading-none" data-star="3">★</button>
+      <button class="star-btn text-4xl text-gray-600 transition-colors leading-none" data-star="4">★</button>
+      <button class="star-btn text-4xl text-gray-600 transition-colors leading-none" data-star="5">★</button>
+    </div>
+    <p id="rateStarLabel" class="text-center text-xs text-gray-500 mb-4">Click a star to rate</p>
+
+    <!-- Comment -->
+    <textarea id="rateComment" rows="2" maxlength="200"
+              placeholder="Leave a comment (optional)"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2
+                     text-sm text-white outline-none focus:border-blue-500 resize-none mb-4">
+    </textarea>
+
+    <div class="flex gap-3">
+      <button id="rateSubmitBtn"
+              class="flex-1 py-2.5 rounded-xl bg-yellow-500/20 hover:bg-yellow-500/40
+                     text-yellow-200 font-bold text-sm transition-colors
+                     border border-yellow-500/30 disabled:opacity-40 disabled:cursor-not-allowed">
+        Submit ⭐
+      </button>
+      <button id="rateSkipBtn"
+              class="px-4 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600
+                     text-gray-300 font-bold text-sm transition-colors">
+        Skip
+      </button>
+    </div>
   </div>
 </div>
 
@@ -599,6 +681,7 @@
     if (e.key === "Escape") {
       if (typeof closeIframeModal  === "function") closeIframeModal();
       if (typeof closeProfileModal === "function") closeProfileModal();
+      if (typeof closeRatingModal  === "function") closeRatingModal();
     }
   });
 

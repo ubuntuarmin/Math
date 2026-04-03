@@ -17,6 +17,7 @@ const form        = document.getElementById("shareForm");
 const urlInput    = document.getElementById("shareUrl");
 const titleInput  = document.getElementById("shareTitle");
 const descInput   = document.getElementById("shareDesc");
+const tagsInput   = document.getElementById("shareHashtags");
 const submitBtn   = document.getElementById("shareSubmit");
 const errorEl     = document.getElementById("shareError");
 const successEl   = document.getElementById("shareSuccess");
@@ -41,6 +42,19 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function parseHashtags(input) {
+  if (!input) return [];
+  return input
+    .split(/[\s,]+/)
+    .map(t => {
+      t = t.trim().toLowerCase().replace(/[^a-z0-9_#]/g, "");
+      if (t && !t.startsWith("#")) t = "#" + t;
+      return t;
+    })
+    .filter(t => t.length > 1)
+    .slice(0, 5);
+}
+
 function showError(msg) {
   if (!errorEl) return;
   errorEl.textContent = msg;
@@ -90,6 +104,7 @@ async function handleSubmit(e) {
   const url   = (urlInput?.value  || "").trim();
   const title = (titleInput?.value || "").trim();
   const desc  = (descInput?.value  || "").trim();
+  const hashtags = parseHashtags(tagsInput?.value || "");
 
   // Validation
   if (!url || !/^https?:\/\//i.test(url)) {
@@ -146,6 +161,7 @@ async function handleSubmit(e) {
       url,
       title,
       description:     desc,
+      hashtags,
       submittedBy:     user.uid,
       submittedByName: displayName,
       status:          "active",
