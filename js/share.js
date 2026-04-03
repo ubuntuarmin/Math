@@ -12,9 +12,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const LINK_BONUS = 50;
+const MIN_HTML_LENGTH = 100; // minimum chars for a meaningful HTML submission
 
 const form        = document.getElementById("shareForm");
 const urlInput    = document.getElementById("shareUrl");
+const htmlInput   = document.getElementById("shareHtml");
 const titleInput  = document.getElementById("shareTitle");
 const descInput   = document.getElementById("shareDesc");
 const tagsInput   = document.getElementById("shareHashtags");
@@ -22,19 +24,45 @@ const submitBtn   = document.getElementById("shareSubmit");
 const errorEl     = document.getElementById("shareError");
 const successEl   = document.getElementById("shareSuccess");
 const charCount   = document.getElementById("descCharCount");
+const htmlCharCount = document.getElementById("htmlCharCount");
+const typeUrlBtn  = document.getElementById("typeUrlBtn");
+const typeHtmlBtn = document.getElementById("typeHtmlBtn");
+const urlField    = document.getElementById("urlField");
+const htmlField   = document.getElementById("htmlField");
 
-// Live character counter
+let submissionType = "url"; // "url" or "html"
+
+// ── Submission type toggle ────────────────────────────────────────────────────
+typeUrlBtn?.addEventListener("click", () => {
+  submissionType = "url";
+  typeUrlBtn.classList.add("active");
+  typeHtmlBtn.classList.remove("active");
+  urlField?.classList.remove("hidden");
+  htmlField?.classList.add("hidden");
+});
+
+typeHtmlBtn?.addEventListener("click", () => {
+  submissionType = "html";
+  typeHtmlBtn.classList.add("active");
+  typeUrlBtn.classList.remove("active");
+  htmlField?.classList.remove("hidden");
+  urlField?.classList.add("hidden");
+});
+
+// Live character counters
 descInput?.addEventListener("input", () => {
   if (charCount) charCount.textContent = descInput.value.length;
 });
 
+htmlInput?.addEventListener("input", () => {
+  if (htmlCharCount) htmlCharCount.textContent = htmlInput.value.length;
+});
+
 // ── Auth guard ────────────────────────────────────────────────────────────────
-// Disable the submit button until auth state is confirmed.
 if (submitBtn) submitBtn.disabled = true;
 
 onAuthStateChanged(auth, (user) => {
   if (!user) {
-    // No login modal on this page — redirect to sign-in page
     window.location.href = "index.html";
     return;
   }
@@ -97,22 +125,15 @@ async function handleSubmit(e) {
 
   const user = auth.currentUser;
   if (!user) {
-    showError("You must be signed in to share a link.");
+    showError("You must be signed in to share.");
     return;
   }
 
-  const url   = (urlInput?.value  || "").trim();
-  const title = (titleInput?.value || "").trim();
-  const desc  = (descInput?.value  || "").trim();
+  const title    = (titleInput?.value || "").trim();
+  const desc     = (descInput?.value  || "").trim();
   const hashtags = parseHashtags(tagsInput?.value || "");
 
-  // Validation
-  if (!url || !/^https?:\/\//i.test(url)) {
-    showError("Please enter a valid URL starting with https://");
-    urlInput?.focus();
-    return;
-  }
-
+  // Common validation
   if (!title || title.length < 3) {
     showError("Please give the site a short name (at least 3 characters).");
     titleInput?.focus();
@@ -125,6 +146,31 @@ async function handleSubmit(e) {
     return;
   }
 
+  // Type-specific validation
+  let url        = "";
+  let htmlContent = "";
+
+  if (submissionType === "url") {
+    url = (urlInput?.value || "").trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+      showError("Please enter a valid URL starting with https://");
+      urlInput?.focus();
+      return;
+    }
+  } else {
+    htmlContent = (htmlInput?.value || "").trim();
+    if (htmlContent.length < MIN_HTML_LENGTH) {
+      showError(`Please enter at least ${MIN_HTML_LENGTH} characters of HTML code.`);
+      htmlInput?.focus();
+      return;
+    }
+    if (htmlContent.length > 50000) {
+      showError("HTML code is too long (max 50,000 characters).");
+      htmlInput?.focus();
+      return;
+    }
+  }
+
   let submitted = false;
   try {
     if (submitBtn) {
@@ -132,7 +178,6 @@ async function handleSubmit(e) {
       submitBtn.textContent = "Sharing…";
     }
 
-    // Fetch (or create) user profile for display name
     const userRef = doc(db, "users", user.uid);
     const snap    = await getDoc(userRef);
     let data      = snap.exists() ? snap.data() : null;
@@ -153,12 +198,10 @@ async function handleSubmit(e) {
     const displayName =
       [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
 
-    // Atomic batch: add link + award credits in one operation
     const batch      = writeBatch(db);
     const newLinkRef = doc(collection(db, "sharedLinks"));
 
-    batch.set(newLinkRef, {
-      url,
+    const linkDoc = {
       title,
       description:     desc,
       hashtags,
@@ -173,7 +216,18 @@ async function handleSubmit(e) {
       creditsAwarded:  LINK_BONUS,
       creditsReversed: false,
       createdAt:       serverTimestamp(),
-    });
+      type:            submissionType,
+    };
+
+    if (submissionType === "url") {
+      linkDoc.url = url;
+    } else {
+      linkDoc.htmlContent = htmlContent;
+      // Store a placeholder URL for backwards compat
+      linkDoc.url = "";
+    }
+
+    batch.set(newLinkRef, linkDoc);
 
     batch.set(userRef, {
       credits:     increment(LINK_BONUS),
@@ -182,31 +236,31 @@ async function handleSubmit(e) {
 
     await batch.commit();
 
-    // Inbox notification (non-critical)
+    const typeLabel = submissionType === "html" ? "HTML game" : "link";
     await sendNotification(
       user.uid,
-      "Link Shared — Credits Awarded!",
-      `Your link "${title}" is now live in the community! You earned +${LINK_BONUS} credits. ` +
-      `If 3 or more users report it as fake, your credits will be reversed.`,
+      `${submissionType === "html" ? "HTML Game" : "Link"} Shared — Credits Awarded!`,
+      `Your ${typeLabel} "${title}" is now live in the community! You earned +${LINK_BONUS} credits.`,
       "link"
     );
 
     submitted = true;
-    showSuccess(`Your link is live! +${LINK_BONUS} credits awarded. Redirecting…`);
+    showSuccess(`Your ${typeLabel} is live! +${LINK_BONUS} credits awarded. Redirecting…`);
     form?.reset();
     if (charCount) charCount.textContent = "0";
+    if (htmlCharCount) htmlCharCount.textContent = "0";
 
     setTimeout(() => {
       window.location.href = "index.html";
     }, 1500);
 
   } catch (err) {
-    console.error("Share link error:", err);
-    showError("Failed to share link. Please check your connection and try again.");
+    console.error("Share error:", err);
+    showError("Failed to share. Please check your connection and try again.");
   } finally {
     if (!submitted && submitBtn) {
       submitBtn.disabled    = false;
-      submitBtn.innerHTML   = `Share Link <span class="text-blue-200">(+${LINK_BONUS} credits)</span>`;
+      submitBtn.innerHTML   = `Share <span class="text-blue-200">(+${LINK_BONUS} credits)</span>`;
     }
   }
 }

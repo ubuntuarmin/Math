@@ -21,10 +21,11 @@ const tierLabel    = document.getElementById("tierLabel");
 const linksLoading = document.getElementById("linksLoading");
 const linksEmpty   = document.getElementById("linksEmpty");
 
-const LINK_CREDITS       = 50;
-const UPVOTE_CREDITS     = 10;
-const REPORT_THRESHOLD   = 3;
-const RATING_REQUIRED_MS = 10000; // 10 seconds minimum to unlock rating
+const LINK_CREDITS        = 50;
+const UPVOTE_CREDITS      = 10;
+const REPORT_THRESHOLD    = 3;
+const RATING_REQUIRED_MS  = 10000; // 10 seconds minimum to unlock rating
+const IFRAME_LOAD_TIMEOUT_MS = 15000; // 15 seconds before showing embed-blocked error
 
 // Helper: compute average rating string ("4.2") or null
 function calcAvgRating(ratingSum, ratingCount) {
@@ -39,12 +40,14 @@ let searchTerm   = "";
 let sortMode     = "newest";
 
 // Iframe / rating state
-let iframeOpenTime = 0;
-let iframeLoaded   = false;
-let pendingRating  = null; // { linkId, title, submittedBy }
-let selectedStars  = 0;
-let ratingTimerOut = null;
-let setupDone      = false;
+let iframeOpenTime    = 0;
+let iframeLoaded      = false;
+let pendingRating     = null; // { linkId, title, submittedBy }
+let selectedStars     = 0;
+let ratingTimerOut    = null;
+let iframeLoadTimeout = null; // 15-second embed-detection timeout
+let currentBlobUrl    = null; // active Blob URL for HTML submissions
+let setupDone         = false;
 
 // Exported: called by auth.js after sign-in
 export function updateUI(userData) {
@@ -236,6 +239,7 @@ function renderLinkCard(id, data, currentUid) {
   const safeTitle   = escapeHtml(data.title || "Untitled");
   const safeDesc    = data.description ? escapeHtml(data.description) : "";
   const submittedBy = data.submittedBy || "";
+  const isHtml      = data.type === "html";
 
   const hashtags     = Array.isArray(data.hashtags) ? data.hashtags : [];
   const hashtagsHtml = hashtags.length
@@ -246,6 +250,11 @@ function renderLinkCard(id, data, currentUid) {
         'hover:bg-blue-500/30 transition-colors" ' +
         'data-tag="' + escapeHtml(t) + '">' + escapeHtml(t) + '</button>'
       ).join("") + '</div>'
+    : "";
+
+  const typeBadge = isHtml
+    ? '<span class="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ' +
+      'bg-purple-500/20 text-purple-300 border border-purple-500/30 ml-1">HTML</span>'
     : "";
 
   const avgRating  = calcAvgRating(data.ratingSum, data.ratingCount);
@@ -292,12 +301,16 @@ function renderLinkCard(id, data, currentUid) {
   card.innerHTML =
     '<div class="flex items-start justify-between gap-2">' +
       '<div class="flex-1 min-w-0">' +
-        '<div class="text-white font-bold text-base truncate">' + safeTitle + '</div>' +
+        '<div class="flex items-center gap-1 flex-wrap">' +
+          '<span class="text-white font-bold text-base truncate">' + safeTitle + '</span>' +
+          typeBadge +
+        '</div>' +
         hashtagsHtml +
       '</div>' +
-      '<button class="open-link-btn shrink-0 px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 ' +
-      'text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1" ' +
-      'data-id="' + id + '">Open \u2197</button>' +
+      '<button class="open-link-btn shrink-0 px-3 py-1.5 ' +
+      (isHtml ? 'bg-purple-600/80 hover:bg-purple-500' : 'bg-blue-600/80 hover:bg-blue-500') +
+      ' text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1" ' +
+      'data-id="' + id + '">' + (isHtml ? '▶ Play' : 'Open \u2197') + '</button>' +
     '</div>' +
     (safeDesc ? '<p class="text-gray-400 text-xs leading-relaxed line-clamp-2">' + safeDesc + '</p>' : '') +
     '<div class="flex items-center justify-between mt-auto pt-2 border-t border-gray-800">' +
@@ -316,7 +329,7 @@ function renderLinkCard(id, data, currentUid) {
     '</div>';
 
   card.querySelector(".open-link-btn").addEventListener("click", () => {
-    openIframeModal(data.url, safeTitle, id, submittedBy);
+    openIframeModal(data.url, safeTitle, id, submittedBy, data.htmlContent || null);
   });
 
   card.querySelector(".view-profile-btn").addEventListener("click", () => {
@@ -363,13 +376,14 @@ function renderLinkCard(id, data, currentUid) {
   linksGrid.appendChild(card);
 }
 
-// Open link in iframe modal
-function openIframeModal(url, title, linkId, submittedBy) {
+// Open link in iframe modal — supports both URL and HTML-code submissions
+function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   const modal   = document.getElementById("iframeModal");
   const frame   = document.getElementById("iframeFrame");
   const loader  = document.getElementById("iframeLoader");
   const titleEl = document.getElementById("iframeTitle");
   const rateBtn = document.getElementById("iframeRateBtn");
+  const errEl   = document.getElementById("iframeError");
   if (!modal || !frame || !loader) return;
 
   if (titleEl) titleEl.textContent = title || "Loading\u2026";
@@ -377,6 +391,7 @@ function openIframeModal(url, title, linkId, submittedBy) {
   loader.classList.remove("hidden");
   frame.classList.add("opacity-0");
   if (rateBtn) rateBtn.classList.add("hidden");
+  if (errEl)   errEl.classList.add("hidden");
 
   modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -386,8 +401,44 @@ function openIframeModal(url, title, linkId, submittedBy) {
   pendingRating  = { linkId: linkId || null, title, submittedBy: submittedBy || null };
 
   if (ratingTimerOut) { clearTimeout(ratingTimerOut); ratingTimerOut = null; }
+  if (iframeLoadTimeout) { clearTimeout(iframeLoadTimeout); iframeLoadTimeout = null; }
+
+  // 15-second timeout: if load event hasn't fired, assume site blocks embedding
+  // (only for URL submissions; HTML blobs always load)
+  if (!htmlContent) {
+    iframeLoadTimeout = setTimeout(() => {
+      if (!iframeLoaded) {
+        loader.classList.add("hidden");
+        showIframeError(url, title);
+      }
+    }, IFRAME_LOAD_TIMEOUT_MS);
+  }
 
   frame.onload = () => {
+    if (iframeLoadTimeout) { clearTimeout(iframeLoadTimeout); iframeLoadTimeout = null; }
+
+    if (!htmlContent) {
+      // Detect sites that refuse embedding via X-Frame-Options:
+      // - SecurityError (cross-origin) means site loaded successfully
+      // - href === "about:blank" or empty means site likely blocked embedding
+      let blockedByXFrame = false;
+      try {
+        const href = frame.contentWindow?.location?.href ?? "";
+        if (!href || href === "about:blank") {
+          blockedByXFrame = true;
+        }
+      } catch (_e) {
+        // SecurityError = cross-origin = loaded successfully
+        blockedByXFrame = false;
+      }
+
+      if (blockedByXFrame) {
+        loader.classList.add("hidden");
+        showIframeError(url, title);
+        return;
+      }
+    }
+
     loader.classList.add("hidden");
     frame.classList.remove("opacity-0");
     iframeLoaded = true;
@@ -399,7 +450,15 @@ function openIframeModal(url, title, linkId, submittedBy) {
     }
   };
 
-  frame.src = url;
+  if (htmlContent) {
+    // HTML-code submission: create a blob URL so the content renders in the frame.
+    // Store the URL so closeIframeModal can revoke it immediately.
+    const blob    = new Blob([htmlContent], { type: "text/html" });
+    currentBlobUrl = URL.createObjectURL(blob);
+    frame.src      = currentBlobUrl;
+  } else {
+    frame.src = url;
+  }
 
   if (rateBtn && !rateBtn.dataset.bound) {
     rateBtn.dataset.bound = "1";
@@ -415,15 +474,42 @@ function openIframeModal(url, title, linkId, submittedBy) {
   }
 }
 
+/** Show an inline error inside the iframe modal when embedding is blocked */
+function showIframeError(url, title) {
+  const errEl = document.getElementById("iframeError");
+  const frame = document.getElementById("iframeFrame");
+  if (frame) frame.classList.add("opacity-0");
+  if (!errEl) return;
+  errEl.innerHTML =
+    '<div class="flex flex-col items-center gap-3 text-center">' +
+      '<div class="text-5xl">🚫</div>' +
+      '<div class="text-white font-bold text-base">' + escapeHtml(title || "This Site") + ' can\'t be embedded</div>' +
+      '<p class="text-gray-400 text-sm max-w-xs leading-relaxed">' +
+        'This site has blocked embedding in iframes (X-Frame-Options). ' +
+        'You can still open it directly in a new tab.' +
+      '</p>' +
+      (url
+        ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" ' +
+          'class="mt-2 px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm transition-colors">' +
+          '🔗 Open in New Tab</a>'
+        : "") +
+    '</div>';
+  errEl.classList.remove("hidden");
+}
+
 // Close iframe modal
 function closeIframeModal() {
   const modal   = document.getElementById("iframeModal");
   const frame   = document.getElementById("iframeFrame");
   const rateBtn = document.getElementById("iframeRateBtn");
+  const errEl   = document.getElementById("iframeError");
   if (!modal) return;
 
-  if (ratingTimerOut) { clearTimeout(ratingTimerOut); ratingTimerOut = null; }
+  if (ratingTimerOut)     { clearTimeout(ratingTimerOut);     ratingTimerOut     = null; }
+  if (iframeLoadTimeout)  { clearTimeout(iframeLoadTimeout);  iframeLoadTimeout  = null; }
+  if (currentBlobUrl)     { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
   if (rateBtn) rateBtn.classList.add("hidden");
+  if (errEl)   errEl.classList.add("hidden");
   if (frame) frame.src = "";
   modal.classList.add("hidden");
   document.body.style.overflow = "";
@@ -651,34 +737,56 @@ async function openProfileModal(uid, displayName) {
       .sort((a, b) => (b.timestamp?.toMillis?.() ?? 0) - (a.timestamp?.toMillis?.() ?? 0))
       .slice(0, 3);
 
+    // Avatar gradient
+    const AVATAR_PRESETS = {
+      ocean:  "linear-gradient(135deg,#38bdf8,#3b82f6)",
+      sunset: "linear-gradient(135deg,#f97316,#ec4899)",
+      forest: "linear-gradient(135deg,#22c55e,#16a34a)",
+      cosmic: "linear-gradient(135deg,#a855f7,#6366f1)",
+      fire:   "linear-gradient(135deg,#ef4444,#f97316)",
+      gold:   "linear-gradient(135deg,#fbbf24,#f59e0b)",
+    };
+    const avatarGradient = AVATAR_PRESETS[data.avatarColor] || AVATAR_PRESETS.ocean;
+
+    const joinDate = data.createdAt?.toMillis
+      ? new Date(data.createdAt.toMillis()).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      : "";
+
     let linksHtml = "";
     if (userLinks.length > 0) {
-      const shown = userLinks.slice(0, 5);
+      const shown = userLinks.slice(0, 4);
       linksHtml =
         '<div class="mb-4">' +
         '<div class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wider">' +
-        'Their Links (' + userLinks.length + ')</div>' +
+        'Submissions (' + userLinks.length + ')</div>' +
         '<div class="space-y-2">' +
-        shown.map(({ id: lid, data: ld }) =>
-          '<div class="flex items-center gap-2 p-2.5 bg-gray-800/60 rounded-xl">' +
+        shown.map(({ id: lid, data: ld }) => {
+          const isHtmlType = ld.type === "html";
+          return '<div class="flex items-center gap-2 p-2.5 bg-gray-800/60 rounded-xl">' +
             '<div class="flex-1 min-w-0">' +
-              '<div class="text-xs text-white font-semibold truncate">' + escapeHtml(ld.title || "Untitled") + '</div>' +
+              '<div class="flex items-center gap-1">' +
+                '<span class="text-xs text-white font-semibold truncate">' + escapeHtml(ld.title || "Untitled") + '</span>' +
+                (isHtmlType ? '<span class="text-[9px] px-1 rounded font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">HTML</span>' : '') +
+              '</div>' +
               '<div class="text-[10px] text-gray-500 mt-0.5">' +
                 '\uD83D\uDC4D ' + (ld.upvoteCount || 0) +
                 (calcAvgRating(ld.ratingSum, ld.ratingCount) !== null ? ' \u00B7 \u2B50 ' + calcAvgRating(ld.ratingSum, ld.ratingCount) : "") +
               '</div>' +
             '</div>' +
             '<button class="profile-open-link shrink-0 text-[10px] px-2.5 py-1 rounded-full ' +
-            'bg-blue-600/70 hover:bg-blue-500 text-white font-bold transition-colors" ' +
-            'data-url="' + escapeHtml(ld.url) + '" data-title="' + escapeHtml(ld.title || "") + '" ' +
-            'data-id="' + lid + '" data-submitter="' + uid + '">Open</button>' +
-          '</div>'
-        ).join("") +
-        (userLinks.length > 5
+            (isHtmlType ? 'bg-purple-600/70 hover:bg-purple-500' : 'bg-blue-600/70 hover:bg-blue-500') +
+            ' text-white font-bold transition-colors" ' +
+            'data-url="' + escapeHtml(ld.url || "") + '" data-title="' + escapeHtml(ld.title || "") + '" ' +
+            'data-html="' + (isHtmlType ? "1" : "0") + '" ' +
+            'data-id="' + lid + '" data-submitter="' + uid + '">' +
+            (isHtmlType ? '▶ Play' : 'Open') + '</button>' +
+          '</div>';
+        }).join("") +
+        (userLinks.length > 4
           ? '<button id="profileShowAllLinks" ' +
             'class="w-full py-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors" ' +
             'data-uid="' + uid + '" data-name="' + escapeHtml(data.firstName || "Student") + '">' +
-            '+ ' + (userLinks.length - 5) + ' more links \u2192</button>'
+            '+ ' + (userLinks.length - 4) + ' more \u2192</button>'
           : "") +
         '</div></div>';
     }
@@ -686,7 +794,7 @@ async function openProfileModal(uid, displayName) {
     let reviewsHtml = "";
     if (recentReviews.length > 0) {
       reviewsHtml =
-        '<div>' +
+        '<div class="mb-4">' +
         '<div class="text-[10px] text-gray-500 uppercase font-bold mb-2 tracking-wider">Recent Reviews</div>' +
         '<div class="space-y-2">' +
         recentReviews.map(r =>
@@ -703,53 +811,73 @@ async function openProfileModal(uid, displayName) {
     }
 
     const actionsHtml = !isSelf
-      ? '<button id="profileUpvoteBtn" ' +
+      ? '<div class="flex flex-col gap-2 mb-4">' +
+        '<button id="profileUpvoteBtn" ' +
         'class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 ' +
         'text-white font-bold text-sm transition-colors ' +
-        'flex items-center justify-center gap-2 mb-2" data-uid="' + uid + '">' +
+        'flex items-center justify-center gap-2" data-uid="' + uid + '">' +
         '\uD83D\uDC4D Upvote Profile ' +
-        '<span class="text-blue-200 font-normal">(+' + UPVOTE_CREDITS + ' credits)</span></button>' +
+        '<span class="text-blue-200 font-normal text-xs">(+' + UPVOTE_CREDITS + ' credits)</span></button>' +
         '<button id="profileFilterBtn" ' +
         'class="w-full py-2 rounded-xl bg-gray-800 hover:bg-gray-700 ' +
-        'text-gray-300 font-bold text-sm transition-colors border border-gray-700 mb-4" ' +
+        'text-gray-300 font-bold text-sm transition-colors border border-gray-700" ' +
         'data-uid="' + uid + '" data-name="' + escapeHtml(data.firstName || "Student") + '">' +
-        '\uD83D\uDD0D Show only their links</button>'
+        '\uD83D\uDD0D Show only their submissions</button>' +
+        '</div>'
       : '<div class="text-xs text-gray-500 italic text-center mb-4">This is your profile.</div>';
+
+    const bio = data.bio ? escapeHtml(data.bio) : "";
 
     content.innerHTML =
       '<div>' +
-        '<div class="text-center mb-5">' +
-          '<div class="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center ' +
-          'text-3xl font-black text-white" ' +
-          'style="background: linear-gradient(135deg, #38bdf8, #a855f7)">' +
-            escapeHtml((data.firstName || "?")[0].toUpperCase()) +
-          '</div>' +
-          '<div class="text-xl font-bold text-white mb-1">' +
-            escapeHtml(data.firstName || "Student") + ' ' + escapeHtml(data.lastName || "") +
-          '</div>' +
-          '<div class="text-xs font-bold px-2 py-0.5 rounded inline-block" ' +
-          'style="color:' + tier.color + '; border: 1px solid ' + tier.color + '44">' +
-            tier.name +
+        // Cover + avatar
+        '<div class="relative mb-10">' +
+          '<div class="h-16 rounded-xl" style="background:' + avatarGradient + '; opacity:0.3;"></div>' +
+          '<div class="absolute -bottom-8 left-4">' +
+            '<div class="w-16 h-16 rounded-2xl border-4 border-gray-900 flex items-center justify-center ' +
+            'text-2xl font-black text-white shadow-xl" ' +
+            'style="background:' + avatarGradient + '">' +
+              escapeHtml((data.firstName || "?")[0].toUpperCase()) +
+            '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="grid grid-cols-2 gap-2 mb-4">' +
-          '<div class="bg-gray-800/60 p-3 rounded-xl text-center">' +
-            '<div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Total Earned</div>' +
-            '<div class="text-base font-bold text-emerald-400">' + (data.totalEarned || 0) + ' \uD83E\uDE99</div>' +
+        // Name + tier + meta
+        '<div class="mb-3">' +
+          '<div class="text-lg font-black text-white leading-tight">' +
+            escapeHtml(data.firstName || "Student") + ' ' + escapeHtml(data.lastName || "") +
           '</div>' +
-          '<div class="bg-gray-800/60 p-3 rounded-xl text-center">' +
-            '<div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Grade</div>' +
-            '<div class="text-base font-bold text-white">' + escapeHtml(data.grade || "\u2014") + '</div>' +
+          '<div class="flex items-center gap-2 flex-wrap mt-1">' +
+            '<span class="text-xs font-bold px-2 py-0.5 rounded-full border" ' +
+            'style="color:' + tier.color + '; border-color:' + tier.color + '44">' +
+              tier.name +
+            '</span>' +
+            (data.grade ? '<span class="text-[10px] text-gray-500">Grade ' + escapeHtml(data.grade) + '</span>' : '') +
+            (joinDate ? '<span class="text-[10px] text-gray-600">· Joined ' + joinDate + '</span>' : '') +
           '</div>' +
-          '<div class="bg-gray-800/60 p-3 rounded-xl text-center">' +
-            '<div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Links Shared</div>' +
-            '<div class="text-base font-bold text-blue-400">' + userLinks.length + '</div>' +
+          // Bio
+          (bio
+            ? '<p class="text-gray-400 text-xs leading-relaxed mt-2">' + bio + '</p>'
+            : '') +
+        '</div>' +
+        // Stats grid
+        '<div class="grid grid-cols-4 gap-2 mb-4">' +
+          '<div class="bg-gray-800/60 p-2.5 rounded-xl text-center">' +
+            '<div class="text-sm font-black text-emerald-400">' + (data.totalEarned || 0) + '</div>' +
+            '<div class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Earned 🪙</div>' +
           '</div>' +
-          '<div class="bg-gray-800/60 p-3 rounded-xl text-center">' +
-            '<div class="text-[10px] text-gray-500 uppercase font-bold mb-1">Avg Rating</div>' +
-            '<div class="text-base font-bold text-yellow-400">' +
-              (avgRating !== null ? '\u2B50 ' + avgRating : '\u2014') +
+          '<div class="bg-gray-800/60 p-2.5 rounded-xl text-center">' +
+            '<div class="text-sm font-black text-blue-400">' + userLinks.length + '</div>' +
+            '<div class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Posts</div>' +
+          '</div>' +
+          '<div class="bg-gray-800/60 p-2.5 rounded-xl text-center">' +
+            '<div class="text-sm font-black text-yellow-400">' +
+              (avgRating !== null ? '\u2B50' + avgRating : '\u2014') +
             '</div>' +
+            '<div class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Rating</div>' +
+          '</div>' +
+          '<div class="bg-gray-800/60 p-2.5 rounded-xl text-center">' +
+            '<div class="text-sm font-black text-orange-400">' + (data.streak || 0) + '</div>' +
+            '<div class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">🔥 Streak</div>' +
           '</div>' +
         '</div>' +
         actionsHtml +
@@ -776,8 +904,17 @@ async function openProfileModal(uid, displayName) {
 
     content.querySelectorAll(".profile-open-link").forEach(btn => {
       btn.addEventListener("click", () => {
+        const isHtml = btn.dataset.html === "1";
+        // Fetch full doc for htmlContent if needed
+        const linkDoc = allDocs.find(d => d.id === btn.dataset.id);
         closeProfileModal();
-        openIframeModal(btn.dataset.url, btn.dataset.title, btn.dataset.id, btn.dataset.submitter);
+        openIframeModal(
+          btn.dataset.url,
+          btn.dataset.title,
+          btn.dataset.id,
+          btn.dataset.submitter,
+          isHtml ? (linkDoc?.data?.htmlContent || null) : null
+        );
       });
     });
 

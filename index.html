@@ -305,18 +305,20 @@
 
         <!-- Edit profile form (hidden by default) -->
         <div id="editProfileForm" class="hidden mb-6 bg-gray-900/60 p-4 rounded-2xl
-                                         border border-gray-700 space-y-3 max-w-sm">
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">First Name</label>
-            <input id="editFirst" type="text"
-                   class="w-full bg-gray-800 border border-gray-700 rounded-lg
-                          px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
-          </div>
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Last Name</label>
-            <input id="editLast" type="text"
-                   class="w-full bg-gray-800 border border-gray-700 rounded-lg
-                          px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+                                         border border-gray-700 space-y-3 max-w-lg">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">First Name</label>
+              <input id="editFirst" type="text"
+                     class="w-full bg-gray-800 border border-gray-700 rounded-lg
+                            px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Last Name</label>
+              <input id="editLast" type="text"
+                     class="w-full bg-gray-800 border border-gray-700 rounded-lg
+                            px-3 py-2 text-sm text-white outline-none focus:border-blue-500" />
+            </div>
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1">Grade</label>
@@ -331,6 +333,29 @@
               <option value="10">Grade 10</option>
               <option value="11">Grade 11</option>
               <option value="12">Grade 12</option>
+            </select>
+          </div>
+          <!-- Bio -->
+          <div>
+            <label for="editBio" class="block text-xs text-gray-400 mb-1">Bio <span class="text-gray-600">(max 200 chars)</span></label>
+            <textarea id="editBio" rows="3" maxlength="200"
+                      aria-label="Profile bio"
+                      placeholder="Tell the community about yourself…"
+                      class="w-full bg-gray-800 border border-gray-700 rounded-lg
+                             px-3 py-2 text-sm text-white outline-none focus:border-blue-500
+                             resize-none"></textarea>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-2">Avatar Color</label>
+            <select id="editAvatarColor"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg
+                           px-3 py-2 text-sm text-white outline-none focus:border-blue-500">
+              <option value="ocean">🌊 Ocean</option>
+              <option value="sunset">🌅 Sunset</option>
+              <option value="forest">🌿 Forest</option>
+              <option value="cosmic">🌌 Cosmic</option>
+              <option value="fire">🔥 Fire</option>
+              <option value="gold">✨ Gold</option>
             </select>
           </div>
           <div class="flex gap-2 pt-1">
@@ -508,6 +533,39 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════
+     INACTIVE USER WARNING MODAL
+════════════════════════════════════════════════════════ -->
+<div id="inactiveWarningModal"
+     class="hidden fixed inset-0 z-[500] flex items-center justify-center
+            bg-gray-950/95 backdrop-blur-sm p-4">
+  <div class="bg-gray-900 border border-orange-500/40 rounded-3xl
+              p-8 w-full max-w-sm shadow-2xl text-center">
+    <div class="w-16 h-16 bg-orange-500/20 rounded-2xl flex items-center justify-center
+                text-3xl mx-auto mb-4 border border-orange-500/30">
+      ⚠️
+    </div>
+    <h2 class="text-xl font-black text-white mb-2">We Missed You!</h2>
+    <p class="text-gray-400 text-sm leading-relaxed mb-1">
+      Your account has been inactive for <strong class="text-orange-400" id="inactiveDays">30+</strong> days.
+    </p>
+    <p class="text-gray-500 text-xs mb-5 leading-relaxed">
+      Accounts inactive for <strong class="text-red-400">37 days</strong> are automatically
+      flagged for deletion. Log in regularly to keep your account and credits safe.
+    </p>
+    <div id="inactiveCountdown"
+         class="text-xs text-orange-300 bg-orange-500/10 border border-orange-500/20
+                rounded-xl px-4 py-2 mb-5 font-mono font-bold">
+      Checking deletion timeline…
+    </div>
+    <button id="inactiveDismissBtn"
+            class="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500
+                   text-white font-bold text-sm transition-colors active:scale-95">
+      I'm Back! 🎮 Dismiss
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
      FOOTER
 ════════════════════════════════════════════════════════ -->
 <footer class="site-footer">
@@ -566,6 +624,12 @@
     </p>
   </div>
 
+  <!-- Iframe error (shown when site blocks embedding) -->
+  <div id="iframeError"
+       class="hidden absolute inset-0 top-[52px] flex items-center justify-center
+              bg-gray-950 z-10 p-6">
+  </div>
+
   <!-- The iframe itself -->
   <iframe id="iframeFrame"
           class="flex-1 w-full border-0 opacity-0 transition-opacity duration-300"
@@ -582,10 +646,10 @@
      class="hidden fixed inset-0 z-[300] flex items-center justify-center
             bg-gray-950/90 backdrop-blur-sm p-4">
   <div class="relative bg-gray-900 border border-gray-700 rounded-3xl
-              p-7 w-full max-w-sm shadow-2xl">
+              p-6 w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
     <button onclick="closeProfileModal()"
             class="absolute top-4 right-4 text-gray-500 hover:text-white
-                   transition-colors p-1 rounded-lg hover:bg-white/5 text-lg leading-none">
+                   transition-colors p-1 rounded-lg hover:bg-white/5 text-lg leading-none z-10">
       ✕
     </button>
     <div id="profileModalContent"></div>
