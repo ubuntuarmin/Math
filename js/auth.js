@@ -114,8 +114,9 @@ async function handleDailyData(uid, userData) {
         if (updates.streak && typeof updates.streak === "object") {
             merged.streak = (userData.streak || 0) + 1;
         }
-        // lastVisitTimestamp uses serverTimestamp() — approximate with local time
-        merged.lastVisitTimestamp = { toMillis: () => Date.now() };
+        // lastVisitTimestamp uses serverTimestamp() — approximate with a local-time
+        // compatible shim. Only toMillis() is used downstream (streak/leaderboard checks).
+        merged.lastVisitTimestamp = { toMillis: () => Date.now(), toDate: () => new Date() };
         return merged;
     }
     return userData;

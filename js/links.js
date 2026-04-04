@@ -1913,7 +1913,7 @@ async function handleProfileUpvote(targetUid, btn) {
 
   // Rate limit: max 20 profile upvotes per hour
   if (!checkRateLimit("profileUpvoteHistory", 20, 3600000)) {
-    alert("⏳ You've reached the profile upvote limit (20/hour). Please try again later.");
+    showToast("⏳ You've reached the profile upvote limit (20/hour). Please try again later.");
     return;
   }
 
