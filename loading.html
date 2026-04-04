@@ -86,15 +86,6 @@
 
     const createScene = async function () {
       engine.hideLoadingUI();
-      var _checkSupport = function() {
-        if (engine.getCaps().texelFetch && engine.getCaps().colorBufferFloat && engine.getCaps().blendFloat) { return true; }
-        const panel = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-        const info = new BABYLON.GUI.TextBlock();
-        info.text = engine.isWebGPU ? "** This device does not meet requirements. **" : " ** WebGL on this device doesn't meet requirements. Try with WebGPU instead. **";
-        info.color = "red"; info.fontSize = "24px"; info.fontStyle = "bold";
-        panel.addControl(info);
-        return false;
-      };
 
       var scene = new BABYLON.Scene(engine);
       scene.clearColor.set(0,0,0,1.);
@@ -104,8 +95,6 @@
       camera.upperBetaLimit = 1.5;
       camera.lowerRadiusLimit = 6;
       camera.upperRadiusLimit = 70;
-
-      if (!_checkSupport()) { return scene; }
 
       // Try to create the navmesh/crowd navigation plugin; fall back to simple
       // random-walk movement if WASM is unavailable in this browser context.
@@ -175,7 +164,11 @@
 
       fixMaterials(scene, []);
       const agentParams = { radius: 0.5, height: 0.5, maxAcceleration: 4.0, maxSpeed: 2.0, separationWeight: 1.0 };
-      const clustered = new BABYLON.ClusteredLightContainer("clustered", [], scene);
+      // Use ClusteredLightContainer only when the engine supports it (WebGPU needs texelFetch;
+      // WebGL 2 additionally needs colorBufferFloat and blendFloat).
+      const _caps = engine.getCaps();
+      const _clusteredSupported = _caps.texelFetch && (engine.isWebGPU || (_caps.colorBufferFloat && _caps.blendFloat));
+      const clustered = _clusteredSupported ? new BABYLON.ClusteredLightContainer("clustered", [], scene) : null;
       var agentDatas = [];
       // Simple-movement fireflies used when navmesh is unavailable
       var simpleFireflies = [];
@@ -209,7 +202,7 @@
           if (i < MAX_LIGHTS) {
             pointLight = new BABYLON.PointLight("point" + i, new BABYLON.Vector3(0,0.1,0), scene);
             pointLight.diffuse = new BABYLON.Color3(1,0.5,0.1); pointLight.range = 2; pointLight.intensity = 8;
-            clustered.addLight(pointLight); pointLight.parent = firefly;
+            if (clustered) { clustered.addLight(pointLight); } pointLight.parent = firefly;
           }
 
           const agentTransform = new BABYLON.TransformNode("agentTransform", scene);
