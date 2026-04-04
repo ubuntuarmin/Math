@@ -229,6 +229,8 @@ async function sendNotification(toUid, title, text, type = "system") {
 // Load all active links
 async function loadLinks() {
   if (!linksGrid) return;
+  // Do nothing if the user is not yet authenticated (avoids permission-denied errors)
+  if (!auth.currentUser) return;
   // Guard against concurrent loads (e.g. rapid refresh clicks or profile-update triggers)
   if (isLoadingLinks) return;
   isLoadingLinks = true;
@@ -238,9 +240,10 @@ async function loadLinks() {
   linksGrid.innerHTML = "";
 
   try {
+    // Query the most recent 100 links without a composite index requirement.
+    // Active-status filtering is applied client-side so a single-field index suffices.
     const q    = query(
       collection(db, "sharedLinks"),
-      where("status", "==", "active"),
       orderBy("createdAt", "desc"),
       limit(100)
     );
@@ -249,7 +252,10 @@ async function loadLinks() {
     if (linksLoading) linksLoading.classList.add("hidden");
 
     allDocs = [];
-    snap.forEach(s => allDocs.push({ id: s.id, data: s.data() }));
+    snap.forEach(s => {
+      const data = s.data();
+      if (data.status === "active") allDocs.push({ id: s.id, data });
+    });
 
     filterAndRenderLinks();
   } catch (err) {
@@ -258,7 +264,11 @@ async function loadLinks() {
     if (linksGrid) {
       linksGrid.innerHTML =
         '<div class="col-span-full text-center text-red-400 py-10 text-sm">' +
-        'Failed to load links. Please check your connection and refresh.</div>';
+        'Failed to load links. Please check your connection and ' +
+        '<button class="retry-load-links underline hover:text-red-300 transition-colors">try again</button>.' +
+        '</div>';
+      // innerHTML replaces the old node each time, so there is exactly one listener per failure.
+      linksGrid.querySelector(".retry-load-links")?.addEventListener("click", () => loadLinks());
     }
   } finally {
     isLoadingLinks = false;
