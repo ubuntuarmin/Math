@@ -75,6 +75,8 @@ function revealIframe() {
 
 // Listen for the end-of-animation signal from loading.html
 window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin) return;
+  if (!loadingFrame || event.source !== loadingFrame.contentWindow) return;
   if (event.data === "animationComplete") {
     animationDone = true;
     if (iframeFrameLoaded) revealIframe();
