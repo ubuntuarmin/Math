@@ -195,21 +195,24 @@ function renderReferralUI(code) {
         </div>
     `;
 
-    document.getElementById("copyRefBtn").onclick = async function() {
-        try {
-            await navigator.clipboard.writeText(fullLink);
-            this.textContent = "COPIED!";
-            this.classList.replace("bg-blue-600", "bg-green-600");
-            setTimeout(() => {
-                this.textContent = "COPY";
-                this.classList.replace("bg-green-600", "bg-blue-600");
-            }, 2000);
-        } catch (e) {
-            const input = document.getElementById("refInput");
-            input.select();
-            alert("Press Ctrl+C to copy your link!");
-        }
-    };
+    const copyRefBtn = document.getElementById("copyRefBtn");
+    if (copyRefBtn) {
+        copyRefBtn.onclick = async function() {
+            try {
+                await navigator.clipboard.writeText(fullLink);
+                this.textContent = "COPIED!";
+                this.classList.replace("bg-blue-600", "bg-green-600");
+                setTimeout(() => {
+                    this.textContent = "COPY";
+                    this.classList.replace("bg-green-600", "bg-blue-600");
+                }, 2000);
+            } catch (e) {
+                const input = document.getElementById("refInput");
+                if (input) input.select();
+                alert("Press Ctrl+C to copy your link!");
+            }
+        };
+    }
 }
 
 // --- Interaction Logic ---
