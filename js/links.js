@@ -50,10 +50,38 @@ let selectedStars     = 0;
 let ratingTimerOut    = null;
 let iframeLoadTimeout = null; // 15-second embed-detection timeout
 let currentBlobUrl    = null; // active Blob URL for HTML submissions
-let loadingFrame      = null; // cached reference to Babylon.js loading iframe
+let loadingFrame      = null; // cached reference to loading animation iframe
 let setupDone         = false;
 let pendingDelete     = null; // { linkId, data, cardEl }
 let appealsLoaded     = false;
+// Loading-animation state — iframe is revealed only once BOTH flags are true
+let animationDone     = false; // set when loading.html sends 'animationComplete'
+let iframeFrameLoaded = false; // set when the content iframe fires onload
+
+/** Reveal the content iframe and hide the loading overlay */
+function revealIframe() {
+  const loader  = document.getElementById("iframeLoader");
+  const frame   = document.getElementById("iframeFrame");
+  const rateBtn = document.getElementById("iframeRateBtn");
+  if (loader) loader.classList.add("hidden");
+  if (frame)  frame.classList.remove("opacity-0");
+  iframeLoaded = true;
+  if (pendingRating?.linkId && auth.currentUser) {
+    ratingTimerOut = setTimeout(() => {
+      if (rateBtn) rateBtn.classList.remove("hidden");
+    }, RATING_REQUIRED_MS);
+  }
+}
+
+// Listen for the end-of-animation signal from loading.html
+window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin) return;
+  if (!loadingFrame || event.source !== loadingFrame.contentWindow) return;
+  if (event.data === "animationComplete") {
+    animationDone = true;
+    if (iframeFrameLoaded) revealIframe();
+  }
+});
 
 // Exported: called by auth.js after sign-in
 export function updateUI(userData) {
@@ -420,7 +448,7 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   if (titleEl) titleEl.textContent = title || "Loading\u2026";
   frame.src = "";
   loader.classList.remove("hidden");
-  // Restart the Babylon.js loading animation from the beginning on each open
+  // Restart the loading animation from the beginning on each open
   if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
   if (loadingFrame) { loadingFrame.src = "loading.html"; }
   frame.classList.add("opacity-0");
@@ -430,8 +458,10 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
 
-  iframeOpenTime = Date.now();
-  iframeLoaded   = false;
+  iframeOpenTime    = Date.now();
+  iframeLoaded      = false;
+  animationDone     = false;
+  iframeFrameLoaded = false;
   pendingRating  = { linkId: linkId || null, title, submittedBy: submittedBy || null };
 
   if (ratingTimerOut) { clearTimeout(ratingTimerOut); ratingTimerOut = null; }
@@ -441,7 +471,7 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   // (only for URL submissions; HTML blobs always load)
   if (!htmlContent) {
     iframeLoadTimeout = setTimeout(() => {
-      if (!iframeLoaded) {
+      if (!iframeFrameLoaded) {
         loader.classList.add("hidden");
         showIframeError(url, title);
       }
@@ -473,15 +503,9 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       }
     }
 
-    loader.classList.add("hidden");
-    frame.classList.remove("opacity-0");
-    iframeLoaded = true;
-
-    if (pendingRating?.linkId && auth.currentUser) {
-      ratingTimerOut = setTimeout(() => {
-        if (rateBtn) rateBtn.classList.remove("hidden");
-      }, RATING_REQUIRED_MS);
-    }
+    iframeFrameLoaded = true;
+    // Only reveal once the loading animation has also finished
+    if (animationDone) revealIframe();
   };
 
   if (htmlContent) {
@@ -512,6 +536,10 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
 function showIframeError(url, title) {
   const errEl = document.getElementById("iframeError");
   const frame = document.getElementById("iframeFrame");
+  // Reset animation state so a late 'animationComplete' message does not
+  // accidentally reveal a frame that failed to load
+  animationDone     = false;
+  iframeFrameLoaded = false;
   if (frame) frame.classList.add("opacity-0");
   if (!errEl) return;
   errEl.innerHTML =
@@ -545,9 +573,11 @@ function closeIframeModal() {
   if (rateBtn) rateBtn.classList.add("hidden");
   if (errEl)   errEl.classList.add("hidden");
   if (frame) frame.src = "";
-  // Stop the Babylon.js animation to free GPU resources
+  // Stop the loading animation to free resources
   if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
   if (loadingFrame) { loadingFrame.src = "about:blank"; }
+  animationDone     = false;
+  iframeFrameLoaded = false;
   modal.classList.add("hidden");
   document.body.style.overflow = "";
 

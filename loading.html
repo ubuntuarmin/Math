@@ -107,7 +107,15 @@
 
       if (!_checkSupport()) { return scene; }
 
-      const navigationPlugin = await createNavigationPluginAsync();
+      // Try to create the navmesh/crowd navigation plugin; fall back to simple
+      // random-walk movement if WASM is unavailable in this browser context.
+      let navigationPlugin = null;
+      let hasNavMesh = false;
+      try {
+        navigationPlugin = await createNavigationPluginAsync();
+      } catch (navErr) {
+        console.warn("[loading.html] Navigation plugin unavailable, using simple movement:", navErr);
+      }
 
       var plane = BABYLON.MeshBuilder.CreateGround("defground", {width: 25, height: 25}, scene);
       plane.position.z = -5; plane.visibility = 0;
@@ -149,18 +157,35 @@
       }
 
       const maxAgentRadius = 0.15; const AGENT_COUNT = 30; const cellSize = 0.5;
-      const navmeshParameters = {cs: cellSize, ch: 0.5, walkableRadius: Math.ceil(maxAgentRadius / cellSize), maxObstacles: 0 };
-      await navigationPlugin.createNavMeshAsync(staticMeshesNav, navmeshParameters);
+      const SIMPLE_MOVE_ARRIVE_THRESHOLD = 0.1;
+      const MIN_TARGET_CHANGE_TIME_MS = 10000;
+      const RANDOM_TARGET_CHANGE_RANGE_MS = 2000;
+
+      let crowd = null;
+      if (navigationPlugin) {
+        try {
+          const navmeshParameters = {cs: cellSize, ch: 0.5, walkableRadius: Math.ceil(maxAgentRadius / cellSize), maxObstacles: 0 };
+          await navigationPlugin.createNavMeshAsync(staticMeshesNav, navmeshParameters);
+          hasNavMesh = true;
+          crowd = navigationPlugin.createCrowd(AGENT_COUNT, maxAgentRadius, scene);
+        } catch (meshErr) {
+          console.warn("[loading.html] NavMesh creation failed, using simple movement:", meshErr);
+        }
+      }
 
       fixMaterials(scene, []);
-      const crowd = navigationPlugin.createCrowd(AGENT_COUNT, maxAgentRadius, scene);
       const agentParams = { radius: 0.5, height: 0.5, maxAcceleration: 4.0, maxSpeed: 2.0, separationWeight: 1.0 };
       const clustered = new BABYLON.ClusteredLightContainer("clustered", [], scene);
       var agentDatas = [];
+      // Simple-movement fireflies used when navmesh is unavailable
+      var simpleFireflies = [];
 
       var getRandomPos = function() {
         var pickedPoint = new BABYLON.Vector3(Math.random() * 20 - 10, 1, Math.random() * 20 - 10);
-        return navigationPlugin.getClosestPoint(pickedPoint);
+        if (hasNavMesh) {
+          return navigationPlugin.getClosestPoint(pickedPoint);
+        }
+        return pickedPoint;
       };
 
       var randomGoto = function(index) {
@@ -188,10 +213,23 @@
           }
 
           const agentTransform = new BABYLON.TransformNode("agentTransform", scene);
-          const agentIndex = crowd.addAgent(getRandomPos(), agentParams, agentTransform);
-          firefly.parent = agentTransform;
 
-          agentDatas[i] = {mesh: agentTransform, idx: agentIndex, target: randomGoto(i), light: pointLight, ttc: 0};
+          if (hasNavMesh) {
+            const agentIndex = crowd.addAgent(getRandomPos(), agentParams, agentTransform);
+            firefly.parent = agentTransform;
+            agentDatas[i] = {mesh: agentTransform, idx: agentIndex, target: randomGoto(i), light: pointLight, ttc: 0};
+          } else {
+            // Simple movement fallback: place at random position and drift slowly
+            const startPos = getRandomPos();
+            agentTransform.position.copyFrom(startPos);
+            firefly.parent = agentTransform;
+            simpleFireflies.push({
+              mesh: agentTransform,
+              light: pointLight,
+              target: getRandomPos(),
+              ttc: Math.random() * RANDOM_TARGET_CHANGE_RANGE_MS + MIN_TARGET_CHANGE_TIME_MS
+            });
+          }
         }
         container.meshes[0].setEnabled(false);
       });
@@ -251,19 +289,41 @@
         elapsedTime += dt;
 
         // --- 1. FIREFLY AGENT UPDATES ---
-        for(let i = 0; i < agentDatas.length; i++) {
-          var ag = agentDatas[i];
-          if (!ag || !ag.mesh) continue;
-          ag.ttc -= dt;
-          ag.mesh.position = crowd.getAgentPosition(ag.idx);
-          let vel = crowd.getAgentVelocity(ag.idx);
-          crowd.getAgentNextTargetPathToRef(ag.idx, ag.target);
-          if (vel.length() > 0.01) {
-            vel.normalize();
-            ag.mesh.rotation.y += (Math.atan2(vel.x, vel.z) - ag.mesh.rotation.y) * 0.05;
+        if (hasNavMesh) {
+          for(let i = 0; i < agentDatas.length; i++) {
+            var ag = agentDatas[i];
+            if (!ag || !ag.mesh) continue;
+            ag.ttc -= dt;
+            ag.mesh.position = crowd.getAgentPosition(ag.idx);
+            let vel = crowd.getAgentVelocity(ag.idx);
+            crowd.getAgentNextTargetPathToRef(ag.idx, ag.target);
+            if (vel.length() > 0.01) {
+              vel.normalize();
+              ag.mesh.rotation.y += (Math.atan2(vel.x, vel.z) - ag.mesh.rotation.y) * 0.05;
+            }
+            if (BABYLON.Vector3.Distance(ag.mesh.position, ag.target) < 0.1 || ag.ttc < 0) {
+              ag.target = randomGoto(i); ag.ttc = Math.random() * RANDOM_TARGET_CHANGE_RANGE_MS + MIN_TARGET_CHANGE_TIME_MS;
+            }
           }
-          if (BABYLON.Vector3.Distance(ag.mesh.position, ag.target) < 0.1 || ag.ttc < 0) {
-            ag.target = randomGoto(i); ag.ttc = Math.random() * 2000 + 10000;
+        } else {
+          // Simple random-walk fallback (used when navmesh/WASM is unavailable)
+          for (let i = 0; i < simpleFireflies.length; i++) {
+            const ff = simpleFireflies[i];
+            if (!ff || !ff.mesh) continue;
+            ff.ttc -= dt;
+            const dx = ff.target.x - ff.mesh.position.x;
+            const dz = ff.target.z - ff.mesh.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist > SIMPLE_MOVE_ARRIVE_THRESHOLD) {
+              const speed = 1.5 * dtSec;
+              ff.mesh.position.x += (dx / dist) * speed;
+              ff.mesh.position.z += (dz / dist) * speed;
+              ff.mesh.rotation.y += (Math.atan2(dx, dz) - ff.mesh.rotation.y) * 0.05;
+            }
+            if (dist < SIMPLE_MOVE_ARRIVE_THRESHOLD || ff.ttc < 0) {
+              ff.target = getRandomPos();
+              ff.ttc = Math.random() * RANDOM_TARGET_CHANGE_RANGE_MS + MIN_TARGET_CHANGE_TIME_MS;
+            }
           }
         }
 
@@ -303,7 +363,8 @@
 
           if (elapsedTime >= endSequenceTime) {
             sequenceFinished = true;
-            // At this point, the screen is completely black.
+            // Signal the parent frame that the animation is complete
+            try { window.parent.postMessage("animationComplete", window.location.origin); } catch (e) { console.warn("[loading.html] Failed to signal animation complete:", e); }
           }
         }
       });
