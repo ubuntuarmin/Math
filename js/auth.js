@@ -105,8 +105,19 @@ async function handleDailyData(uid, userData) {
 
     if (Object.keys(updates).length > 0) {
         await updateDoc(userRef, updates);
-        const snap = await getDoc(userRef);
-        return snap.data();
+        // Build the post-update state locally to avoid an extra Firestore read.
+        const merged = { ...userData };
+        for (const [key, val] of Object.entries(updates)) {
+            merged[key] = val;
+        }
+        // streak may use increment(1) — compute the actual value locally
+        if (updates.streak && typeof updates.streak === "object") {
+            merged.streak = (userData.streak || 0) + 1;
+        }
+        // lastVisitTimestamp uses serverTimestamp() — approximate with a local-time
+        // compatible shim. Only toMillis() is used downstream (streak/leaderboard checks).
+        merged.lastVisitTimestamp = { toMillis: () => Date.now(), toDate: () => new Date() };
+        return merged;
     }
     return userData;
 }
