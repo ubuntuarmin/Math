@@ -1,6 +1,37 @@
 import { auth, db } from "./firebase.js";
-import { doc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, deleteDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { deleteUser } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+/**
+ * Deletes all Firestore data associated with a given uid:
+ * - user profile document
+ * - shared links submitted by the user
+ * - inbox messages addressed to the user
+ *
+ * Uses Promise.allSettled so all cleanup operations are attempted
+ * even if one fails.
+ */
+async function deleteAllUserData(uid) {
+    const results = await Promise.allSettled([
+        // Delete user profile document
+        deleteDoc(doc(db, "users", uid)),
+
+        // Delete shared links submitted by this user
+        getDocs(query(collection(db, "sharedLinks"), where("submittedBy", "==", uid)))
+            .then(snap => Promise.all(snap.docs.map(d => deleteDoc(d.ref)))),
+
+        // Delete inbox messages addressed to this user
+        getDocs(query(collection(db, "messages"), where("to", "==", uid)))
+            .then(snap => Promise.all(snap.docs.map(d => deleteDoc(d.ref)))),
+    ]);
+
+    results.forEach((result, i) => {
+        const labels = ["users doc", "sharedLinks", "messages"];
+        if (result.status === "rejected") {
+            console.error(`Cleanup error (${labels[i]}):`, result.reason);
+        }
+    });
+}
 
 /**
  * Completely removes user data from Firebase Auth and Firestore.
@@ -26,15 +57,8 @@ export async function handleDeleteAccount() {
         await deleteUser(user);
         console.log("Auth account deleted.");
 
-        // 3. Delete Firestore Data
-        // Now that they can't log back in, we clean up the database.
-        try {
-            await deleteDoc(doc(db, "users", uid));
-            console.log("Firestore document wiped.");
-        } catch (dbErr) {
-            // If DB delete fails, we log it, but the user is already gone from Auth.
-            console.error("Cleanup error (Firestore):", dbErr);
-        }
+        // 3. Delete all Firestore data (profile, shared links, messages)
+        await deleteAllUserData(uid);
 
         alert("Account deleted successfully.");
         
@@ -50,5 +74,22 @@ export async function handleDeleteAccount() {
         } else {
             alert("An error occurred while deleting your account. Please try again later.");
         }
+    }
+}
+
+/**
+ * Deletes an account due to inactivity (no user confirmation required).
+ * Called by auth.js when a user has been inactive past the deletion threshold.
+ */
+export async function deleteInactiveAccount(user) {
+    if (!user) return;
+    const uid = user.uid;
+    try {
+        await deleteUser(user);
+        await deleteAllUserData(uid);
+        console.log("Inactive account deleted:", uid);
+    } catch (err) {
+        console.error("Inactive account deletion error:", err);
+        throw err;
     }
 }
