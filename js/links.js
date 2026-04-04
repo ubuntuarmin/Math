@@ -55,6 +55,7 @@ let currentUserData = null;
 let activeSessionLinkId   = null; // linkId of the currently open paid session
 let activeSessionExpiry   = 0;    // ms since epoch when session expires
 let sessionTimerInterval  = null; // setInterval id for countdown
+let sessionPausedAt       = 0;    // Date.now() when tab was hidden mid-session, 0 = not paused
 
 // Iframe / rating state
 let iframeOpenTime    = 0;
@@ -158,6 +159,34 @@ window.addEventListener("message", (event) => {
   if (event.data === "animationComplete") {
     animationDone = true;
     if (iframeFrameLoaded) revealIframe();
+  }
+});
+
+// Pause session timer when user switches away from this tab; resume when they return
+// so purchased session time only counts down while the user is actually viewing the link
+document.addEventListener("visibilitychange", () => {
+  if (!activeSessionLinkId) {
+    sessionPausedAt = 0;
+    return;
+  }
+  if (document.hidden) {
+    // Tab hidden: clear the interval but keep the timer UI visible with the last value
+    if (sessionTimerInterval) {
+      clearInterval(sessionTimerInterval);
+      sessionTimerInterval = null;
+      sessionPausedAt = Date.now();
+    }
+  } else if (sessionPausedAt > 0) {
+    // Tab visible again: extend the expiry by the time we were away, then restart
+    const adjustedExpiry = activeSessionExpiry + (Date.now() - sessionPausedAt);
+    sessionPausedAt = 0;
+    if (adjustedExpiry > Date.now()) {
+      startSessionTimer(adjustedExpiry);
+    } else {
+      clearSessionTimer();
+      showToast("⏰ Session time expired — you have been removed.");
+      closeIframeModal();
+    }
   }
 });
 
@@ -574,22 +603,22 @@ function getActiveSessionCount(sessions) {
 /** Session storage key for a link */
 function sessionKey(linkId) { return `session_${linkId}`; }
 
-/** Retrieve a live session from sessionStorage, or null if expired/missing */
+/** Retrieve a live session from sessionStorage, or null if no time remains */
 function getStoredSession(linkId) {
   try {
     const raw = sessionStorage.getItem(sessionKey(linkId));
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (s.expiresAt > Date.now()) return s;
+    if (s.remainingMs > 0) return s;
     sessionStorage.removeItem(sessionKey(linkId));
     return null;
   } catch (_) { return null; }
 }
 
-/** Store session info in sessionStorage */
-function storeSession(linkId, expiresAt) {
+/** Store remaining session time (ms) in sessionStorage so the clock only ticks while the modal is open */
+function storeSession(linkId, remainingMs) {
   try {
-    sessionStorage.setItem(sessionKey(linkId), JSON.stringify({ expiresAt }));
+    sessionStorage.setItem(sessionKey(linkId), JSON.stringify({ remainingMs }));
   } catch (_) {}
 }
 
@@ -701,9 +730,9 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
     // Check if there's already a live session in this browser tab
     const stored = getStoredSession(linkId);
     if (stored) {
-      // Resume with remaining time
+      // Resume with remaining time (only counts down while modal is open)
       activeSessionLinkId = linkId;
-      _doOpenIframe(url, title, linkId, submittedBy, htmlContent, stored.expiresAt);
+      _doOpenIframe(url, title, linkId, submittedBy, htmlContent, Date.now() + stored.remainingMs);
       return;
     }
 
@@ -768,8 +797,8 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       // Record purchase locally so rate limit counter is immediately accurate
       rateLimitRecord("sessionBuyHistory", 3600000);
 
-      // Persist session in sessionStorage
-      storeSession(linkId, expiresAt);
+      // Persist remaining session time (not absolute expiry) so the clock only ticks while the modal is open
+      storeSession(linkId, tier.limitMinutes * 60 * 1000);
       activeSessionLinkId = linkId;
 
       _doOpenIframe(url, title, linkId, submittedBy, htmlContent, expiresAt);
@@ -942,6 +971,17 @@ function closeIframeModal() {
   iframeFrameLoaded = false;
   modal.classList.add("hidden");
   document.body.style.overflow = "";
+
+  // Save remaining session time before clearing — re-opening the modal resumes from where we left off
+  if (activeSessionLinkId && activeSessionExpiry > 0) {
+    const remainingMs = Math.max(0, activeSessionExpiry - Date.now());
+    if (remainingMs > 0) {
+      storeSession(activeSessionLinkId, remainingMs);
+    } else {
+      clearStoredSession(activeSessionLinkId);
+    }
+  }
+  sessionPausedAt = 0;
 
   // Clean up session timer and Firestore session entry
   clearSessionTimer();
