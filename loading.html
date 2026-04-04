@@ -21,317 +21,264 @@
 <body>
   <canvas id="renderCanvas"></canvas>
 
-  <!-- Babylon.js core + plugins (latest stable from official CDN) -->
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
-  <script src="https://cdn.babylonjs.com/addons/babylonjs.addons.min.js"></script>
-  <!-- ES-module shims – required for Recast/WASM navigation on Firefox -->
-  <script src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
-
   <script>
-    // Ancient ruins asset : https://sketchfab.com/3d-models/ancient-ruins-5da77fdce0cd46b395cbbdcce7eb17a7
-    // by https://sketchfab.com/fedorzabelin
-    // Firefly asset : https://sketchfab.com/3d-models/lowpoly-firefly-5effa6605b5545f2915da8b8fff8fa48
-    // by https://sketchfab.com/caledhril_01
+    // Pure Canvas 2D loading animation — no external dependencies.
+    // Timing mirrors the original Babylon.js scene exactly:
+    //   0 – 12 s  cinematic camera zoom-in (simulated with a perspective zoom)
+    //   9 – 16 s  title overlay fades in
+    //  12 – 16 s  title gently pulses
+    //  16 – 18 s  fade to solid black, text fades out
+    //      18 s   postMessage('animationComplete') → parent hides this loader
 
-    function fixMaterials(scene, exclude) {
-      scene.materials.forEach(material => {
-        material.backFaceCulling = false;
-        material.alphaMode = BABYLON.Constants.ALPHA_DISABLE;
-        material.transparencyMode = null;
-        material.needAlphaBlending = () => false;
-        material.needAlphaTesting = () => true;
-        material.usePhysicalLightFalloff = false;
+    const canvas = document.getElementById("renderCanvas");
+    const ctx    = canvas.getContext("2d");
 
-        const textures = [
-          material.diffuseTexture, material.albedoTexture, material.opacityTexture,
-          material.emissiveTexture, material.bumpTexture, material.normalTexture,
-          material.metallicTexture, material.roughnessTexture, material.reflectionTexture
-        ].filter(Boolean);
+    const cameraAnimDuration = 12000;
+    const titleFadeInStart   = 9000;
+    const holdTitleDuration  = 16000;
+    const endSequenceTime    = 18000;
 
-        textures.forEach(tex => {
-          if (!tex.name.includes("Ground")) {
-            tex.updateSamplingMode(BABYLON.Texture.NEAREST_NEAREST);
-          }
-        });
-        // PERFORMANCE OPTIMIZATION: Freeze materials once loaded
-        material.freeze();
+    function resize() {
+      canvas.width  = canvas.clientWidth  || window.innerWidth;
+      canvas.height = canvas.clientHeight || window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // ── Stars ────────────────────────────────────────────────────────────────
+    const STAR_COUNT = 220;
+    const stars = Array.from({ length: STAR_COUNT }, () => ({
+      x:       Math.random(),
+      y:       Math.random() * 0.65,
+      r:       Math.random() * 1.4 + 0.3,
+      twinkle: Math.random() * Math.PI * 2,
+    }));
+
+    // ── Fireflies (30 agents, matching original AGENT_COUNT) ─────────────────
+    const FIREFLY_COUNT = 30;
+    const fireflies = Array.from({ length: FIREFLY_COUNT }, () => ({
+      x:          Math.random(),   // normalised [0,1]
+      y:          0.35 + Math.random() * 0.45,
+      tx:         Math.random(),
+      ty:         0.35 + Math.random() * 0.45,
+      speed:      0.00015 + Math.random() * 0.0002,
+      glowR:      5 + Math.random() * 8,
+      pulse:      Math.random() * Math.PI * 2,
+      pulseSpeed: 0.025 + Math.random() * 0.04,
+      ttc:        Math.random() * 8000,
+    }));
+
+    // ── Ruins geometry (drawn once per frame in world-space) ─────────────────
+    function drawRuins(w, h, zoom) {
+      // zoom goes 0 → 1 over cameraAnimDuration; we scale the scene slightly
+      const s  = 1 + zoom * 0.35;
+      const cx = w * 0.5, cy = h;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(s, s);
+      ctx.translate(-cx, -cy);
+
+      const stone = "rgba(18,14,10,0.97)";
+
+      // Ground plane
+      ctx.fillStyle = stone;
+      ctx.fillRect(0, h * 0.76, w, h * 0.24);
+
+      // Far ruins on horizon (drawn first so they sit behind)
+      ctx.fillStyle = "rgba(14,11,8,0.82)";
+      [[0.18,0.64,0.022,0.12],[0.74,0.62,0.025,0.14],[0.58,0.66,0.018,0.10],[0.38,0.68,0.015,0.08]].forEach(([rx,ry,rw,rh]) => {
+        ctx.fillRect(w*rx, h*ry, w*rw, h*rh);
       });
+
+      ctx.fillStyle = stone;
+
+      // Left column + capital
+      ctx.fillRect(w*0.10, h*0.44, w*0.055, h*0.32);
+      ctx.fillRect(w*0.09, h*0.42, w*0.075, h*0.035);
+
+      // Right column + capital
+      ctx.fillRect(w*0.845, h*0.44, w*0.055, h*0.32);
+      ctx.fillRect(w*0.835, h*0.42, w*0.075, h*0.035);
+
+      // Centre archway
+      ctx.beginPath();
+      ctx.moveTo(w*0.285, h*0.76);
+      ctx.lineTo(w*0.285, h*0.54);
+      ctx.arc(w*0.5, h*0.54, w*0.215, Math.PI, 0, false);
+      ctx.lineTo(w*0.715, h*0.76);
+      ctx.closePath();
+      ctx.fill();
+
+      // Rubble blocks in foreground
+      [[0.04,0.73,0.11,0.055],[0.87,0.71,0.09,0.07],[0.23,0.745,0.07,0.038],[0.61,0.72,0.09,0.055],[0.50,0.755,0.055,0.028]].forEach(([rx,ry,rw,rh]) => {
+        ctx.fillRect(w*rx, h*ry, w*rw, h*rh);
+      });
+
+      ctx.restore();
     }
 
-    async function createNavigationPluginAsync() {
-      const isFirefox = navigator.userAgent.includes("Firefox");
-      if (!isFirefox) {
-        return await ADDONS.CreateNavigationPluginAsync();
-      } else {
-        const recastVersion = "0.43.0";
-        const recastBase = "https://unpkg.com/@recast-navigation";
-        importShim.addImportMap({
-          imports: {
-            "@recast-navigation/core": `${recastBase}/core@${recastVersion}/dist/index.mjs`,
-            "@recast-navigation/wasm": `${recastBase}/wasm@${recastVersion}/dist/recast-navigation.wasm-compat.js`,
-            "@recast-navigation/generators": `${recastBase}/generators@${recastVersion}/dist/index.mjs`,
-          },
-        });
-        const [core, generators] = await Promise.all([
-          importShim(`${recastBase}/core@${recastVersion}/dist/index.mjs`),
-          importShim(`${recastBase}/generators@${recastVersion}/dist/index.mjs`),
-        ]);
-        const recast = { ...core, ...generators };
-        await recast.init();
-        return await ADDONS.CreateNavigationPluginAsync({ instance: recast });
-      }
-    }
+    // ── Ease function (quartic out) ───────────────────────────────────────────
+    function easeOut4(t) { return 1 - Math.pow(1 - t, 4); }
 
-    const createScene = async function () {
-      engine.hideLoadingUI();
-      var _checkSupport = function() {
-        if (engine.getCaps().texelFetch && engine.getCaps().colorBufferFloat && engine.getCaps().blendFloat) { return true; }
-        const panel = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-        const info = new BABYLON.GUI.TextBlock();
-        info.text = engine.isWebGPU ? "** This device does not meet requirements. **" : " ** WebGL on this device doesn't meet requirements. Try with WebGPU instead. **";
-        info.color = "red"; info.fontSize = "24px"; info.fontStyle = "bold";
-        panel.addControl(info);
-        return false;
-      };
+    // ── Main render loop ──────────────────────────────────────────────────────
+    let startTime        = null;
+    let sequenceFinished = false;
+    let rafId            = null;
 
-      var scene = new BABYLON.Scene(engine);
-      scene.clearColor.set(0,0,0,1.);
+    function frame(ts) {
+      if (!startTime) startTime = ts;
+      const elapsed = ts - startTime;
+      const w = canvas.width, h = canvas.height;
 
-      var camera = new BABYLON.ArcRotateCamera("camera1", 0, 0.2, 70, new BABYLON.Vector3(0, 1.5, 0), scene);
-      camera.lowerBetaLimit = 0.1;
-      camera.upperBetaLimit = 1.5;
-      camera.lowerRadiusLimit = 6;
-      camera.upperRadiusLimit = 70;
+      const camProg  = Math.min(1, elapsed / cameraAnimDuration);
+      const camEased = easeOut4(camProg);
 
-      if (!_checkSupport()) { return scene; }
+      // Subtle pan offset to simulate camera alpha rotation (horizontal drift)
+      const panX = Math.sin(camEased * Math.PI * 2.5) * w * 0.04;
 
-      const navigationPlugin = await createNavigationPluginAsync();
+      // ── Sky gradient ──────────────────────────────────────────────────────
+      const sky = ctx.createLinearGradient(0, 0, 0, h * 0.76);
+      sky.addColorStop(0,   "#01030a");
+      sky.addColorStop(0.45,"#04080f");
+      sky.addColorStop(0.75,"#080b14");
+      sky.addColorStop(1,   "#110e06");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
 
-      var plane = BABYLON.MeshBuilder.CreateGround("defground", {width: 25, height: 25}, scene);
-      plane.position.z = -5; plane.visibility = 0;
-      await BABYLON.ImportMeshAsync("assets/ancient_ruins.glb", scene);
-
-      var staticMeshes = [];
-      var staticMeshesNav = [];
-      scene.meshes.forEach((mesh) => {
-        mesh.receiveShadows = true;
-        staticMeshes.push(mesh);
-        if (mesh.name.includes("defground") ||mesh.name.includes("Ground") || mesh.name.includes("Stones") || mesh.name.includes("Stone_Sculpture_Sculpture_0")) {
-          staticMeshesNav.push(mesh);
-        }
-        // PERFORMANCE OPTIMIZATION: Freeze static environment meshes
-        mesh.freezeWorldMatrix();
-        mesh.doNotSyncBoundingInfo = true;
-      });
-      scene.getMeshByName("Ground_Ground_0").scaling.set(2,1,2);
-
-      const source = "assets/env/";
-      const files = [`${source}px.png`, `${source}py.png`, `${source}pz.png`, `${source}nx.png`, `${source}ny.png`, `${source}nz.png`];
-      var envTexture = BABYLON.CubeTexture.CreateFromImages(files, scene);
-
-      const skydome = BABYLON.MeshBuilder.CreateBox("sky", { size: 1000, sideOrientation: BABYLON.Mesh.BACKSIDE }, scene);
-      skydome.rotation.y = Math.PI; skydome.isPickable = false;
-      const sky = new BABYLON.BackgroundMaterial("skyMaterial", scene);
-      sky.reflectionTexture = envTexture.clone();
-      sky.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
-      skydome.material = sky;
-
-      var light00 = new BABYLON.SpotLight("*spot00", new BABYLON.Vector3(0, 12, 8), new BABYLON.Vector3(0, -1, -1), 1.2, 20, scene);
-      light00.shadowMinZ = 1; light00.shadowMaxZ = 400; light00.intensity = 4; light00.angle = Math.PI * 0.5; light00.diffuse.set(1,0.5,0.1);
-
-      if (!engine.hostInformation.isMobile) {
-        var shadowGenerator = new BABYLON.ShadowGenerator(512, light00);
-        shadowGenerator.bias = 0.001; shadowGenerator.normalBias = 0.02;
-        shadowGenerator.usePoissonSampling = true; shadowGenerator.setDarkness(0.3);
-        staticMeshes.forEach((mesh)=>{ shadowGenerator.getShadowMap().renderList.push(mesh); });
+      // ── Stars ─────────────────────────────────────────────────────────────
+      const t = elapsed * 0.001;
+      const starAlpha = Math.min(1, elapsed / 3000);
+      for (const s of stars) {
+        const tw = 0.5 + 0.5 * Math.sin(s.twinkle + t * 1.4);
+        ctx.beginPath();
+        ctx.arc(s.x * w + panX * 0.3, s.y * h, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(195,210,255,${(0.35 + tw * 0.65) * starAlpha})`;
+        ctx.fill();
       }
 
-      const maxAgentRadius = 0.15; const AGENT_COUNT = 30; const cellSize = 0.5;
-      const navmeshParameters = {cs: cellSize, ch: 0.5, walkableRadius: Math.ceil(maxAgentRadius / cellSize), maxObstacles: 0 };
-      await navigationPlugin.createNavMeshAsync(staticMeshesNav, navmeshParameters);
+      // ── Atmospheric warm glow near ground ─────────────────────────────────
+      const glow = ctx.createRadialGradient(w*0.5 + panX, h*0.76, 0, w*0.5 + panX, h*0.76, w*0.55);
+      glow.addColorStop(0,   `rgba(90,55,18,${0.18 * camEased})`);
+      glow.addColorStop(0.5, `rgba(45,28,9,${0.09 * camEased})`);
+      glow.addColorStop(1,   "rgba(0,0,0,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
 
-      fixMaterials(scene, []);
-      const crowd = navigationPlugin.createCrowd(AGENT_COUNT, maxAgentRadius, scene);
-      const agentParams = { radius: 0.5, height: 0.5, maxAcceleration: 4.0, maxSpeed: 2.0, separationWeight: 1.0 };
-      const clustered = new BABYLON.ClusteredLightContainer("clustered", [], scene);
-      var agentDatas = [];
+      // ── Ruins ─────────────────────────────────────────────────────────────
+      ctx.save();
+      ctx.translate(panX, 0);
+      drawRuins(w, h, camEased);
+      ctx.restore();
 
-      var getRandomPos = function() {
-        var pickedPoint = new BABYLON.Vector3(Math.random() * 20 - 10, 1, Math.random() * 20 - 10);
-        return navigationPlugin.getClosestPoint(pickedPoint);
-      };
-
-      var randomGoto = function(index) {
-        const agents = crowd.getAgents();
-        const destination = getRandomPos();
-        crowd.agentGoto(agents[index], destination);
-        return destination;
-      };
-
-      // PERFORMANCE OPTIMIZATION: Drastically reduce the number of dynamic point lights
-      const MAX_LIGHTS = 6;
-
-      BABYLON.LoadAssetContainerAsync("assets/firefly.glb", scene).then((container) => {
-        container.meshes[0].scaling.scaleInPlace(2);
-
-        for (let i = 0; i < AGENT_COUNT ; i++) {
-          const plane2Entries = container.instantiateModelsToScene(undefined, false, { doNotInstantiate: true });
-          const firefly = plane2Entries.rootNodes[0]; firefly.position.y = 1.;
-          plane2Entries.animationGroups[1].start(true, Math.random() * 0.1 + 0.9);
-          let pointLight = null;
-          if (i < MAX_LIGHTS) {
-            pointLight = new BABYLON.PointLight("point" + i, new BABYLON.Vector3(0,0.1,0), scene);
-            pointLight.diffuse = new BABYLON.Color3(1,0.5,0.1); pointLight.range = 2; pointLight.intensity = 8;
-            clustered.addLight(pointLight); pointLight.parent = firefly;
-          }
-
-          const agentTransform = new BABYLON.TransformNode("agentTransform", scene);
-          const agentIndex = crowd.addAgent(getRandomPos(), agentParams, agentTransform);
-          firefly.parent = agentTransform;
-
-          agentDatas[i] = {mesh: agentTransform, idx: agentIndex, target: randomGoto(i), light: pointLight, ttc: 0};
+      // ── Fireflies ─────────────────────────────────────────────────────────
+      const ffAppear = Math.min(1, elapsed / 5000);
+      for (const ff of fireflies) {
+        ff.ttc -= 16;
+        if (ff.ttc <= 0) {
+          ff.tx  = Math.random();
+          ff.ty  = 0.35 + Math.random() * 0.40;
+          ff.ttc = 3000 + Math.random() * 8000;
         }
-        container.meshes[0].setEnabled(false);
-      });
+        const dx = ff.tx - ff.x, dy = ff.ty - ff.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const step = Math.min(dist, ff.speed);
+        ff.x += (dx / dist) * step;
+        ff.y += (dy / dist) * step;
+        ff.pulse += ff.pulseSpeed;
 
-      const guiTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("LoadingScreenHUD");
-      const overlay = new BABYLON.GUI.Rectangle();
-      overlay.width = "100%";
-      overlay.height = "100%";
-      overlay.background = "rgba(0, 0, 0, 0.75)";
-      overlay.thickness = 0;
-      overlay.alpha = 0;
-      guiTexture.addControl(overlay);
+        const brightness = (0.55 + 0.45 * Math.sin(ff.pulse)) * ffAppear;
+        const fx = (ff.x * w) + panX * 0.6;
+        const fy =  ff.y * h;
+        const gr = ff.glowR;
 
-      const mainContainer = new BABYLON.GUI.StackPanel();
-      mainContainer.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-      mainContainer.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_CENTER;
-      overlay.addControl(mainContainer);
+        const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, gr * 3.5);
+        g.addColorStop(0,   `rgba(255,200,70,${brightness * 0.85})`);
+        g.addColorStop(0.35,`rgba(255,140,20,${brightness * 0.30})`);
+        g.addColorStop(1,   "rgba(0,0,0,0)");
+        ctx.beginPath();
+        ctx.arc(fx, fy, gr * 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = g;
+        ctx.fill();
 
-      const titleText = new BABYLON.GUI.TextBlock();
-      titleText.text = "Math-Katy";
-      titleText.color = "white";
-      titleText.fontSize = "80px";
-      titleText.fontFamily = "Arial";
-      titleText.fontWeight = "bold";
-      titleText.outlineColor = "black";
-      titleText.outlineWidth = 8;
-      titleText.height = "100px";
-      mainContainer.addControl(titleText);
+        ctx.beginPath();
+        ctx.arc(fx, fy, gr * 0.28, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,245,200,${brightness})`;
+        ctx.fill();
+      }
 
-      const subtitleText = new BABYLON.GUI.TextBlock();
-      subtitleText.text = "an open source community";
-      subtitleText.color = "#d3d3d3";
-      subtitleText.fontSize = "26px";
-      subtitleText.fontFamily = "Arial";
-      subtitleText.fontStyle = "italic";
-      subtitleText.outlineColor = "black";
-      subtitleText.outlineWidth = 5;
-      subtitleText.height = "40px";
-      mainContainer.addControl(subtitleText);
+      // ── Dark overlay (for title card, matches original overlay.alpha logic) ─
+      let overlayA = 0, textA = 1;
 
-      const cameraAnimDuration = 12000;
-      const titleFadeInStart = 9000;
-      const holdTitleDuration = 16000;
-      const endSequenceTime = 18000;
+      if (elapsed > titleFadeInStart && elapsed <= holdTitleDuration) {
+        const fp = (elapsed - titleFadeInStart) / (cameraAnimDuration - titleFadeInStart);
+        overlayA = Math.min(0.75, 0.75 * Math.min(1, fp));
+      }
 
-      let elapsedTime = 0;
-      let sequenceFinished = false;
+      if (elapsed > holdTitleDuration) {
+        const ftb = Math.min(1, Math.max(0, (elapsed - holdTitleDuration) / (endSequenceTime - holdTitleDuration)));
+        overlayA = 0.75 + 0.25 * ftb;
+        textA    = 1 - ftb;
+      }
 
-      const startRadius = 70, endRadius = 10;
-      const startBeta = 0.2, endBeta = 1.35;
-      const totalSpins = Math.PI * 2.5;
+      if (overlayA > 0) {
+        ctx.fillStyle = `rgba(0,0,0,${overlayA})`;
+        ctx.fillRect(0, 0, w, h);
+      }
 
-      // PERFORMANCE OPTIMIZATION: Combined everything into a single render loop
-      const renderObserver = scene.onBeforeRenderObservable.add(() => {
-        let dt = engine.getDeltaTime();
-        let dtSec = dt * 0.001;
-        elapsedTime += dt;
-
-        // --- 1. FIREFLY AGENT UPDATES ---
-        for(let i = 0; i < agentDatas.length; i++) {
-          var ag = agentDatas[i];
-          if (!ag || !ag.mesh) continue;
-          ag.ttc -= dt;
-          ag.mesh.position = crowd.getAgentPosition(ag.idx);
-          let vel = crowd.getAgentVelocity(ag.idx);
-          crowd.getAgentNextTargetPathToRef(ag.idx, ag.target);
-          if (vel.length() > 0.01) {
-            vel.normalize();
-            ag.mesh.rotation.y += (Math.atan2(vel.x, vel.z) - ag.mesh.rotation.y) * 0.05;
-          }
-          if (BABYLON.Vector3.Distance(ag.mesh.position, ag.target) < 0.1 || ag.ttc < 0) {
-            ag.target = randomGoto(i); ag.ttc = Math.random() * 2000 + 10000;
-          }
-        }
-
-        // --- 2. CINEMATIC SEQUENCE ---
-        if (sequenceFinished) return;
-
-        if (elapsedTime <= cameraAnimDuration) {
-          let progress = elapsedTime / cameraAnimDuration;
-          let ease = 1 - Math.pow(1 - progress, 4);
-
-          camera.radius = startRadius - ((startRadius - endRadius) * ease);
-          camera.beta = startBeta + ((endBeta - startBeta) * ease);
-          camera.alpha = totalSpins * ease;
+      // ── Title / subtitle ──────────────────────────────────────────────────
+      if (elapsed > titleFadeInStart) {
+        let titleProg;
+        if (elapsed <= holdTitleDuration) {
+          titleProg = Math.min(1, (elapsed - titleFadeInStart) / (cameraAnimDuration - titleFadeInStart));
         } else {
-          camera.alpha += 0.0001 * dt;
+          titleProg = 1;
+        }
+        const alpha = titleProg * textA;
+
+        // Pulse scale (matches original mainContainer scale animation)
+        let sc = 1;
+        if (elapsed > cameraAnimDuration && elapsed <= holdTitleDuration) {
+          sc = 1 + Math.sin(elapsed * 0.002) * 0.02;
         }
 
-        if (elapsedTime > titleFadeInStart && elapsedTime <= holdTitleDuration) {
-          let fadeProgress = (elapsedTime - titleFadeInStart) / (cameraAnimDuration - titleFadeInStart);
-          overlay.alpha = Math.min(1, fadeProgress);
-        }
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.scale(sc, sc);
 
-        if (elapsedTime > cameraAnimDuration && elapsedTime <= holdTitleDuration) {
-          let scale = 1 + Math.sin(elapsedTime * 0.002) * 0.02;
-          mainContainer.scaleX = scale;
-          mainContainer.scaleY = scale;
-        }
+        const titleSize = Math.round(Math.min(80, w * 0.105));
+        ctx.font         = `bold ${titleSize}px Arial`;
+        ctx.textAlign    = "center";
+        ctx.textBaseline = "middle";
 
-        // --- 3. FADE TO BLACK ---
-        if (elapsedTime > holdTitleDuration) {
-          let fadeToBlackProgress = (elapsedTime - holdTitleDuration) / (endSequenceTime - holdTitleDuration);
-          fadeToBlackProgress = Math.min(1, Math.max(0, fadeToBlackProgress));
-          // Background goes to solid black (alpha 1)
-          overlay.background = `rgba(0, 0, 0, ${0.75 + (0.25 * fadeToBlackProgress)})`;
-          // Text fades out
-          mainContainer.alpha = 1 - fadeToBlackProgress;
+        ctx.lineWidth   = 16;
+        ctx.strokeStyle = `rgba(0,0,0,${alpha})`;
+        ctx.strokeText("Math-Katy", 0, -titleSize * 0.5);
+        ctx.fillStyle   = `rgba(255,255,255,${alpha})`;
+        ctx.fillText("Math-Katy", 0, -titleSize * 0.5);
 
-          if (elapsedTime >= endSequenceTime) {
-            sequenceFinished = true;
-            // At this point, the screen is completely black.
-          }
-        }
-      });
-      return scene;
+        const subSize = Math.round(Math.min(26, w * 0.034));
+        ctx.font        = `italic ${subSize}px Arial`;
+        ctx.lineWidth   = 10;
+        ctx.strokeStyle = `rgba(0,0,0,${alpha})`;
+        ctx.strokeText("an open source community", 0, titleSize * 0.65);
+        ctx.fillStyle   = `rgba(211,211,211,${alpha})`;
+        ctx.fillText("an open source community", 0, titleSize * 0.65);
+
+        ctx.restore();
+      }
+
+      // ── Sequence finished ─────────────────────────────────────────────────
+      if (elapsed >= endSequenceTime && !sequenceFinished) {
+        sequenceFinished = true;
+        try { window.parent.postMessage("animationComplete", "*"); } catch (_) {}
+        return; // stop the loop — screen is solid black, content will show
+      }
+
+      rafId = requestAnimationFrame(frame);
     }
 
-    // Bootstrap: create engine and run scene
-    (function () {
-      const canvas = document.getElementById("renderCanvas");
-      const engine = new BABYLON.Engine(canvas, /* antialias= */ true, {
-        preserveDrawingBuffer: false,
-        stencil: true,
-        disableWebGL2Support: false
-      });
-      // Expose engine globally so createScene (which references it as a free var) can use it
-      window.engine = engine;
-
-      engine.runRenderLoop(function () { /* filled after scene resolves */ });
-
-      createScene().then(function (scene) {
-        engine.stopRenderLoop();
-        engine.runRenderLoop(function () { scene.render(); });
-      }).catch(function (err) {
-        console.error("[loading.html] Scene init error:", err);
-      });
-
-      window.addEventListener("resize", function () { engine.resize(); });
-    })();
+    rafId = requestAnimationFrame(frame);
   </script>
 </body>
 </html>
