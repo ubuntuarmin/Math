@@ -627,7 +627,7 @@
   <!-- Header bar -->
   <div class="flex items-center justify-between px-4 py-3
               bg-gray-900 border-b border-gray-800 shrink-0">
-    <div class="flex items-center gap-3 min-w-0">
+  <div class="flex items-center gap-3 min-w-0">
       <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600
                   flex items-center justify-center text-base shrink-0">
         🎮
@@ -635,6 +635,12 @@
       <span id="iframeTitle" class="text-white font-bold text-sm truncate max-w-[50vw]">
         Loading…
       </span>
+      <!-- Session countdown timer (shown only during a purchased session) -->
+      <div id="sessionTimer" class="hidden flex items-center gap-1 text-xs font-mono font-bold
+                                     text-amber-300 bg-amber-500/10 border border-amber-500/30
+                                     px-2 py-0.5 rounded-full shrink-0">
+        ⏱ <span id="sessionTimeLeft">--:--</span>
+      </div>
     </div>
     <div class="flex items-center gap-2 shrink-0">
       <button id="iframeRateBtn"
@@ -775,6 +781,58 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════
+     SESSION PURCHASE MODAL
+════════════════════════════════════════════════════════ -->
+<div id="sessionBuyModal"
+     class="hidden fixed inset-0 z-[450] flex items-center justify-center
+            bg-gray-950/90 backdrop-blur-sm p-4">
+  <div class="bg-gray-900 border border-blue-700/50 rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
+    <div class="w-14 h-14 bg-blue-500/20 rounded-2xl flex items-center justify-center
+                text-3xl mx-auto mb-4 border border-blue-500/30">
+      🎮
+    </div>
+    <h3 class="text-white font-bold text-lg mb-1">Join Session</h3>
+    <p class="text-gray-400 text-xs mb-4">
+      <span id="sessionLinkTitle" class="text-white font-semibold"></span>
+    </p>
+
+    <!-- Stats row -->
+    <div class="grid grid-cols-3 gap-2 mb-5 text-center">
+      <div class="bg-gray-800/60 rounded-xl p-2.5">
+        <div class="text-sm font-black text-blue-400" id="sessionSlotsUsed">0/6</div>
+        <div class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Slots Used</div>
+      </div>
+      <div class="bg-gray-800/60 rounded-xl p-2.5">
+        <div class="text-sm font-black text-purple-400">50 🪙</div>
+        <div class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Cost</div>
+      </div>
+      <div class="bg-gray-800/60 rounded-xl p-2.5">
+        <div class="text-sm font-black text-yellow-400" id="sessionCreditsBalance">0</div>
+        <div class="text-[9px] text-gray-500 uppercase font-bold mt-0.5">Your 🪙</div>
+      </div>
+    </div>
+
+    <p class="text-xs text-gray-500 mb-5">
+      <span id="sessionTierInfo" class="text-blue-300 font-semibold"></span>
+    </p>
+
+    <div class="flex gap-3">
+      <button id="sessionCancelBtn"
+              class="flex-1 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600
+                     text-gray-300 font-bold text-sm transition-colors">
+        Cancel
+      </button>
+      <button id="sessionConfirmBtn"
+              class="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500
+                     text-white font-bold text-sm transition-colors
+                     flex items-center justify-center gap-1.5">
+        Join (−50 🪙)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
      SCRIPTS
 ════════════════════════════════════════════════════════ -->
 <script type="module" src="./js/firebase.js"></script>
@@ -820,6 +878,7 @@
       if (typeof closeProfileModal       === "function") closeProfileModal();
       if (typeof closeRatingModal        === "function") closeRatingModal();
       if (typeof closeDeleteConfirmModal === "function") closeDeleteConfirmModal();
+      if (typeof closeSessionBuyModal    === "function") closeSessionBuyModal();
     }
   });
 
