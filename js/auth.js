@@ -1,6 +1,7 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { deleteInactiveAccount } from "./deleteAccount.js";
 
 // UI modules
 import { updateUI } from "./links.js";
@@ -186,7 +187,7 @@ async function checkMonthlyQualityBonus(uid, userData) {
 }
 
 
-function checkInactivity(userData) {
+function checkInactivity(userData, user) {
     const lastVisitTs = userData.lastVisitTimestamp;
     if (!lastVisitTs || typeof lastVisitTs.toMillis !== "function") return;
 
@@ -200,26 +201,55 @@ function checkInactivity(userData) {
     const daysEl     = document.getElementById("inactiveDays");
     const countdown  = document.getElementById("inactiveCountdown");
     const dismissBtn = document.getElementById("inactiveDismissBtn");
+    const deleteBtn  = document.getElementById("inactiveDeleteBtn");
     if (!modal) return;
 
     const daysRounded = Math.floor(diffDays);
     if (daysEl) daysEl.textContent = daysRounded;
 
-    const daysUntilDelete = Math.max(0, INACTIVE_DELETE_DAYS - daysRounded);
-    if (countdown) {
-        if (daysUntilDelete <= 0) {
-            countdown.textContent = "✅ Account reactivated! You were flagged for deletion — logging in has saved your account.";
-            countdown.classList.add("text-green-400");
-        } else {
+    const isPastThreshold = daysRounded >= INACTIVE_DELETE_DAYS;
+
+    if (isPastThreshold) {
+        // Past deletion threshold — user must actively choose to keep or delete account.
+        if (countdown) {
+            countdown.textContent = "Your account has reached the inactivity limit. Click \"Keep My Account\" to reactivate, or delete it now to free up resources.";
+            countdown.classList.remove("text-orange-300");
+            countdown.classList.add("text-red-400");
+        }
+        if (dismissBtn) dismissBtn.textContent = "✅ Keep My Account";
+        if (deleteBtn) deleteBtn.classList.remove("hidden");
+
+        // Wire up the delete button — use onclick to avoid accumulating listeners
+        // across multiple calls to checkInactivity.
+        if (deleteBtn) {
+            deleteBtn.onclick = async () => {
+                modal.classList.add("hidden");
+                try {
+                    await deleteInactiveAccount(user);
+                } catch (err) {
+                    console.error("Failed to delete inactive account:", err);
+                    alert("An error occurred while deleting your account. Please try again.");
+                    return;
+                }
+                window.location.href = "index.html?deleted=inactive&t=" + Date.now();
+            };
+        }
+    } else {
+        const daysUntilDelete = Math.max(0, INACTIVE_DELETE_DAYS - daysRounded);
+        if (countdown) {
             countdown.textContent = `You have ${daysUntilDelete} day${daysUntilDelete !== 1 ? "s" : ""} before your account is flagged for deletion. Log in regularly to stay active!`;
         }
+        if (deleteBtn) deleteBtn.classList.add("hidden");
     }
 
     modal.classList.remove("hidden");
 
-    dismissBtn?.addEventListener("click", () => {
-        modal.classList.add("hidden");
-    }, { once: true });
+    // Use onclick to replace any previous handler and avoid listener accumulation.
+    if (dismissBtn) {
+        dismissBtn.onclick = () => {
+            modal.classList.add("hidden");
+        };
+    }
 }
 
 // --- MAIN AUTH LISTENER ---
@@ -289,7 +319,7 @@ onAuthStateChanged(auth, async user => {
             
         if (!sessionStorage.getItem("justSignedUp")) {
             // Check inactivity BEFORE updating the visit timestamp
-            checkInactivity(currentUserData);
+            checkInactivity(currentUserData, user);
             currentUserData = await handleDailyData(user.uid, currentUserData);
             // Check monthly quality bonus (at most 1 extra Firestore read per month)
             const bonusAwarded = await checkMonthlyQualityBonus(user.uid, currentUserData);
