@@ -449,7 +449,7 @@
   <div class="absolute bottom-[5%] right-[-5%] w-[35%] h-[35%]
               bg-purple-600/15 rounded-full blur-[100px] pointer-events-none"></div>
 
-  <div class="relative bg-gray-900/95 border border-gray-700/80 rounded-3xl
+  <div class="modal-glass relative rounded-3xl
               p-8 w-full max-w-md shadow-2xl mx-4">
 
     <!-- Logo -->
@@ -525,7 +525,7 @@
      class="fixed inset-0 z-[200] flex items-center justify-center
             bg-gray-950/95 backdrop-blur-sm hidden"
      aria-hidden="true">
-  <div class="panel bg-gray-900 border border-gray-700 rounded-3xl
+  <div class="modal-glass panel rounded-3xl
               p-8 w-full max-w-sm mx-4 shadow-2xl">
     <div class="text-center mb-6">
       <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600
@@ -582,7 +582,7 @@
 <div id="inactiveWarningModal"
      class="hidden fixed inset-0 z-[500] flex items-center justify-center
             bg-gray-950/95 backdrop-blur-sm p-4">
-  <div class="bg-gray-900 border border-orange-500/40 rounded-3xl
+  <div class="modal-glass border border-orange-500/30 rounded-3xl
               p-8 w-full max-w-sm shadow-2xl text-center">
     <div class="w-16 h-16 bg-orange-500/20 rounded-2xl flex items-center justify-center
                 text-3xl mx-auto mb-4 border border-orange-500/30">
@@ -690,7 +690,7 @@
 <div id="profileModal"
      class="hidden fixed inset-0 z-[300] flex items-center justify-center
             bg-gray-950/90 backdrop-blur-sm p-4">
-  <div class="relative bg-gray-900 border border-gray-700 rounded-3xl
+  <div class="modal-glass relative rounded-3xl
               p-6 w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
     <button onclick="closeProfileModal()"
             class="absolute top-4 right-4 text-gray-500 hover:text-white
@@ -707,7 +707,7 @@
 <div id="rateModal"
      class="hidden fixed inset-0 z-[400] flex items-center justify-center
             bg-gray-950/90 backdrop-blur-sm p-4">
-  <div class="bg-gray-900 border border-gray-700 rounded-3xl p-7 w-full max-w-sm shadow-2xl">
+  <div class="modal-glass rounded-3xl p-7 w-full max-w-sm shadow-2xl">
     <h3 class="text-white font-bold text-lg mb-1 flex items-center gap-2">
       <span>⭐</span> Rate this link
     </h3>
@@ -752,7 +752,7 @@
 <div id="deleteConfirmModal"
      class="hidden fixed inset-0 z-[400] flex items-center justify-center
             bg-gray-950/90 backdrop-blur-sm p-4">
-  <div class="bg-gray-900 border border-red-800/50 rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
+  <div class="modal-glass border border-red-800/40 rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
     <div class="w-14 h-14 bg-red-500/20 rounded-2xl flex items-center justify-center
                 text-3xl mx-auto mb-4 border border-red-500/30">
       🗑️
@@ -786,7 +786,7 @@
 <div id="sessionBuyModal"
      class="hidden fixed inset-0 z-[450] flex items-center justify-center
             bg-gray-950/90 backdrop-blur-sm p-4">
-  <div class="bg-gray-900 border border-blue-700/50 rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
+  <div class="modal-glass border border-blue-700/40 rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
     <div class="w-14 h-14 bg-blue-500/20 rounded-2xl flex items-center justify-center
                 text-3xl mx-auto mb-4 border border-blue-500/30">
       🎮
@@ -850,6 +850,8 @@
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tab = btn.dataset.tab;
+      // Close mobile nav when a tab is selected
+      document.body.classList.remove("nav-open");
       // Update button states
       document.querySelectorAll(".tab-btn").forEach((b) =>
         b.classList.toggle("active", b === btn)
