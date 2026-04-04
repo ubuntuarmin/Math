@@ -1,12 +1,13 @@
 /**
  * TIER SETTINGS
- * Defines the lifetime credit requirements and daily time limits.
+ * Defines the lifetime credit requirements and per-session time limits.
+ * Higher tiers get longer sessions for the same 50-credit cost.
  */
 export const TIER_CONFIG = {
     BASIC: {
         name: "Basic",
         minCredits: 0,
-        limitMinutes: 45,
+        limitMinutes: 45,     // max session duration
         color: "#94a3b8", // slate-400
         bg: "bg-slate-500/10",
         border: "border-slate-500/20"
@@ -14,7 +15,7 @@ export const TIER_CONFIG = {
     SILVER: {
         name: "Silver",
         minCredits: 150,
-        limitMinutes: 60,
+        limitMinutes: 60,     // max session duration
         color: "#cbd5e1", // slate-300
         bg: "bg-indigo-500/10",
         border: "border-indigo-500/20"
@@ -22,7 +23,7 @@ export const TIER_CONFIG = {
     GOLD: {
         name: "Gold",
         minCredits: 300,
-        limitMinutes: 120,
+        limitMinutes: 120,    // max session duration
         color: "#fbbf24", // amber-400
         bg: "bg-amber-500/10",
         border: "border-amber-500/20"
@@ -30,7 +31,7 @@ export const TIER_CONFIG = {
     VIP: {
         name: "VIP",
         minCredits: 600,
-        limitMinutes: 360, // 6 Hours
+        limitMinutes: 360,    // max session duration (6 hours)
         color: "#e879f9", // fuchsia-400
         bg: "bg-fuchsia-500/10",
         border: "border-fuchsia-500/20"
@@ -65,6 +66,6 @@ export function getNextTierInfo(totalEarned = 0) {
         nextName: next.name,
         remaining: remaining,
         nextLimit: next.limitMinutes,
-        message: `${remaining} more credits to unlock ${next.name} (${next.limitMinutes}m limit)`
+        message: `${remaining} more credits to unlock ${next.name} (${next.limitMinutes}m session limit)`
     };
 }

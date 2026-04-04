@@ -35,7 +35,7 @@ async function sendReferralNotification(referrerUid, newUserEmail) {
       to: referrerUid,
       fromName: "Referral",
       title: "New Referral Joined!",
-      text: `You earned 50 credits because ${newUserEmail} joined using your code.`,
+      text: `You earned 150 credits because ${newUserEmail} joined using your code.`,
       type: "referral",
       timestamp: serverTimestamp(),
       read: false,
@@ -143,18 +143,15 @@ const initLogin = () => {
             referrerUid = referrerDoc.id;
 
             if (referrerUid !== uid) {
-              // Reward the Referrer
+              // Reward the Referrer with 150 credits
               await updateDoc(doc(db, "users", referrerUid), {
-                credits: increment(50),
-                totalEarned: increment(50),
+                credits: increment(150),
+                totalEarned: increment(150),
                 referrals: arrayUnion(email),
               });
 
               // Send notification to referrer
               await sendReferralNotification(referrerUid, email);
-
-              // Set bonus for new user
-              baseCredits = 40;
             }
           }
         } catch (refErr) {

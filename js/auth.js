@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 // UI modules
 import { updateUI } from "./links.js";
@@ -112,8 +112,69 @@ async function handleDailyData(uid, userData) {
 }
 
 /**
- * Check if the user has been inactive for 30+ days and show warning.
+ * Check if the user qualifies for the monthly quality bonus:
+ * >10 link reviews received AND average rating >4.7 across all their links.
+ * Awards 50 credits once per calendar month.
+ * Uses at most 1 Firestore read per month.
+ * Returns true if credits were awarded (so caller can refresh user data).
  */
+async function checkMonthlyQualityBonus(uid, userData) {
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    // Already processed this month — skip entirely (no read needed)
+    if (userData.qualityBonusMonth === currentMonth) return false;
+
+    try {
+        // Fetch all link ratings received by this user (1 read per month max)
+        const ratingsSnap = await getDocs(
+            query(collection(db, "linkRatings"), where("submittedBy", "==", uid))
+        );
+
+        const count = ratingsSnap.size;
+        const userRef = doc(db, "users", uid);
+
+        if (count <= 10) {
+            // Not more than 10 reviews yet — mark month so we don't re-check until next month
+            await updateDoc(userRef, { qualityBonusMonth: currentMonth });
+            return false;
+        }
+
+        let ratingSum = 0;
+        ratingsSnap.forEach(s => { ratingSum += (s.data().score || 0); });
+        const avg = ratingSum / count;
+
+        if (avg > 4.7) {
+            // Qualifies — award 50 credits and mark the month
+            await updateDoc(userRef, {
+                credits:           increment(50),
+                totalEarned:       increment(50),
+                qualityBonusMonth: currentMonth,
+            });
+            // Send in-app notification
+            try {
+                await addDoc(collection(db, "messages"), {
+                    to:        uid,
+                    fromName:  "System",
+                    title:     "Monthly Quality Bonus! 🌟",
+                    text:      `Your profile has ${count} reviews with an average of ${avg.toFixed(1)} ⭐. You earned +50 bonus credits for maintaining a top-rated profile!`,
+                    type:      "system",
+                    timestamp: serverTimestamp(),
+                    read:      false,
+                });
+            } catch (_) {}
+            return true; // credits were updated — caller should refresh
+        } else {
+            await updateDoc(userRef, { qualityBonusMonth: currentMonth });
+            return false;
+        }
+    } catch (err) {
+        console.warn("Monthly quality bonus check failed:", err);
+        return false;
+    }
+}
+
+
 function checkInactivity(userData) {
     const lastVisitTs = userData.lastVisitTimestamp;
     if (!lastVisitTs || typeof lastVisitTs.toMillis !== "function") return;
@@ -219,6 +280,13 @@ onAuthStateChanged(auth, async user => {
             // Check inactivity BEFORE updating the visit timestamp
             checkInactivity(currentUserData);
             currentUserData = await handleDailyData(user.uid, currentUserData);
+            // Check monthly quality bonus (at most 1 extra Firestore read per month)
+            const bonusAwarded = await checkMonthlyQualityBonus(user.uid, currentUserData);
+            if (bonusAwarded) {
+                // Re-fetch so the UI shows the updated credit total
+                const refreshed = await getDoc(doc(db, "users", user.uid));
+                if (refreshed.exists()) currentUserData = refreshed.data();
+            }
         }
 
         syncAllUI(currentUserData);

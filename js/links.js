@@ -15,6 +15,7 @@ import {
   limit,
   serverTimestamp,
   writeBatch,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
 
@@ -26,6 +27,8 @@ const linksEmpty   = document.getElementById("linksEmpty");
 
 const LINK_CREDITS        = 50;
 const UPVOTE_CREDITS      = 10;
+const SESSION_COST        = 50;  // credits per session
+const MAX_SESSION_USERS   = 6;   // max concurrent users per link
 const REPORT_THRESHOLD    = 3;
 const APPEAL_VOTE_CREDITS   = 10;
 const APPEAL_VOTE_THRESHOLD = 10;
@@ -43,6 +46,14 @@ let allDocs      = [];
 let activeFilter = null;   // { type: 'profile'|'hashtag', value, label }
 let searchTerm   = "";
 let sortMode     = "newest";
+
+// Cached current user data (set by updateUI, refreshed via userProfileUpdated event)
+let currentUserData = null;
+
+// Session tracking state
+let activeSessionLinkId   = null; // linkId of the currently open paid session
+let activeSessionExpiry   = 0;    // ms since epoch when session expires
+let sessionTimerInterval  = null; // setInterval id for countdown
 
 // Iframe / rating state
 let iframeOpenTime    = 0;
@@ -87,6 +98,7 @@ window.addEventListener("message", (event) => {
 
 // Exported: called by auth.js after sign-in
 export function updateUI(userData) {
+  currentUserData = userData || null;
   if (creditCount) creditCount.textContent = userData?.credits ?? 0;
   if (tierLabel) {
     const tier = calculateTier(userData?.totalEarned ?? 0);
@@ -99,6 +111,10 @@ export function updateUI(userData) {
     setupRatingModal();
     setupDeleteModal();
     setupAppealsTab();
+    // Keep currentUserData in sync when other modules update the profile
+    window.addEventListener("userProfileUpdated", (e) => {
+      if (e.detail) currentUserData = e.detail;
+    });
   }
   loadLinks();
 }
@@ -442,8 +458,226 @@ function renderLinkCard(id, data, currentUid) {
   linksGrid.appendChild(card);
 }
 
+// ── Session helpers ───────────────────────────────────────────────────────────
+
+/** Return the count of currently active (unexpired) sessions for a link */
+function getActiveSessionCount(sessions) {
+  const now = Date.now();
+  return (sessions || []).filter(s => s.expiresAt > now).length;
+}
+
+/** Session storage key for a link */
+function sessionKey(linkId) { return `session_${linkId}`; }
+
+/** Retrieve a live session from sessionStorage, or null if expired/missing */
+function getStoredSession(linkId) {
+  try {
+    const raw = sessionStorage.getItem(sessionKey(linkId));
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (s.expiresAt > Date.now()) return s;
+    sessionStorage.removeItem(sessionKey(linkId));
+    return null;
+  } catch (_) { return null; }
+}
+
+/** Store session info in sessionStorage */
+function storeSession(linkId, expiresAt) {
+  try {
+    sessionStorage.setItem(sessionKey(linkId), JSON.stringify({ expiresAt }));
+  } catch (_) {}
+}
+
+/** Remove session from sessionStorage */
+function clearStoredSession(linkId) {
+  try { sessionStorage.removeItem(sessionKey(linkId)); } catch (_) {}
+}
+
+/**
+ * Start the live session countdown in the iframe header.
+ * Closes the modal automatically when time runs out.
+ */
+function startSessionTimer(expiresAt) {
+  clearSessionTimer();
+  activeSessionExpiry = expiresAt;
+  const timerEl = document.getElementById("sessionTimer");
+  const timeLeftEl = document.getElementById("sessionTimeLeft");
+  if (timerEl) timerEl.classList.remove("hidden");
+
+  const tick = () => {
+    const remaining = Math.max(0, activeSessionExpiry - Date.now());
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    if (timeLeftEl) {
+      timeLeftEl.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
+    }
+    if (remaining <= 0) {
+      clearSessionTimer();
+      showToast("⏰ Session time expired — you have been removed.");
+      closeIframeModal();
+    }
+  };
+  tick();
+  sessionTimerInterval = setInterval(tick, 1000);
+}
+
+/** Stop the session countdown */
+function clearSessionTimer() {
+  if (sessionTimerInterval) { clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
+  const timerEl = document.getElementById("sessionTimer");
+  if (timerEl) timerEl.classList.add("hidden");
+}
+
+/**
+ * Attempt to remove the current user's session entry from the link's activeSessions array.
+ * Best-effort (fire-and-forget) — called on modal close.
+ */
+async function removeSessionFromLink(linkId) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !linkId) return;
+  try {
+    // Build the exact object that was stored so arrayRemove can match it
+    // We need to find the exact entry — fetch the doc and filter client-side
+    const linkRef = doc(db, "sharedLinks", linkId);
+    const snap = await getDoc(linkRef);
+    if (!snap.exists()) return;
+    const sessions = snap.data().activeSessions || [];
+    const filtered = sessions.filter(s => s.uid !== uid);
+    await updateDoc(linkRef, { activeSessions: filtered });
+  } catch (err) {
+    console.warn("Session cleanup failed (non-critical):", err);
+  }
+}
+
+/**
+ * Show the session purchase modal. Resolves to true if user confirmed, false if cancelled.
+ */
+function showSessionPurchaseModal(title, sessionCount, tierName, sessionMinutes, userCredits) {
+  return new Promise(resolve => {
+    const modal       = document.getElementById("sessionBuyModal");
+    const linkTitleEl = document.getElementById("sessionLinkTitle");
+    const slotsEl     = document.getElementById("sessionSlotsUsed");
+    const tierEl      = document.getElementById("sessionTierInfo");
+    const creditsEl   = document.getElementById("sessionCreditsBalance");
+    const confirmBtn  = document.getElementById("sessionConfirmBtn");
+    const cancelBtn   = document.getElementById("sessionCancelBtn");
+    if (!modal) { resolve(false); return; }
+
+    if (linkTitleEl) linkTitleEl.textContent = title || "this link";
+    if (slotsEl)     slotsEl.textContent     = `${sessionCount}/${MAX_SESSION_USERS}`;
+    if (tierEl)      tierEl.textContent      = `${tierName} — up to ${sessionMinutes} min`;
+    if (creditsEl)   creditsEl.textContent   = userCredits;
+
+    modal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+
+    const cleanup = () => {
+      modal.classList.add("hidden");
+      document.body.style.overflow = "";
+      confirmBtn?.removeEventListener("click", onConfirm);
+      cancelBtn?.removeEventListener("click",  onCancel);
+    };
+
+    const onConfirm = () => { cleanup(); resolve(true); };
+    const onCancel  = () => { cleanup(); resolve(false); };
+
+    confirmBtn?.addEventListener("click", onConfirm, { once: true });
+    cancelBtn?.addEventListener("click",  onCancel,  { once: true });
+  });
+}
+
 // Open link in iframe modal — supports both URL and HTML-code submissions
-function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
+async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
+  const uid     = auth.currentUser?.uid;
+  const isOwner = uid && submittedBy === uid;
+
+  // Non-owners must purchase a session
+  if (!isOwner && linkId) {
+    // Check if there's already a live session in this browser tab
+    const stored = getStoredSession(linkId);
+    if (stored) {
+      // Resume with remaining time
+      activeSessionLinkId = linkId;
+      _doOpenIframe(url, title, linkId, submittedBy, htmlContent, stored.expiresAt);
+      return;
+    }
+
+    // Need to buy a session
+    const userData    = currentUserData || {};
+    const userCredits = userData.credits || 0;
+    const tier        = calculateTier(userData.totalEarned || 0);
+
+    if (userCredits < SESSION_COST) {
+      showToast(`❌ Not enough credits — you need ${SESSION_COST} 🪙 to join this session.`);
+      return;
+    }
+
+    // Use cached session count; re-checked server-side on purchase
+    const cachedLink    = allDocs.find(d => d.id === linkId);
+    const sessionCount  = getActiveSessionCount(cachedLink?.data?.activeSessions);
+
+    const confirmed = await showSessionPurchaseModal(
+      title, sessionCount, tier.name, tier.limitMinutes, userCredits
+    );
+    if (!confirmed) return;
+
+    // Confirm purchase: use a Firestore transaction to atomically enforce the 6-user limit
+    try {
+      const linkRef  = doc(db, "sharedLinks", linkId);
+      const userRef  = doc(db, "users", uid);
+      const expiresAt = Date.now() + tier.limitMinutes * 60 * 1000;
+      let freshSessions = [];
+
+      await runTransaction(db, async (txn) => {
+        const linkSnap = await txn.get(linkRef);
+        if (!linkSnap.exists()) throw new Error("LINK_NOT_FOUND");
+
+        // Filter out expired sessions inside the transaction
+        freshSessions = (linkSnap.data().activeSessions || [])
+          .filter(s => s.expiresAt > Date.now());
+
+        if (freshSessions.length >= MAX_SESSION_USERS) {
+          throw new Error("SESSION_FULL");
+        }
+
+        const newSession = { uid, expiresAt };
+        txn.update(linkRef, { activeSessions: [...freshSessions, newSession] });
+        txn.update(userRef, { credits: increment(-SESSION_COST) });
+      });
+
+      // Update local cache after successful transaction
+      const cachedLink = allDocs.find(d => d.id === linkId);
+      if (cachedLink) {
+        cachedLink.data.activeSessions = [...freshSessions, { uid, expiresAt }];
+      }
+      if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
+      const creditEl = document.getElementById("creditCount");
+      if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
+
+      // Persist session in sessionStorage
+      storeSession(linkId, expiresAt);
+      activeSessionLinkId = linkId;
+
+      _doOpenIframe(url, title, linkId, submittedBy, htmlContent, expiresAt);
+    } catch (err) {
+      if (err.message === "SESSION_FULL") {
+        showToast(`❌ This link is full (${MAX_SESSION_USERS}/${MAX_SESSION_USERS} slots used). Try again later.`);
+      } else if (err.message === "LINK_NOT_FOUND") {
+        showToast("❌ Link not found.");
+      } else {
+        console.error("Session purchase error:", err);
+        showToast("❌ Failed to start session. Please try again.");
+      }
+    }
+    return;
+  }
+
+  // Owner opens freely (no cost)
+  _doOpenIframe(url, title, linkId, submittedBy, htmlContent, 0);
+}
+
+/** Internal: actually open the iframe modal with optional session expiry tracking */
+function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpiresAt) {
   const modal   = document.getElementById("iframeModal");
   const frame   = document.getElementById("iframeFrame");
   const loader  = document.getElementById("iframeLoader");
@@ -464,6 +698,13 @@ function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
 
   modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+
+  // Start session countdown if this is a purchased session
+  if (sessionExpiresAt > Date.now()) {
+    startSessionTimer(sessionExpiresAt);
+  } else {
+    clearSessionTimer();
+  }
 
   iframeOpenTime    = Date.now();
   iframeLoaded      = false;
@@ -587,6 +828,15 @@ function closeIframeModal() {
   iframeFrameLoaded = false;
   modal.classList.add("hidden");
   document.body.style.overflow = "";
+
+  // Clean up session timer and Firestore session entry
+  clearSessionTimer();
+  if (activeSessionLinkId) {
+    const lId = activeSessionLinkId;
+    activeSessionLinkId = null;
+    activeSessionExpiry = 0;
+    removeSessionFromLink(lId); // best-effort cleanup
+  }
 
   const timeSpent = Date.now() - iframeOpenTime;
   const pr = pendingRating;
@@ -1660,10 +1910,14 @@ document.addEventListener("click", () => {
 document.addEventListener("refreshLinks", () => loadLinks());
 
 // Expose modal close functions globally
-window.closeIframeModal       = closeIframeModal;
-window.closeProfileModal      = closeProfileModal;
-window.closeRatingModal       = closeRatingModal;
+window.closeIframeModal        = closeIframeModal;
+window.closeProfileModal       = closeProfileModal;
+window.closeRatingModal        = closeRatingModal;
 window.closeDeleteConfirmModal = closeDeleteConfirmModal;
+window.closeSessionBuyModal    = () => {
+  const modal = document.getElementById("sessionBuyModal");
+  if (modal) { modal.classList.add("hidden"); document.body.style.overflow = ""; }
+};
 
 // XSS-safe helper
 function escapeHtml(str) {

@@ -29,6 +29,8 @@ service cloud.firestore {
 
       allow update: if isAuthenticated() && (
         // Owner: may update any field but credit/minute additions are capped.
+        // Cap is 500 per write — covers referral bonus (150), quality bonus (50),
+        // daily streak bonuses (up to 100), and appeal vote rewards (10).
         (
           request.auth.uid == userId
           && fieldDelta('credits')      <= 500
@@ -38,11 +40,11 @@ service cloud.firestore {
           && request.resource.data.get('weekMinutes',  0) <= 10000  // ~167 hours; prevents leaderboard abuse
           && request.resource.data.get('totalMinutes', 0) <= 999999
         )
-        // Other users: upvotes may only touch the three credit/tracking fields.
+        // Other users: upvotes / referral rewards may only touch these credit fields.
         || (
           request.resource.data.diff(resource.data)
                .affectedKeys()
-               .hasOnly(['credits', 'totalEarned', 'upvotedUsers'])
+               .hasOnly(['credits', 'totalEarned', 'upvotedUsers', 'referrals'])
           && fieldDelta('credits')     <= 500
           && fieldDelta('totalEarned') <= 500
         )
@@ -52,12 +54,12 @@ service cloud.firestore {
     }
 
     // ─── Shared links ─────────────────────────────────────────────────────────
-    // Authenticated users can read, submit, and interact with (upvote / report)
-    // shared links.  Only the submitter can delete their own link.
+    // Authenticated users can read, submit, and interact with (upvote / report /
+    // session purchase) shared links.  Only the submitter can delete their own link.
     match /sharedLinks/{linkId} {
       allow read:   if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated(); // upvotes, reports, status changes
+      allow update: if isAuthenticated(); // upvotes, reports, status changes, activeSessions
       allow delete: if isAuthenticated() && resource.data.submittedBy == request.auth.uid;
     }
 
