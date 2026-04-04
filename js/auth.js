@@ -325,7 +325,14 @@ function syncAllUI(data) {
 }
 
 window.addEventListener("userProfileUpdated", (event) => {
-    if (event.detail) syncAllUI(event.detail);
+    if (!event.detail) return;
+    const data = event.detail;
+    // Update header and UI components but skip reloading links to avoid unnecessary
+    // re-fetches. The links.js module keeps currentUserData in sync via its own listener.
+    refreshHeaderUI(data);
+    renderDaily(data);
+    updateAccount(data);
+    renderLeaderboard(data);
 });
 
 if (logoutBtn) {

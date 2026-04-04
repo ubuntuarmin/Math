@@ -42,10 +42,11 @@ function calcAvgRating(ratingSum, ratingCount) {
 }
 
 // Module state
-let allDocs      = [];
-let activeFilter = null;   // { type: 'profile'|'hashtag', value, label }
-let searchTerm   = "";
-let sortMode     = "newest";
+let allDocs        = [];
+let activeFilter   = null;   // { type: 'profile'|'hashtag', value, label }
+let searchTerm     = "";
+let sortMode       = "newest";
+let isLoadingLinks = false;  // guard against concurrent loadLinks calls
 
 // Cached current user data (set by updateUI, refreshed via userProfileUpdated event)
 let currentUserData = null;
@@ -228,6 +229,9 @@ async function sendNotification(toUid, title, text, type = "system") {
 // Load all active links
 async function loadLinks() {
   if (!linksGrid) return;
+  // Guard against concurrent loads (e.g. rapid refresh clicks or profile-update triggers)
+  if (isLoadingLinks) return;
+  isLoadingLinks = true;
 
   if (linksLoading) linksLoading.classList.remove("hidden");
   if (linksEmpty)   linksEmpty.classList.add("hidden");
@@ -256,6 +260,8 @@ async function loadLinks() {
         '<div class="col-span-full text-center text-red-400 py-10 text-sm">' +
         'Failed to load links. Please check your connection and refresh.</div>';
     }
+  } finally {
+    isLoadingLinks = false;
   }
 }
 
@@ -948,6 +954,9 @@ function closeIframeModal() {
 async function checkAndShowRatingModal(linkId, title, submittedBy) {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
+
+  // Don't prompt the link owner to rate their own link
+  if (submittedBy && uid === submittedBy) return;
 
   // Fast path: check in-memory cache before hitting Firestore
   if (ratedLinksCache.has(linkId)) return;
@@ -1893,6 +1902,20 @@ async function handleUpvote(linkId, data, btn, cardEl) {
         textContent: "\uD83D\uDC4D " + newCount,
       })
     );
+
+    // Keep allDocs in sync so re-renders (sort/filter) show correct state
+    const entryIdx = allDocs.findIndex(d => d.id === linkId);
+    if (entryIdx !== -1) {
+      const entry = allDocs[entryIdx];
+      allDocs[entryIdx] = {
+        ...entry,
+        data: {
+          ...entry.data,
+          upvotes:     [...(entry.data.upvotes || []), uid],
+          upvoteCount: newCount,
+        },
+      };
+    }
   } catch (err) {
     console.error("Upvote error:", err);
     btn.disabled    = false;
@@ -2096,6 +2119,20 @@ async function handleReport(linkId, type, cardEl) {
       }
 
       alert("Thanks for the report! If two more users report this link it will be removed.");
+
+      // Keep allDocs in sync so re-renders (sort/filter) preserve the reported state
+      const reportEntryIdx = allDocs.findIndex(d => d.id === linkId);
+      if (reportEntryIdx !== -1) {
+        const entry = allDocs[reportEntryIdx];
+        allDocs[reportEntryIdx] = {
+          ...entry,
+          data: {
+            ...entry.data,
+            reports:     [...(entry.data.reports || []), newReport],
+            reportCount: newCount,
+          },
+        };
+      }
     }
   } catch (err) {
     console.error("Report error:", err);
