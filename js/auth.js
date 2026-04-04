@@ -135,7 +135,7 @@ async function checkMonthlyQualityBonus(uid, userData) {
         const userRef = doc(db, "users", uid);
 
         if (count <= 10) {
-            // Not enough reviews — mark month so we don't re-check until next month
+            // Not more than 10 reviews yet — mark month so we don't re-check until next month
             await updateDoc(userRef, { qualityBonusMonth: currentMonth });
             return false;
         }

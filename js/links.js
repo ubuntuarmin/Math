@@ -15,6 +15,7 @@ import {
   limit,
   serverTimestamp,
   writeBatch,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
 
@@ -620,34 +621,35 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
     );
     if (!confirmed) return;
 
-    // Confirm purchase: fetch fresh link data and perform batch write
+    // Confirm purchase: use a Firestore transaction to atomically enforce the 6-user limit
     try {
-      const linkRef    = doc(db, "sharedLinks", linkId);
-      const linkSnap   = await getDoc(linkRef);
-      if (!linkSnap.exists()) { showToast("❌ Link not found."); return; }
+      const linkRef  = doc(db, "sharedLinks", linkId);
+      const userRef  = doc(db, "users", uid);
+      const expiresAt = Date.now() + tier.limitMinutes * 60 * 1000;
+      let freshSessions = [];
 
-      const freshSessions = (linkSnap.data().activeSessions || [])
-        .filter(s => s.expiresAt > Date.now());
+      await runTransaction(db, async (txn) => {
+        const linkSnap = await txn.get(linkRef);
+        if (!linkSnap.exists()) throw new Error("LINK_NOT_FOUND");
 
-      if (freshSessions.length >= MAX_SESSION_USERS) {
-        showToast(`❌ This link is full (${MAX_SESSION_USERS}/${MAX_SESSION_USERS} slots used). Try again later.`);
-        return;
-      }
+        // Filter out expired sessions inside the transaction
+        freshSessions = (linkSnap.data().activeSessions || [])
+          .filter(s => s.expiresAt > Date.now());
 
-      const expiresAt  = Date.now() + tier.limitMinutes * 60 * 1000;
-      const newSession = { uid, expiresAt };
+        if (freshSessions.length >= MAX_SESSION_USERS) {
+          throw new Error("SESSION_FULL");
+        }
 
-      const batch = writeBatch(db);
-      // Deduct credits from user
-      batch.update(doc(db, "users", uid), { credits: increment(-SESSION_COST) });
-      // Add session to link
-      batch.update(linkRef, {
-        activeSessions: [...freshSessions, newSession],
+        const newSession = { uid, expiresAt };
+        txn.update(linkRef, { activeSessions: [...freshSessions, newSession] });
+        txn.update(userRef, { credits: increment(-SESSION_COST) });
       });
-      await batch.commit();
 
-      // Update local cache
-      if (cachedLink) cachedLink.data.activeSessions = [...freshSessions, newSession];
+      // Update local cache after successful transaction
+      const cachedLink = allDocs.find(d => d.id === linkId);
+      if (cachedLink) {
+        cachedLink.data.activeSessions = [...freshSessions, { uid, expiresAt }];
+      }
       if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
       const creditEl = document.getElementById("creditCount");
       if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
@@ -658,8 +660,14 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
 
       _doOpenIframe(url, title, linkId, submittedBy, htmlContent, expiresAt);
     } catch (err) {
-      console.error("Session purchase error:", err);
-      showToast("❌ Failed to start session. Please try again.");
+      if (err.message === "SESSION_FULL") {
+        showToast(`❌ This link is full (${MAX_SESSION_USERS}/${MAX_SESSION_USERS} slots used). Try again later.`);
+      } else if (err.message === "LINK_NOT_FOUND") {
+        showToast("❌ Link not found.");
+      } else {
+        console.error("Session purchase error:", err);
+        showToast("❌ Failed to start session. Please try again.");
+      }
     }
     return;
   }

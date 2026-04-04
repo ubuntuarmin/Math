@@ -191,7 +191,7 @@ function renderReferralUI(code) {
                 <input readonly id="refInput" value="${fullLink}" class="bg-gray-950 text-xs p-2 rounded border border-gray-800 w-full text-blue-300 font-mono outline-none">
                 <button id="copyRefBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded font-bold transition">COPY</button>
             </div>
-            <p class="text-[10px] text-gray-500 mt-2">Friends get 20 credits, you get 150!</p>
+            <p class="text-[10px] text-gray-500 mt-2">New friends start with 20 credits; you earn 150!</p>
         </div>
     `;
 
