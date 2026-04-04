@@ -497,11 +497,11 @@ function renderLinkCard(id, data, currentUid) {
       '<div class="flex items-center gap-2">' + upvoteSection + actionSection + '</div>' +
     '</div>';
 
-  card.querySelector(".open-link-btn").addEventListener("click", () => {
+  card.querySelector(".open-link-btn")?.addEventListener("click", () => {
     openIframeModal(data.url, safeTitle, id, submittedBy, data.htmlContent || null);
   });
 
-  card.querySelector(".view-profile-btn").addEventListener("click", () => {
+  card.querySelector(".view-profile-btn")?.addEventListener("click", () => {
     openProfileModal(submittedBy, safeName);
   });
 
