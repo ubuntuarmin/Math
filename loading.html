@@ -371,28 +371,51 @@
       return scene;
     }
 
-    // Bootstrap: create engine and run scene
-    (function () {
-      const canvas = document.getElementById("renderCanvas");
-      const engine = new BABYLON.Engine(canvas, /* antialias= */ true, {
-        preserveDrawingBuffer: false,
-        stencil: true,
-        disableWebGL2Support: false
-      });
+    // Bootstrap: create engine (WebGPU preferred, WebGL fallback) and run scene
+    const _canvas = document.getElementById("renderCanvas");
+    (async function () {
+      let engine;
+
+      // Prefer WebGPU – it satisfies all capability checks and offers better
+      // performance; fall back to WebGL2/WebGL1 when WebGPU is unavailable.
+      const webgpuSupported = await BABYLON.WebGPUEngine.IsSupportedAsync;
+      if (webgpuSupported) {
+        engine = new BABYLON.WebGPUEngine(_canvas, { antialias: true });
+        await engine.initAsync();
+      } else {
+        engine = new BABYLON.Engine(_canvas, /* antialias= */ true, {
+          preserveDrawingBuffer: false,
+          stencil: true,
+          disableWebGL2Support: false
+        });
+      }
+
       // Expose engine globally so createScene (which references it as a free var) can use it
       window.engine = engine;
 
-      engine.runRenderLoop(function () { /* filled after scene resolves */ });
-
-      createScene().then(function (scene) {
-        engine.stopRenderLoop();
-        engine.runRenderLoop(function () { scene.render(); });
-      }).catch(function (err) {
-        console.error("[loading.html] Scene init error:", err);
-      });
+      const scene = await createScene();
+      if (!scene) {
+        console.error("[loading.html] createScene() returned no scene – aborting render loop.");
+        return;
+      }
+      engine.runRenderLoop(function () { scene.render(); });
 
       window.addEventListener("resize", function () { engine.resize(); });
-    })();
+    })().catch(function (err) {
+      console.error("[loading.html] Fatal init error:", err);
+      // Show a minimal error message so the user knows something went wrong
+      if (_canvas) {
+        const ctx = _canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, _canvas.width, _canvas.height);
+          ctx.fillStyle = "#f55";
+          ctx.font = "bold 18px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText("Failed to initialize 3D engine.", _canvas.width / 2, _canvas.height / 2);
+        }
+      }
+    });
   </script>
 </body>
 </html>
