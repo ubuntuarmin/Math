@@ -16,6 +16,38 @@ service cloud.firestore {
       return after > before ? after - before : 0;
     }
 
+    // ─── Rate-limit helpers ───────────────────────────────────────────────────
+    // These read the requesting user's document to enforce sliding-window limits.
+    // The client must keep the window fields up to date on every relevant write.
+
+    // Link submissions: max 3 per hour per user.
+    function linkRateLimitOk() {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let windowAge = request.time.toMillis() - u.get('hourlyLinkWindowStart', 0);
+      // Window expired → allow (client will reset the counter)
+      return windowAge > 3600000 || u.get('hourlyLinkCount', 0) < 3;
+    }
+
+    // Reviews: max 10 per 10 seconds per user (burst-attack protection).
+    function reviewRateLimitOk() {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let windowAge = request.time.toMillis() - u.get('reviewWindowStart', 0);
+      return windowAge > 10000 || u.get('reviewWindowCount', 0) < 10;
+    }
+
+    // Messages: max 50 per hour per user (notification spam protection).
+    function messageRateLimitOk() {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let windowAge = request.time.toMillis() - u.get('messageWindowStart', 0);
+      return windowAge > 3600000 || u.get('messageWindowCount', 0) < 50;
+    }
+
+    // Profile updates: max 5 per hour per user.
+    function profileUpdateRateLimitOk() {
+      let windowAge = request.time.toMillis() - resource.data.get('profileUpdateWindowStart', 0);
+      return windowAge > 3600000 || resource.data.get('profileUpdateCount', 0) < 5;
+    }
+
     // ─── Users ───────────────────────────────────────────────────────────────
     // Any signed-in user can read user profiles (needed for leaderboard /
     // profile modals).  Only the owner can create their own document.
@@ -31,6 +63,7 @@ service cloud.firestore {
         // Owner: may update any field but credit/minute additions are capped.
         // Cap is 500 per write — covers referral bonus (150), quality bonus (50),
         // daily streak bonuses (up to 100), and appeal vote rewards (10).
+        // Profile-content edits (firstName, bio, etc.) are limited to 5 per hour.
         (
           request.auth.uid == userId
           && fieldDelta('credits')      <= 500
@@ -39,6 +72,12 @@ service cloud.firestore {
           && fieldDelta('totalMinutes') <= 500
           && request.resource.data.get('weekMinutes',  0) <= 10000  // ~167 hours; prevents leaderboard abuse
           && request.resource.data.get('totalMinutes', 0) <= 999999
+          // Profile-content fields are additionally rate-limited
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['firstName', 'lastName', 'bio', 'grade', 'avatarColor'])
+            || profileUpdateRateLimitOk()
+          )
         )
         // Other users: upvotes / referral rewards may only touch these credit fields.
         || (
@@ -56,9 +95,10 @@ service cloud.firestore {
     // ─── Shared links ─────────────────────────────────────────────────────────
     // Authenticated users can read, submit, and interact with (upvote / report /
     // session purchase) shared links.  Only the submitter can delete their own link.
+    // Link creation is rate-limited to 3 per hour per user.
     match /sharedLinks/{linkId} {
       allow read:   if isAuthenticated();
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && linkRateLimitOk();
       allow update: if isAuthenticated(); // upvotes, reports, status changes, activeSessions
       allow delete: if isAuthenticated() && resource.data.submittedBy == request.auth.uid;
     }
@@ -66,9 +106,10 @@ service cloud.firestore {
     // ─── Messages / inbox ────────────────────────────────────────────────────
     // Any authenticated user can create a message (notifications sent to
     // others on upvote, referral, link removal, etc.).
+    // Creation is rate-limited to 50 per hour to prevent inbox flooding.
     // A user may only read, update, or delete messages addressed to themselves.
     match /messages/{messageId} {
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && messageRateLimitOk();
       allow read:   if isAuthenticated() && resource.data.to == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.to == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.to == request.auth.uid;
@@ -85,10 +126,12 @@ service cloud.firestore {
     // Authenticated users can read all ratings.
     // A user may only create a rating attributed to themselves.
     // Ratings are immutable once submitted.
+    // Creation is rate-limited to 10 per 10 seconds to stop automated flooding.
     match /linkRatings/{ratingId} {
       allow read:   if isAuthenticated();
       allow create: if isAuthenticated()
-                    && request.resource.data.ratedBy == request.auth.uid;
+                    && request.resource.data.ratedBy == request.auth.uid
+                    && reviewRateLimitOk();
       allow update, delete: if false;
     }
   }

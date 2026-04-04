@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase.js";
-import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier, getNextTierInfo } from "./tier.js"; 
 import { handleDeleteAccount } from "./deleteAccount.js";
 
@@ -248,12 +248,24 @@ if (saveProfileBtn) {
             saveProfileBtn.disabled = true;
             saveProfileBtn.textContent = "Saving...";
 
+            // Read the current doc to compute the profile-update rate-limit window.
+            const currentSnap = await getDoc(userRef);
+            const currentData = currentSnap.exists() ? currentSnap.data() : {};
+
+            const now         = Date.now();
+            const winStart    = currentData.profileUpdateWindowStart || 0;
+            const isNewWindow = (now - winStart) > 3600000;
+            const profileUpdateFields = isNewWindow
+              ? { profileUpdateWindowStart: now, profileUpdateCount: 1 }
+              : { profileUpdateCount: increment(1) };
+
             const updatedData = {
                 firstName: fName,
                 lastName: editLast.value.trim(),
                 grade: editGrade.value,
                 bio: bio,
                 avatarColor: editAvatarColor?.value || "ocean",
+                ...profileUpdateFields,
             };
 
             await updateDoc(userRef, updatedData);

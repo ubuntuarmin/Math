@@ -67,6 +67,70 @@ let loadingFrame      = null; // cached reference to loading animation iframe
 let setupDone         = false;
 let pendingDelete     = null; // { linkId, data, cardEl }
 let appealsLoaded     = false;
+
+// ── Optimization caches ───────────────────────────────────────────────────────
+// Avoids redundant Firestore reads within a session.
+
+// Set of linkIds the current user has already rated (populated on successful submit
+// and on cache-hit in checkAndShowRatingModal).
+const ratedLinksCache = new Set();
+
+// Profile data cache: uid → { userData, ratings, expiresAt }
+const profileCache = new Map();
+const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// ── Client-side rate limiting ─────────────────────────────────────────────────
+// Uses localStorage sliding-window counters for fast, client-only enforcement.
+// The Firestore security rules enforce equivalent limits server-side.
+
+/**
+ * Returns how many events in the given localStorage key occurred within
+ * the last `windowMs` milliseconds.
+ */
+function rateLimitCount(storageKey, windowMs) {
+  const now = Date.now();
+  let history;
+  try {
+    history = JSON.parse(localStorage.getItem(storageKey) || "[]");
+  } catch (_) {
+    history = [];
+  }
+  return history.filter(t => now - t < windowMs).length;
+}
+
+/**
+ * Records a new event timestamp for the given key, pruning entries outside
+ * `windowMs` to prevent unbounded localStorage growth.
+ */
+function rateLimitRecord(storageKey, windowMs) {
+  const now = Date.now();
+  let history;
+  try {
+    history = JSON.parse(localStorage.getItem(storageKey) || "[]");
+  } catch (_) {
+    history = [];
+  }
+  history = history.filter(t => now - t < windowMs);
+  history.push(now);
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(history));
+  } catch (_) {}
+}
+
+/**
+ * Returns true when the action is allowed (under the limit).
+ * Limits:
+ *   reviews       – 10 per 10 seconds  (matches Firestore rule)
+ *   upvotes       – 30 per hour
+ *   profileUpvotes– 20 per hour
+ *   reports       – 5  per hour
+ *   appealVotes   – 3  per hour
+ *   sessionBuys   – 10 per hour
+ */
+function checkRateLimit(storageKey, maxCount, windowMs) {
+  return rateLimitCount(storageKey, windowMs) < maxCount;
+}
+
 // Loading-animation state — iframe is revealed only once BOTH flags are true
 let animationDone     = false; // set when loading.html sends 'animationComplete'
 let iframeFrameLoaded = false; // set when the content iframe fires onload
@@ -120,7 +184,10 @@ export function updateUI(userData) {
 }
 
 // Notification helper
+// Also updates the sender's message rate-limit window on the user doc so the
+// Firestore rule `messageRateLimitOk()` has accurate state to check.
 async function sendNotification(toUid, title, text, type = "system") {
+  const senderUid = auth.currentUser?.uid;
   try {
     await addDoc(collection(db, "messages"), {
       to: toUid,
@@ -131,6 +198,28 @@ async function sendNotification(toUid, title, text, type = "system") {
       timestamp: serverTimestamp(),
       read: false,
     });
+    // Keep the message rate-limit window fields up to date on the user doc so
+    // the server-side Firestore rule can enforce the 50-messages/hour limit.
+    if (senderUid) {
+      const now        = Date.now();
+      const userData   = currentUserData || {};
+      const winStart   = userData.messageWindowStart || 0;
+      const isNewWin   = (now - winStart) > 3600000;
+      const msgUpdate  = isNewWin
+        ? { messageWindowStart: now, messageWindowCount: 1 }
+        : { messageWindowCount: increment(1) };
+      try {
+        await updateDoc(doc(db, "users", senderUid), msgUpdate);
+        if (currentUserData) {
+          if (isNewWin) {
+            currentUserData.messageWindowStart = now;
+            currentUserData.messageWindowCount = 1;
+          } else {
+            currentUserData.messageWindowCount = (currentUserData.messageWindowCount || 0) + 1;
+          }
+        }
+      } catch (_) {}
+    }
   } catch (err) {
     console.warn("Failed to send notification:", err);
   }
@@ -612,6 +701,12 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       return;
     }
 
+    // Rate limit: max 10 session purchases per hour
+    if (!checkRateLimit("sessionBuyHistory", 10, 3600000)) {
+      showToast("⏳ You've reached the session purchase limit (10/hour). Please try again later.");
+      return;
+    }
+
     // Use cached session count; re-checked server-side on purchase
     const cachedLink    = allDocs.find(d => d.id === linkId);
     const sessionCount  = getActiveSessionCount(cachedLink?.data?.activeSessions);
@@ -653,6 +748,9 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
       const creditEl = document.getElementById("creditCount");
       if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
+
+      // Record purchase locally so rate limit counter is immediately accurate
+      rateLimitRecord("sessionBuyHistory", 3600000);
 
       // Persist session in sessionStorage
       storeSession(linkId, expiresAt);
@@ -850,6 +948,10 @@ function closeIframeModal() {
 async function checkAndShowRatingModal(linkId, title, submittedBy) {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
+
+  // Fast path: check in-memory cache before hitting Firestore
+  if (ratedLinksCache.has(linkId)) return;
+
   try {
     const q    = query(
       collection(db, "linkRatings"),
@@ -857,7 +959,10 @@ async function checkAndShowRatingModal(linkId, title, submittedBy) {
       where("ratedBy", "==", uid)
     );
     const snap = await getDocs(q);
-    if (!snap.empty) return;
+    if (!snap.empty) {
+      ratedLinksCache.add(linkId); // cache so we never re-query this session
+      return;
+    }
     showRatingModal(linkId, title, submittedBy);
   } catch (err) {
     console.warn("Rating check error:", err);
@@ -939,6 +1044,13 @@ async function submitRating() {
   const { linkId, title, submittedBy } = pendingRating;
   const comment   = (document.getElementById("rateComment")?.value || "").trim();
   const submitBtn = document.getElementById("rateSubmitBtn");
+
+  // Rate limit: max 10 reviews per 10 seconds (matches Firestore rule)
+  if (!checkRateLimit("reviewHistory", 10, 10000)) {
+    showToast("⏳ You're reviewing too fast — please wait a moment.");
+    return;
+  }
+
   if (submitBtn) submitBtn.disabled = true;
 
   try {
@@ -960,7 +1072,32 @@ async function submitRating() {
       ratingCount: increment(1),
     });
 
+    // Update server-side review rate-limit window on the user document.
+    // The Firestore rule reads these fields BEFORE the batch commits.
+    const userData     = currentUserData || {};
+    const now          = Date.now();
+    const reviewWindow = userData.reviewWindowStart || 0;
+    const isNewWindow  = (now - reviewWindow) > 10000; // 10-second window
+    const reviewUpdate = isNewWindow
+      ? { reviewWindowStart: now, reviewWindowCount: 1 }
+      : { reviewWindowCount: increment(1) };
+    batch.update(doc(db, "users", uid), reviewUpdate);
+
     await batch.commit();
+
+    // Record locally so client-side rate limit is immediately accurate
+    rateLimitRecord("reviewHistory", 10000);
+    // Cache this link as rated so we skip future Firestore checks in this session
+    ratedLinksCache.add(linkId);
+    // Update local userData copy so next review uses correct window values
+    if (currentUserData) {
+      if (isNewWindow) {
+        currentUserData.reviewWindowStart = now;
+        currentUserData.reviewWindowCount = 1;
+      } else {
+        currentUserData.reviewWindowCount = (currentUserData.reviewWindowCount || 0) + 1;
+      }
+    }
 
     if (submittedBy && submittedBy !== uid) {
       const stars = "\u2605".repeat(selectedStars) + "\u2606".repeat(5 - selectedStars);
@@ -1297,6 +1434,14 @@ async function handleAppeal(linkId, data, cardEl) {
   const uid = auth.currentUser?.uid;
   if (!uid || data.submittedBy !== uid) return;
 
+  // Rate limit: max 2 appeals per day (86400 seconds)
+  if (!checkRateLimit("appealHistory", 2, 86400000)) {
+    showToast("⏳ You've reached the appeal limit (2/day). Please try again tomorrow.");
+    const btn = cardEl.querySelector(".appeal-btn");
+    if (btn) { btn.disabled = false; btn.textContent = "\u2696\uFE0F Appeal"; }
+    return;
+  }
+
   try {
     await updateDoc(doc(db, "sharedLinks", linkId), {
       status:          "appealing",
@@ -1305,6 +1450,9 @@ async function handleAppeal(linkId, data, cardEl) {
       appealVoteCount: 0,
       reinstateCount:  0,
     });
+
+    // Record locally so rate limit counter is immediately accurate
+    rateLimitRecord("appealHistory", 86400000);
 
     await sendNotification(
       uid,
@@ -1344,6 +1492,13 @@ async function handleAppealVote(linkId, vote, data, cardEl) {
     data.appealVotes.some(v => v.uid === uid);
   if (alreadyVoted) {
     alert("You have already voted on this appeal.");
+    cardEl.querySelectorAll(".appeal-vote-btn").forEach(b => { b.disabled = false; });
+    return;
+  }
+
+  // Rate limit: max 3 appeal votes per hour
+  if (!checkRateLimit("appealVoteHistory", 3, 3600000)) {
+    showToast("⏳ You've reached the appeal vote limit (3/hour). Please try again later.");
     cardEl.querySelectorAll(".appeal-vote-btn").forEach(b => { b.disabled = false; });
     return;
   }
@@ -1393,6 +1548,9 @@ async function handleAppealVote(linkId, vote, data, cardEl) {
 
     await batch.commit();
 
+    // Record locally so rate limit counter is immediately accurate
+    rateLimitRecord("appealVoteHistory", 3600000);
+
     // Notify the link owner when a decision has been reached
     if (decisionMade && data.submittedBy) {
       await sendNotification(
@@ -1437,23 +1595,37 @@ export async function openProfileModal(uid, displayName) {
   content.innerHTML = '<div class="flex justify-center py-10"><div class="loader"></div></div>';
 
   try {
-    const [userSnap, ratingsSnap] = await Promise.all([
-      getDoc(doc(db, "users", uid)),
-      getDocs(query(collection(db, "linkRatings"), where("submittedBy", "==", uid))),
-    ]);
+    // Check in-memory profile cache to avoid redundant Firestore reads
+    const now    = Date.now();
+    const cached = profileCache.get(uid);
+    let data, ratings;
 
-    if (!userSnap.exists()) {
-      content.innerHTML = '<p class="text-gray-400 text-sm text-center py-6">Profile not found.</p>';
-      return;
+    if (cached && cached.expiresAt > now) {
+      data    = cached.userData;
+      ratings = cached.ratings;
+    } else {
+      const [userSnap, ratingsSnap] = await Promise.all([
+        getDoc(doc(db, "users", uid)),
+        getDocs(query(collection(db, "linkRatings"), where("submittedBy", "==", uid))),
+      ]);
+
+      if (!userSnap.exists()) {
+        content.innerHTML = '<p class="text-gray-400 text-sm text-center py-6">Profile not found.</p>';
+        return;
+      }
+
+      data    = userSnap.data();
+      ratings = [];
+      ratingsSnap.forEach(s => ratings.push(s.data()));
+
+      // Cache the profile data for PROFILE_CACHE_TTL ms
+      profileCache.set(uid, { userData: data, ratings, expiresAt: now + PROFILE_CACHE_TTL });
     }
 
-    const data       = userSnap.data();
     const tier       = calculateTier(data.totalEarned || 0);
     const currentUid = auth.currentUser?.uid ?? "";
     const isSelf     = currentUid === uid;
 
-    const ratings = [];
-    ratingsSnap.forEach(s => ratings.push(s.data()));
     const avgRating = ratings.length
       ? (ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length).toFixed(1)
       : null;
@@ -1676,6 +1848,12 @@ async function handleUpvote(linkId, data, btn, cardEl) {
     return;
   }
 
+  // Rate limit: max 30 upvotes per hour
+  if (!checkRateLimit("upvoteHistory", 30, 3600000)) {
+    showToast("⏳ You've reached the upvote limit (30/hour). Please try again later.");
+    return;
+  }
+
   btn.disabled    = true;
   btn.textContent = "Upvoting\u2026";
 
@@ -1695,6 +1873,9 @@ async function handleUpvote(linkId, data, btn, cardEl) {
       upvoteCount: increment(1),
     });
     await batch.commit();
+
+    // Record locally so the rate limit counter is immediately accurate
+    rateLimitRecord("upvoteHistory", 3600000);
 
     if (data.submittedBy) {
       await sendNotification(
@@ -1730,6 +1911,12 @@ async function handleProfileUpvote(targetUid, btn) {
     return;
   }
 
+  // Rate limit: max 20 profile upvotes per hour
+  if (!checkRateLimit("profileUpvoteHistory", 20, 3600000)) {
+    alert("⏳ You've reached the profile upvote limit (20/hour). Please try again later.");
+    return;
+  }
+
   btn.disabled    = true;
   btn.textContent = "Upvoting\u2026";
 
@@ -1755,6 +1942,9 @@ async function handleProfileUpvote(targetUid, btn) {
       upvotedUsers: arrayUnion(targetUid),
     });
 
+    // Record locally so the rate limit counter is immediately accurate
+    rateLimitRecord("profileUpvoteHistory", 3600000);
+
     await sendNotification(
       targetUid,
       "Someone upvoted your profile!",
@@ -1776,6 +1966,12 @@ async function handleProfileUpvote(targetUid, btn) {
 async function handleReport(linkId, type, cardEl) {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
+
+  // Rate limit: max 5 reports per hour
+  if (!checkRateLimit("reportHistory", 5, 3600000)) {
+    showToast("⏳ You've reached the report limit (5/hour). Please try again later.");
+    return;
+  }
 
   // Use locally cached data for quick guard checks to avoid an unnecessary read
   const localDoc = allDocs.find(d => d.id === linkId);
@@ -1859,12 +2055,18 @@ async function handleReport(linkId, type, cardEl) {
 
       allDocs = allDocs.filter(d => d.id !== linkId);
 
+      // Record report locally so rate limit counter is immediately accurate
+      rateLimitRecord("reportHistory", 3600000);
+
       alert("Thanks for the report. This link has been removed from the community.");
     } else {
       await updateDoc(linkRef, {
         reportCount: newCount,
         reports:     arrayUnion(newReport),
       });
+
+      // Record report locally so rate limit counter is immediately accurate
+      rateLimitRecord("reportHistory", 3600000);
 
       const wrapper = cardEl.querySelector(".report-wrapper");
       if (wrapper) {

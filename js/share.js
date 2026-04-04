@@ -13,6 +13,7 @@ import {
 
 const LINK_BONUS = 50;
 const MIN_HTML_LENGTH = 100; // minimum chars for a meaningful HTML submission
+const MAX_LINKS_PER_HOUR = 3; // server-enforced via Firestore rules too
 
 const form        = document.getElementById("shareForm");
 const urlInput    = document.getElementById("shareUrl");
@@ -118,6 +119,29 @@ async function sendNotification(uid, title, text, type = "system") {
   }
 }
 
+// ── Client-side rate limiting ─────────────────────────────────────────────────
+// Reads/writes timestamps in localStorage to enforce hourly link submission limit.
+// The Firestore rules enforce the same limit server-side.
+
+function getRecentLinkSubmits() {
+  const now = Date.now();
+  let history;
+  try {
+    history = JSON.parse(localStorage.getItem("linkSubmitHistory") || "[]");
+  } catch (_) {
+    history = [];
+  }
+  return history.filter(t => now - t < 3600000); // last hour only
+}
+
+function recordLinkSubmit() {
+  const history = getRecentLinkSubmits();
+  history.push(Date.now());
+  try {
+    localStorage.setItem("linkSubmitHistory", JSON.stringify(history));
+  } catch (_) {}
+}
+
 // ── Form submit ───────────────────────────────────────────────────────────────
 async function handleSubmit(e) {
   e.preventDefault();
@@ -126,6 +150,18 @@ async function handleSubmit(e) {
   const user = auth.currentUser;
   if (!user) {
     showError("You must be signed in to share.");
+    return;
+  }
+
+  // ── Client-side rate limit check (fast, before any Firestore reads) ──────
+  const recentSubmits = getRecentLinkSubmits();
+  if (recentSubmits.length >= MAX_LINKS_PER_HOUR) {
+    const oldestMs   = recentSubmits[0];
+    const waitMins   = Math.ceil((oldestMs + 3600000 - Date.now()) / 60000);
+    showError(
+      `You've already submitted ${MAX_LINKS_PER_HOUR} links this hour. ` +
+      `Please wait ~${waitMins} minute${waitMins !== 1 ? "s" : ""} before sharing again.`
+    );
     return;
   }
 
@@ -229,12 +265,25 @@ async function handleSubmit(e) {
 
     batch.set(newLinkRef, linkDoc);
 
+    // Determine rate-limit window update for the server-enforced hourly limit.
+    // The Firestore rule reads these fields BEFORE the batch commits.
+    const now = Date.now();
+    const windowStart    = data.hourlyLinkWindowStart || 0;
+    const isNewWindow    = (now - windowStart) > 3600000;
+    const hourlyUpdate   = isNewWindow
+      ? { hourlyLinkWindowStart: now, hourlyLinkCount: 1 }
+      : { hourlyLinkCount: increment(1) };
+
     batch.set(userRef, {
       credits:     increment(LINK_BONUS),
       totalEarned: increment(LINK_BONUS),
+      ...hourlyUpdate,
     }, { merge: true });
 
     await batch.commit();
+
+    // Record the submission locally so the client-side guard is immediately accurate
+    recordLinkSubmit();
 
     const typeLabel = submissionType === "html" ? "HTML game" : "link";
     await sendNotification(
