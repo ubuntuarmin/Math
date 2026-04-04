@@ -11,6 +11,8 @@ import {
   arrayUnion,
   increment,
   addDoc,
+  orderBy,
+  limit,
   serverTimestamp,
   writeBatch,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -127,7 +129,12 @@ async function loadLinks() {
   linksGrid.innerHTML = "";
 
   try {
-    const q    = query(collection(db, "sharedLinks"), where("status", "==", "active"));
+    const q    = query(
+      collection(db, "sharedLinks"),
+      where("status", "==", "active"),
+      orderBy("createdAt", "desc"),
+      limit(100)
+    );
     const snap = await getDocs(q);
 
     if (linksLoading) linksLoading.classList.add("hidden");
@@ -891,12 +898,20 @@ async function loadAppeals() {
   if (myRemovedSection) myRemovedSection.classList.add("hidden");
 
   try {
-    // Community appeals: links currently under vote
-    const appealsQ    = query(collection(db, "sharedLinks"), where("status", "==", "appealing"));
+    // Community appeals: links currently under vote (cap at 25 to limit reads)
+    const appealsQ    = query(
+      collection(db, "sharedLinks"),
+      where("status", "==", "appealing"),
+      limit(25)
+    );
     const appealsSnap = await getDocs(appealsQ);
 
-    // Owner's own links: query by submitter, filter removed client-side
-    const myLinksQ    = query(collection(db, "sharedLinks"), where("submittedBy", "==", uid));
+    // Owner's own links: query by submitter, filter removed client-side (cap at 50)
+    const myLinksQ    = query(
+      collection(db, "sharedLinks"),
+      where("submittedBy", "==", uid),
+      limit(50)
+    );
     const myLinksSnap = await getDocs(myLinksQ);
 
     if (appealsLoading) appealsLoading.classList.add("hidden");
@@ -1162,7 +1177,7 @@ async function handleAppealVote(linkId, vote, data, cardEl) {
 }
 
 // Open profile modal
-async function openProfileModal(uid, displayName) {
+export async function openProfileModal(uid, displayName) {
   const modal   = document.getElementById("profileModal");
   const content = document.getElementById("profileModalContent");
   if (!modal || !content) return;
@@ -1416,12 +1431,22 @@ async function handleUpvote(linkId, data, btn, cardEl) {
 
   try {
     const linkRef = doc(db, "sharedLinks", linkId);
+    const batch   = writeBatch(db);
 
+    // Batch credits update + link upvote into a single round-trip
     if (data.submittedBy) {
-      await updateDoc(doc(db, "users", data.submittedBy), {
+      batch.update(doc(db, "users", data.submittedBy), {
         credits:     increment(UPVOTE_CREDITS),
         totalEarned: increment(UPVOTE_CREDITS),
       });
+    }
+    batch.update(linkRef, {
+      upvotes:     arrayUnion(uid),
+      upvoteCount: increment(1),
+    });
+    await batch.commit();
+
+    if (data.submittedBy) {
       await sendNotification(
         data.submittedBy,
         "Your link was upvoted!",
@@ -1429,11 +1454,6 @@ async function handleUpvote(linkId, data, btn, cardEl) {
         "upvote"
       );
     }
-
-    await updateDoc(linkRef, {
-      upvotes:     arrayUnion(uid),
-      upvoteCount: increment(1),
-    });
 
     const newCount = (data.upvoteCount || 0) + 1;
     btn.replaceWith(
@@ -1507,7 +1527,22 @@ async function handleReport(linkId, type, cardEl) {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
 
+  // Use locally cached data for quick guard checks to avoid an unnecessary read
+  const localDoc = allDocs.find(d => d.id === linkId);
+  if (localDoc) {
+    const localData = localDoc.data;
+    if (localData.submittedBy === uid) {
+      alert("You cannot report your own link.");
+      return;
+    }
+    if (Array.isArray(localData.reports) && localData.reports.some(r => r.uid === uid)) {
+      alert("You have already reported this link.");
+      return;
+    }
+  }
+
   try {
+    // Fetch fresh data to ensure accurate report count / state for the actual operation
     const linkRef = doc(db, "sharedLinks", linkId);
     const snap    = await getDoc(linkRef);
     if (!snap.exists()) return;
