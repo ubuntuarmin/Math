@@ -72,6 +72,7 @@ document.addEventListener("click", (e) => {
 });
 
 let _inboxInitialized = false;
+let _inboxUnsubscribe = null;
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -79,6 +80,12 @@ export function initInbox() {
   _inboxInitialized = true;
 
   onAuthStateChanged(auth, (user) => {
+    // Clean up any existing snapshot listener before (re-)initialising
+    if (_inboxUnsubscribe) {
+      _inboxUnsubscribe();
+      _inboxUnsubscribe = null;
+    }
+
     if (!user) {
       // If on a sub-page without a login modal, redirect to index
       const loginModal = document.getElementById("loginModal");
@@ -108,7 +115,7 @@ export function initInbox() {
       limit(20)
     );
 
-    onSnapshot(q, (snapshot) => {
+    _inboxUnsubscribe = onSnapshot(q, (snapshot) => {
       const messages = [];
       snapshot.forEach((docSnap) => {
         messages.push({ id: docSnap.id, ...docSnap.data() });

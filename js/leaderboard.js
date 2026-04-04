@@ -10,6 +10,7 @@ import {
   getDoc,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
+import { openProfileModal } from "./links.js";
 
 const leaderboardContainer = document.getElementById("leaderboard");
 let timerInterval = null;
@@ -33,24 +34,50 @@ function getNextBimonthlyReset() {
   }
 }
 
+const SETTINGS_CACHE_KEY = "leaderboardNextReset";
+const SETTINGS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const POST_RESET_REFRESH_DELAY = 10000;     // 10 s — wait for Firestore to propagate resets
+
 /**
  * Helper: Get next reset time:
- * 1. Try Firestore settings/leaderboard.nextReset
- * 2. Fallback to next 15th or 29th of the month
+ * 1. Try sessionStorage cache (1-hour TTL) to reduce Firestore reads
+ * 2. Try Firestore settings/leaderboard.nextReset
+ * 3. Fallback to next 15th or 29th of the month
  */
 async function getNextResetDate() {
+  // Check sessionStorage cache first
+  try {
+    const cached = sessionStorage.getItem(SETTINGS_CACHE_KEY);
+    if (cached) {
+      const { value, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < SETTINGS_CACHE_TTL) {
+        return new Date(value);
+      }
+    }
+  } catch (_) {}
+
   try {
     const settingsRef = doc(db, "settings", "leaderboard");
     const snap = await getDoc(settingsRef);
     if (snap.exists()) {
       const data = snap.data();
       if (data.nextReset) {
+        let date;
         // Firestore Timestamp
         if (typeof data.nextReset.toMillis === "function") {
-          return new Date(data.nextReset.toMillis());
+          date = new Date(data.nextReset.toMillis());
+        } else {
+          // Plain Date/string/number
+          date = new Date(data.nextReset);
         }
-        // Plain Date/string/number
-        return new Date(data.nextReset);
+        // Cache in sessionStorage
+        try {
+          sessionStorage.setItem(
+            SETTINGS_CACHE_KEY,
+            JSON.stringify({ value: date.toISOString(), timestamp: Date.now() })
+          );
+        } catch (_) {}
+        return date;
       }
     }
   } catch (err) {
@@ -124,9 +151,23 @@ export async function renderLeaderboard() {
   const nextResetDate = await getNextResetDate();
 
   // 2) Start live countdown (self‑correcting each second)
+  let resetFired = false;
   const updateCountdown = () => {
     const time = getTimeRemainingTo(nextResetDate);
     if (!countdownEl) return;
+    if (time.total <= 0) {
+      countdownEl.textContent = "0d 0h 0m";
+      if (!resetFired) {
+        resetFired = true;
+        // Clear the cache so the next render fetches the new reset date
+        try { sessionStorage.removeItem(SETTINGS_CACHE_KEY); } catch (_) {}
+        clearInterval(timerInterval);
+        timerInterval = null;
+        // Re-render the leaderboard after POST_RESET_REFRESH_DELAY to pick up post-reset data
+        setTimeout(() => renderLeaderboard(), POST_RESET_REFRESH_DELAY);
+      }
+      return;
+    }
     countdownEl.textContent = `${time.days}d ${time.hours}h ${time.mins}m`;
   };
   updateCountdown();
@@ -161,11 +202,14 @@ export async function renderLeaderboard() {
       if (rank === 3) rankBadge = `🥉`;
 
       const entry = document.createElement("div");
-      entry.className = `relative flex justify-between items-center p-4 rounded-xl border ${
+      entry.className = `relative flex justify-between items-center p-4 rounded-xl border cursor-pointer ${
         rank <= 3
           ? "bg-gray-800/80 border-blue-500/30"
           : "bg-gray-900/40 border-gray-800"
-      }`;
+      } hover:border-blue-400/50 transition-colors`;
+
+      const entryUid  = docSnap.id;
+      const entryName = data.firstName || "Student";
 
       entry.innerHTML = `
         <div class="flex items-center gap-4">
@@ -190,10 +234,15 @@ export async function renderLeaderboard() {
             ${data.weekMinutes || 0}<span class="text-[10px] ml-0.5">m</span>
           </div>
           <div class="text-[9px] text-gray-600 uppercase font-bold">This Week</div>
+          <div class="text-[10px] text-gray-600 mt-0.5">View Profile →</div>
         </div>
       `;
 
       listContainer.appendChild(entry);
+
+      // Open profile modal on click
+      entry.addEventListener("click", () => openProfileModal(entryUid, entryName));
+
       rank++;
     });
   } catch (err) {
