@@ -1,7 +1,7 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc, collection, query, where, orderBy, limit, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { deleteInactiveAccount } from "./deleteAccount.js";
+import { deleteInactiveAccount, deleteHackedAccount } from "./deleteAccount.js";
 
 // UI modules
 import { updateUI } from "./links.js";
@@ -31,6 +31,15 @@ const REWARD_DECREMENT = 10;      // credits decrease per rank step (rank 1 = 10
 // Maximum number of months to scan when looking for a crossed reset date.
 // 24 months covers any gap between visits without an unbounded loop.
 const RESET_SCAN_MAX_MONTHS = 24;
+
+// ─── Anti-hack thresholds ─────────────────────────────────────────────────────
+// Accounts that exceed these limits are auto-deleted on login.
+// weekMinutes > 99,999,999 is physically impossible (~190 years of continuous use).
+const HACKED_WEEK_MINUTES = 99999999;
+// Credits gained between two consecutive logins within one hour cannot legitimately
+// exceed this amount given all current earning caps and rate limits.
+const RAPID_CREDIT_THRESHOLD = 2000;
+const RAPID_CREDIT_WINDOW_MS  = 60 * 60 * 1000; // 1 hour
 
 export function refreshHeaderUI(userData) {
     if (!userData) return;
@@ -160,6 +169,46 @@ async function distributeLeaderboardReward(uid, userData, lastResetDate) {
     }
 }
 
+/**
+ * Returns true and deletes the account if the user's data contains signs of
+ * tampering:
+ *   1. weekMinutes exceeds the physically impossible threshold (> 99,999,999).
+ *   2. totalEarned grew by more than RAPID_CREDIT_THRESHOLD credits since the
+ *      last login AND that previous login was within RAPID_CREDIT_WINDOW_MS
+ *      (i.e. the gain happened suspiciously fast).
+ *
+ * Deletion removes the Firebase Auth record plus all Firestore documents
+ * (profile, links, messages, ratings) via deleteHackedAccount().
+ * Returns false when the account looks legitimate.
+ */
+async function checkAndDeleteHackedAccount(uid, userData, user) {
+    // Check 1: impossibly high weekly time
+    if ((userData.weekMinutes || 0) > HACKED_WEEK_MINUTES) {
+        console.warn(`[Anti-hack] Fraudulent weekMinutes (${userData.weekMinutes}) for uid ${uid}. Removing account.`);
+        try { await deleteHackedAccount(user); } catch (err) { console.error("[Anti-hack] Deletion error:", err); }
+        return true;
+    }
+
+    // Check 2: rapid credit gain between sessions
+    const snapshot    = userData.totalEarnedSnapshot;
+    const lastVisitTs = userData.lastVisitTimestamp;
+    if (snapshot != null && lastVisitTs != null) {
+        const lastVisitMillis = typeof lastVisitTs.toMillis === "function"
+            ? lastVisitTs.toMillis()
+            : (lastVisitTs?.seconds ?? 0) * 1000;
+        const timeSinceLast = Date.now() - lastVisitMillis;
+        const creditDelta   = (userData.totalEarned || 0) - snapshot;
+
+        if (timeSinceLast > 0 && timeSinceLast < RAPID_CREDIT_WINDOW_MS && creditDelta > RAPID_CREDIT_THRESHOLD) {
+            console.warn(`[Anti-hack] Rapid credit gain (+${creditDelta} in ${Math.round(timeSinceLast / 1000)}s) for uid ${uid}. Removing account.`);
+            try { await deleteHackedAccount(user); } catch (err) { console.error("[Anti-hack] Deletion error:", err); }
+            return true;
+        }
+    }
+
+    return false;
+}
+
 async function handleDailyData(uid, userData) {
     const userRef = doc(db, "users", uid);
     const now = new Date();
@@ -193,6 +242,10 @@ async function handleDailyData(uid, userData) {
     }
 
     updates.lastVisitTimestamp = serverTimestamp();
+
+    // Snapshot the current totalEarned so the rapid-credit-gain check can
+    // compare against this baseline on the NEXT login.
+    updates.totalEarnedSnapshot = userData.totalEarned || 0;
 
     const hasValidStreak =
         typeof userData.streak === "number" && Number.isFinite(userData.streak);
@@ -435,6 +488,13 @@ onAuthStateChanged(auth, async user => {
         let currentUserData = snap.data();
             
         if (!sessionStorage.getItem("justSignedUp")) {
+            // Detect and auto-remove hacked/fraudulent accounts before any UI is shown.
+            const isHacked = await checkAndDeleteHackedAccount(user.uid, currentUserData, user);
+            if (isHacked) {
+                window.location.href = "index.html?t=" + Date.now();
+                return;
+            }
+
             // Check inactivity BEFORE updating the visit timestamp
             checkInactivity(currentUserData, user);
             currentUserData = await handleDailyData(user.uid, currentUserData);

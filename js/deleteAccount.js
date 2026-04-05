@@ -7,13 +7,15 @@ import { deleteUser } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-a
  * - user profile document
  * - shared links submitted by the user
  * - inbox messages addressed to the user
+ * - link ratings submitted by the user
  *
  * Uses Promise.allSettled so all cleanup operations are attempted
  * even if one fails.
  */
 async function deleteAllUserData(uid) {
     const results = await Promise.allSettled([
-        // Delete user profile document
+        // Delete user profile document (also removes them from the leaderboard,
+        // which is a live query on the users collection).
         deleteDoc(doc(db, "users", uid)),
 
         // Delete shared links submitted by this user
@@ -23,10 +25,14 @@ async function deleteAllUserData(uid) {
         // Delete inbox messages addressed to this user
         getDocs(query(collection(db, "messages"), where("to", "==", uid)))
             .then(snap => Promise.all(snap.docs.map(d => deleteDoc(d.ref)))),
+
+        // Delete link ratings submitted by this user
+        getDocs(query(collection(db, "linkRatings"), where("ratedBy", "==", uid)))
+            .then(snap => Promise.all(snap.docs.map(d => deleteDoc(d.ref)))),
     ]);
 
     results.forEach((result, i) => {
-        const labels = ["users doc", "sharedLinks", "messages"];
+        const labels = ["users doc", "sharedLinks", "messages", "linkRatings"];
         if (result.status === "rejected") {
             console.error(`Cleanup error (${labels[i]}):`, result.reason);
         }
@@ -90,6 +96,26 @@ export async function deleteInactiveAccount(user) {
         console.log("Inactive account deleted:", uid);
     } catch (err) {
         console.error("Inactive account deletion error:", err);
+        throw err;
+    }
+}
+
+/**
+ * Deletes an account that was flagged as hacked/fraudulent (no user confirmation required).
+ * Removes the Firebase Auth record and all associated Firestore data — including the
+ * user profile (and therefore their leaderboard entry), shared links, messages, and
+ * link ratings.
+ * Called by auth.js when abuse thresholds are exceeded on login.
+ */
+export async function deleteHackedAccount(user) {
+    if (!user) return;
+    const uid = user.uid;
+    try {
+        await deleteUser(user);
+        await deleteAllUserData(uid);
+        console.log("Hacked account removed:", uid);
+    } catch (err) {
+        console.error("Hacked account deletion error:", err);
         throw err;
     }
 }
