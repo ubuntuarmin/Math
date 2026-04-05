@@ -896,7 +896,7 @@ body {
   /* Vendor-prefixed properties required for gradient text in WebKit/Blink browsers */
   -webkit-background-clip: text;
   background-clip: text;
-  -webkit-text-fill-color: transparent; /* color: transparent fallback for non-WebKit */
+  -webkit-text-fill-color: transparent; /* Makes text transparent in WebKit/Blink browsers */
   animation: hero-shimmer 6s ease infinite;
 }
 

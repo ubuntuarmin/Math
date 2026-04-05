@@ -1071,8 +1071,9 @@
 
     // Use requestAnimationFrame for smooth rendering
     let lastFrame = 0;
+    const FRAME_INTERVAL = 1000 / 30; // target 30fps (~33.33ms per frame) to conserve CPU
     function loop(ts) {
-      if (ts - lastFrame > 33) { // target ~30fps (33ms interval) to conserve CPU
+      if (ts - lastFrame > FRAME_INTERVAL) {
         lastFrame = ts;
         draw();
       }
@@ -1301,7 +1302,9 @@
       osc.start(now);
       osc.stop(now + 4);
 
-      const gap = 1800 + Math.random() * 3500;
+      const MIN_NOTE_GAP_MS    = 1800; // minimum ms between melody notes
+      const RANDOM_NOTE_RANGE_MS = 3500; // additional random ms range
+      const gap = MIN_NOTE_GAP_MS + Math.random() * RANDOM_NOTE_RANGE_MS;
       melodyTimer = setTimeout(() => { if (isRunning) scheduleNote(reverb); }, gap);
     }
 
