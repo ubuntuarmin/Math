@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feature Your Project | GameLinks</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    textarea { resize: vertical; }
+    .validation-badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.6rem;
+      border-radius: 999px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .badge-ok  { background: rgba(16,185,129,0.15); color: #34d399; }
+    .badge-err { background: rgba(239,68,68,0.15);  color: #f87171; }
+    .char-count { font-size: 0.72rem; color: #64748b; }
+    #htmlPreview {
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      min-height: 200px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    #previewContent {
+      padding: 1rem;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 0.9rem;
+      color: #111;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body class="page">
+
+  <header class="site-header">
+    <nav class="navbar">
+      <a href="index.html" class="navbar-brand">
+        <span class="navbar-brand-logo">🎮</span>
+        <span class="font-extrabold tracking-tight">GameLinks</span>
+      </a>
+      <a href="index.html" class="btn-outline text-xs">← Back to Links</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="container">
+      <section class="surface max-w-2xl mx-auto">
+
+        <!-- Hero -->
+        <div class="text-center mb-8">
+          <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600
+                      rounded-2xl flex items-center justify-center text-3xl
+                      mx-auto mb-4 shadow-lg shadow-blue-500/30">
+            ✨
+          </div>
+          <h1 class="text-3xl font-black text-white mb-2">Feature Your Project</h1>
+          <p class="text-gray-400 text-sm max-w-md mx-auto leading-relaxed">
+            Showcase your creation to the entire GameLinks community.
+            It&rsquo;s <strong class="text-white">completely free</strong> and your feature
+            runs for <strong class="text-white">2&ndash;3 weeks</strong> in the loading screen.
+          </p>
+        </div>
+
+        <!-- Info banner -->
+        <div class="grid grid-cols-3 gap-3 mb-8">
+          <div class="bg-gray-900/60 border border-emerald-500/20 rounded-xl p-3 text-center">
+            <div class="text-emerald-400 text-xl font-black mb-1">Free</div>
+            <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">No cost</div>
+            <div class="text-gray-500 text-[10px] mt-1">always</div>
+          </div>
+          <div class="bg-gray-900/60 border border-blue-500/20 rounded-xl p-3 text-center">
+            <div class="text-blue-400 text-xl font-black mb-1">2–3 wks</div>
+            <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Runtime</div>
+            <div class="text-gray-500 text-[10px] mt-1">per feature</div>
+          </div>
+          <div class="bg-gray-900/60 border border-purple-500/20 rounded-xl p-3 text-center">
+            <div class="text-purple-400 text-xl font-black mb-1">HTML</div>
+            <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Format</div>
+            <div class="text-gray-500 text-[10px] mt-1">your design</div>
+          </div>
+        </div>
+
+        <!-- Content rules -->
+        <div class="bg-amber-950/30 border border-amber-500/20 rounded-xl p-4 mb-8">
+          <h3 class="text-amber-400 font-bold text-sm mb-2 flex items-center gap-2">
+            <span>📋</span> Content Guidelines
+          </h3>
+          <ul class="text-amber-200/70 text-xs space-y-1 list-disc list-inside">
+            <li>Must be presentable, family-friendly, and appropriate for all ages</li>
+            <li>No <code class="bg-black/30 px-1 rounded">&lt;iframe&gt;</code> elements</li>
+            <li>No <code class="bg-black/30 px-1 rounded">&lt;button&gt;</code> elements</li>
+            <li>No links that open external websites (<code class="bg-black/30 px-1 rounded">target="_blank"</code> or off-site <code class="bg-black/30 px-1 rounded">href</code>)</li>
+            <li>No JavaScript — pure HTML &amp; inline CSS only</li>
+            <li>Your submission is reviewed before going live</li>
+          </ul>
+        </div>
+
+        <!-- Form -->
+        <form id="promoteForm" novalidate>
+
+          <!-- Project name -->
+          <div class="mb-5">
+            <label for="projectName" class="block text-sm font-semibold text-gray-300 mb-1.5">
+              Project / Creator name <span class="text-gray-500 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              id="projectName"
+              name="projectName"
+              maxlength="80"
+              placeholder="e.g. My Awesome Game, Studio XYZ…"
+              class="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5
+                     text-white placeholder-gray-600 text-sm focus:outline-none
+                     focus:border-blue-500 transition-colors"
+            />
+          </div>
+
+          <!-- Contact email -->
+          <div class="mb-5">
+            <label for="contactEmail" class="block text-sm font-semibold text-gray-300 mb-1.5">
+              Contact email <span class="text-gray-500 font-normal">(optional — only used to notify you when live)</span>
+            </label>
+            <input
+              type="email"
+              id="contactEmail"
+              name="contactEmail"
+              maxlength="120"
+              placeholder="you@example.com"
+              class="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-2.5
+                     text-white placeholder-gray-600 text-sm focus:outline-none
+                     focus:border-blue-500 transition-colors"
+            />
+          </div>
+
+          <!-- HTML code -->
+          <div class="mb-2">
+            <label for="htmlCode" class="block text-sm font-semibold text-gray-300 mb-1.5">
+              Your HTML code <span class="text-red-400">*</span>
+            </label>
+            <textarea
+              id="htmlCode"
+              name="htmlCode"
+              rows="12"
+              maxlength="20000"
+              placeholder="Paste your HTML here. Inline CSS is fine. No JavaScript, no iframes, no buttons, no external links."
+              class="w-full bg-gray-900/80 border border-gray-700 rounded-xl px-4 py-3
+                     text-white placeholder-gray-600 text-sm font-mono focus:outline-none
+                     focus:border-blue-500 transition-colors"
+            ></textarea>
+            <div class="flex items-center justify-between mt-1.5">
+              <div id="validationBadges" class="flex flex-wrap gap-1.5"></div>
+              <span class="char-count"><span id="htmlCharCount">0</span> / 20 000</span>
+            </div>
+          </div>
+
+          <!-- Live preview -->
+          <div class="mb-8">
+            <p class="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-2">Live preview</p>
+            <div id="htmlPreview">
+              <div id="previewContent" class="text-gray-400 italic text-xs">
+                Start typing HTML above to see a preview here…
+              </div>
+            </div>
+          </div>
+
+          <!-- Error message -->
+          <div id="formError" class="hidden bg-red-950/50 border border-red-500/30 rounded-xl p-3 mb-4 text-red-300 text-sm"></div>
+
+          <!-- Success message -->
+          <div id="formSuccess" class="hidden bg-emerald-950/50 border border-emerald-500/30 rounded-xl p-4 mb-4 text-center">
+            <div class="text-2xl mb-2">🎉</div>
+            <p class="text-emerald-300 font-bold text-sm">Submission received!</p>
+            <p class="text-emerald-200/70 text-xs mt-1">
+              We&rsquo;ll review your feature and put it live within a few days.
+              It will run for <strong>2–3 weeks</strong> in the loading screen — completely free.
+            </p>
+          </div>
+
+          <!-- Submit -->
+          <button
+            type="submit"
+            id="submitBtn"
+            class="w-full py-3 rounded-xl font-black text-sm tracking-wide text-white
+                   bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90
+                   transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Submit for Review →
+          </button>
+          <p class="text-center text-gray-600 text-xs mt-3">
+            By submitting you agree your content is appropriate and follows our guidelines.
+            Inappropriate or rule-breaking submissions will not go live.
+          </p>
+
+        </form>
+
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+    const app = initializeApp({
+      apiKey:    "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
+      authDomain:"math-katy.firebaseapp.com",
+      projectId: "math-katy"
+    });
+    const db = getFirestore(app);
+
+    // ── Elements ────────────────────────────────────────────────────────────────
+    const form            = document.getElementById("promoteForm");
+    const htmlCodeInput   = document.getElementById("htmlCode");
+    const htmlCharCount   = document.getElementById("htmlCharCount");
+    const previewContent  = document.getElementById("previewContent");
+    const validationBadges= document.getElementById("validationBadges");
+    const formError       = document.getElementById("formError");
+    const formSuccess     = document.getElementById("formSuccess");
+    const submitBtn       = document.getElementById("submitBtn");
+
+    // ── Validation helpers ──────────────────────────────────────────────────────
+    const FORBIDDEN_TAGS_RE     = /<\s*(iframe|script)\b/i;
+    const BUTTON_TAG_RE         = /<\s*button\b/i;
+    // External link: href starting with http/https or // that doesn't point to same origin.
+    // We simply reject any href that includes "://" or starts with "//" to be safe.
+    const EXT_LINK_RE           = /href\s*=\s*["'][^"']*:\/\//i;
+    const TARGET_BLANK_RE       = /target\s*=\s*["']_blank["']/i;
+    const EMPTY_RE              = /^\s*$/;
+
+    function validateHtml(code) {
+      const issues = [];
+      if (EMPTY_RE.test(code))           issues.push("HTML cannot be empty");
+      if (FORBIDDEN_TAGS_RE.test(code))  issues.push("No &lt;iframe&gt; or &lt;script&gt; tags allowed");
+      if (BUTTON_TAG_RE.test(code))      issues.push("No &lt;button&gt; elements allowed");
+      if (EXT_LINK_RE.test(code))        issues.push("No external links (http/https hrefs)");
+      if (TARGET_BLANK_RE.test(code))    issues.push("No target=\"_blank\" allowed");
+      if (code.length > 20000)           issues.push("HTML exceeds 20 000 character limit");
+      return issues;
+    }
+
+    function updateBadges(issues) {
+      validationBadges.innerHTML = "";
+      if (issues.length === 0) {
+        const ok = document.createElement("span");
+        ok.className = "validation-badge badge-ok";
+        ok.textContent = "✓ Looks good";
+        validationBadges.appendChild(ok);
+      } else {
+        issues.forEach(function(msg) {
+          const badge = document.createElement("span");
+          badge.className = "validation-badge badge-err";
+          badge.innerHTML = "✕ " + msg;
+          validationBadges.appendChild(badge);
+        });
+      }
+    }
+
+    // ── Live preview ────────────────────────────────────────────────────────────
+    function updatePreview(code) {
+      if (!code.trim()) {
+        previewContent.innerHTML = '<span class="text-gray-400 italic text-xs">Start typing HTML above to see a preview here…</span>';
+        return;
+      }
+      // Strip forbidden elements from preview for safety before rendering
+      let safe = code
+        .replace(/<\s*script[\s\S]*?<\/\s*script\s*>/gi, "")
+        .replace(/<\s*iframe[\s\S]*?>/gi, "")
+        .replace(/<\s*button[\s\S]*?>/gi, "")
+        .replace(/<\/\s*button\s*>/gi, "");
+      previewContent.innerHTML = safe;
+    }
+
+    // ── Event listeners ─────────────────────────────────────────────────────────
+    htmlCodeInput.addEventListener("input", function() {
+      const code = htmlCodeInput.value;
+      htmlCharCount.textContent = code.length;
+      updateBadges(validateHtml(code));
+      updatePreview(code);
+    });
+
+    // ── Form submission ─────────────────────────────────────────────────────────
+    form.addEventListener("submit", async function(e) {
+      e.preventDefault();
+
+      const htmlCode    = htmlCodeInput.value.trim();
+      const projectName = document.getElementById("projectName").value.trim();
+      const email       = document.getElementById("contactEmail").value.trim();
+
+      // Client-side validation
+      const issues = validateHtml(htmlCode);
+      if (issues.length > 0) {
+        formError.innerHTML = issues.map(function(i){ return "• " + i; }).join("<br>");
+        formError.classList.remove("hidden");
+        return;
+      }
+      formError.classList.add("hidden");
+
+      // Disable submit while saving
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Submitting…";
+
+      try {
+        await addDoc(collection(db, "promotions"), {
+          projectName:  projectName || null,
+          email:        email       || null,
+          htmlCode:     htmlCode,
+          status:       "pending",
+          submittedAt:  serverTimestamp()
+        });
+
+        form.classList.add("hidden");
+        formSuccess.classList.remove("hidden");
+      } catch (err) {
+        console.error("[promote.html] Firestore error:", err);
+        formError.textContent = "Something went wrong saving your submission. Please try again.";
+        formError.classList.remove("hidden");
+        submitBtn.disabled    = false;
+        submitBtn.textContent = "Submit for Review →";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -115,6 +115,21 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.to == request.auth.uid;
     }
 
+    // ─── Promotions ───────────────────────────────────────────────────────────
+    // Anyone (including unauthenticated visitors) may submit a promotion request
+    // via promote.html.  Submissions are write-only for the public; only
+    // authenticated users (admin) may read or update them via 281509.html.
+    // Fields are validated: htmlCode must be present and under 20 000 chars.
+    match /promotions/{promotionId} {
+      allow create: if request.resource.data.keys().hasAll(['htmlCode', 'status', 'submittedAt'])
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.htmlCode is string
+                    && request.resource.data.htmlCode.size() > 0
+                    && request.resource.data.htmlCode.size() <= 20000;
+      allow read, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
     // ─── App settings ────────────────────────────────────────────────────────
     // Leaderboard reset timestamps, etc. — read-only for users.
     match /settings/{settingId} {

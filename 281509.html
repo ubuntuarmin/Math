@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Promotion Reviews</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #030712;
+      color: #e2e8f0;
+      font-family: Arial, Helvetica, sans-serif;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle { font-size: 0.8rem; color: #64748b; margin-bottom: 2rem; }
+
+    #statusMsg { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1.5rem; }
+
+    .entry {
+      background: #0f172a;
+      border: 1px solid rgba(56,189,248,0.15);
+      border-radius: 14px;
+      padding: 1.2rem 1.4rem;
+      margin-bottom: 1.2rem;
+    }
+    .entry-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.8rem;
+      flex-wrap: wrap;
+    }
+    .entry-meta { font-size: 0.75rem; color: #64748b; }
+    .entry-meta span { color: #94a3b8; font-weight: 600; }
+    .badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+    }
+    .badge-pending  { background: rgba(234,179,8,0.15);   color: #fbbf24; }
+    .badge-approved { background: rgba(16,185,129,0.15);  color: #34d399; }
+    .badge-rejected { background: rgba(239,68,68,0.15);   color: #f87171; }
+
+    .html-block {
+      background: #000;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-family: "Courier New", monospace;
+      font-size: 0.72rem;
+      color: #94a3b8;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 240px;
+      overflow-y: auto;
+      margin-bottom: 0.75rem;
+    }
+    .preview-wrap {
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 0.75rem;
+    }
+    .preview-inner {
+      padding: 0.75rem 1rem;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 0.85rem;
+      color: #111;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .entry-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .btn {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.35rem 0.9rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+    }
+    .btn-approve { background: rgba(16,185,129,0.2); color: #34d399; }
+    .btn-reject  { background: rgba(239,68,68,0.2);  color: #f87171; }
+    .btn-approve:hover { background: rgba(16,185,129,0.35); }
+    .btn-reject:hover  { background: rgba(239,68,68,0.35); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .empty { text-align: center; color: #475569; padding: 3rem 0; font-size: 0.9rem; }
+    .filter-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .filter-btn {
+      font-size: 0.72rem; font-weight: 700; padding: 0.3rem 0.9rem;
+      border-radius: 999px; border: 1px solid rgba(255,255,255,0.1);
+      background: transparent; color: #94a3b8; cursor: pointer;
+      letter-spacing: 0.04em;
+    }
+    .filter-btn.active { background: rgba(56,189,248,0.15); color: #38bdf8; border-color: rgba(56,189,248,0.3); }
+  </style>
+</head>
+<body>
+  <h1>Promotion Submissions</h1>
+  <p class="subtitle">Hidden review page — submissions from promote.html</p>
+  <div id="statusMsg">Loading submissions…</div>
+
+  <div class="filter-bar">
+    <button class="filter-btn active" data-filter="all"   onclick="applyFilter('all',   this)">All</button>
+    <button class="filter-btn"        data-filter="pending"  onclick="applyFilter('pending',  this)">Pending</button>
+    <button class="filter-btn"        data-filter="approved" onclick="applyFilter('approved', this)">Approved</button>
+    <button class="filter-btn"        data-filter="rejected" onclick="applyFilter('rejected', this)">Rejected</button>
+  </div>
+
+  <div id="entriesList"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      getDocs,
+      doc,
+      updateDoc,
+      orderBy,
+      query
+    } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+    const app = initializeApp({
+      apiKey:    "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
+      authDomain:"math-katy.firebaseapp.com",
+      projectId: "math-katy"
+    });
+    const db = getFirestore(app);
+
+    let allEntries = [];
+    let currentFilter = "all";
+
+    const statusMsg  = document.getElementById("statusMsg");
+    const listEl     = document.getElementById("entriesList");
+
+    function formatDate(ts) {
+      if (!ts) return "—";
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleString();
+    }
+
+    function sanitiseForPreview(code) {
+      return code
+        .replace(/<\s*script[\s\S]*?<\/\s*script\s*>/gi, "")
+        .replace(/<\s*iframe[\s\S]*?>/gi, "")
+        .replace(/<\s*button[\s\S]*?>/gi, "")
+        .replace(/<\/\s*button\s*>/gi, "");
+    }
+
+    function renderEntries(entries) {
+      listEl.innerHTML = "";
+      if (entries.length === 0) {
+        listEl.innerHTML = '<p class="empty">No submissions match this filter.</p>';
+        return;
+      }
+      entries.forEach(function({ id, data }) {
+        const div = document.createElement("div");
+        div.className = "entry";
+        div.dataset.id = id;
+
+        const statusBadgeClass =
+          data.status === "approved" ? "badge-approved" :
+          data.status === "rejected" ? "badge-rejected" : "badge-pending";
+
+        div.innerHTML = `
+          <div class="entry-header">
+            <div class="entry-meta">
+              <div><span>ID:</span> ${id}</div>
+              <div><span>Submitted:</span> ${formatDate(data.submittedAt)}</div>
+              ${data.projectName ? `<div><span>Project:</span> ${escHtml(data.projectName)}</div>` : ""}
+              ${data.email       ? `<div><span>Email:</span> ${escHtml(data.email)}</div>`       : ""}
+            </div>
+            <span class="badge ${statusBadgeClass}">${escHtml(data.status || "pending")}</span>
+          </div>
+          <div class="html-block">${escHtml(data.htmlCode || "")}</div>
+          <details>
+            <summary style="font-size:0.75rem;color:#64748b;cursor:pointer;margin-bottom:0.5rem;">Show preview</summary>
+            <div class="preview-wrap">
+              <div class="preview-inner">${sanitiseForPreview(data.htmlCode || "")}</div>
+            </div>
+          </details>
+          <div class="entry-actions">
+            <button class="btn btn-approve" onclick="updateStatus('${id}','approved',this)"
+              ${data.status === "approved" ? "disabled" : ""}>Approve</button>
+            <button class="btn btn-reject"  onclick="updateStatus('${id}','rejected',this)"
+              ${data.status === "rejected" ? "disabled" : ""}>Reject</button>
+          </div>
+        `;
+        listEl.appendChild(div);
+      });
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    // Expose to onclick handlers on window
+    window.updateStatus = async function(id, status, btn) {
+      btn.disabled = true;
+      try {
+        await updateDoc(doc(db, "promotions", id), { status });
+        // Update local cache
+        const entry = allEntries.find(function(e){ return e.id === id; });
+        if (entry) entry.data.status = status;
+        applyFilter(currentFilter, document.querySelector(`.filter-btn[data-filter="${currentFilter}"]`));
+      } catch (err) {
+        console.error("[281509.html] updateDoc error:", err);
+        alert("Failed to update status: " + err.message);
+        btn.disabled = false;
+      }
+    };
+
+    window.applyFilter = function(filter, btn) {
+      currentFilter = filter;
+      document.querySelectorAll(".filter-btn").forEach(function(b){ b.classList.remove("active"); });
+      if (btn) btn.classList.add("active");
+      const filtered = filter === "all"
+        ? allEntries
+        : allEntries.filter(function(e){ return e.data.status === filter; });
+      renderEntries(filtered);
+    };
+
+    // Load all submissions
+    try {
+      const q = query(collection(db, "promotions"), orderBy("submittedAt", "desc"));
+      const snap = await getDocs(q);
+      allEntries = snap.docs.map(function(d){ return { id: d.id, data: d.data() }; });
+      statusMsg.textContent = allEntries.length + " submission(s) found.";
+      renderEntries(allEntries);
+    } catch (err) {
+      console.error("[281509.html] Firestore load error:", err);
+      statusMsg.textContent = "Error loading submissions: " + err.message;
+    }
+  </script>
+</body>
+</html>
