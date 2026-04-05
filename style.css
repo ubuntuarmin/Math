@@ -893,9 +893,10 @@ body {
     #38bdf8, #a855f7, #10b981, #38bdf8
   );
   background-size: 300% 300%;
+  /* Vendor-prefixed properties required for gradient text in WebKit/Blink browsers */
   -webkit-background-clip: text;
   background-clip: text;
-  -webkit-text-fill-color: transparent;
+  -webkit-text-fill-color: transparent; /* color: transparent fallback for non-WebKit */
   animation: hero-shimmer 6s ease infinite;
 }
 

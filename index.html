@@ -8,9 +8,13 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
 
-  <!-- GSAP — Professional animation engine -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+  <!-- GSAP — Professional animation engine
+       Note: Add SRI integrity hashes in production for security.
+       Deferred scripts execute before DOMContentLoaded, so gsap is available in our DOMContentLoaded handlers. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"
+          crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"
+          crossorigin="anonymous" defer></script>
 
   <style>
     /* ── Tab system ─────────────────────────────────────── */
@@ -1068,7 +1072,7 @@
     // Use requestAnimationFrame for smooth rendering
     let lastFrame = 0;
     function loop(ts) {
-      if (ts - lastFrame > 33) { // ~30fps to save resources
+      if (ts - lastFrame > 33) { // target ~30fps (33ms interval) to conserve CPU
         lastFrame = ts;
         draw();
       }
@@ -1229,6 +1233,7 @@
 
     function ensureCtx() {
       if (!audioCtx) {
+        // webkitAudioContext is kept for legacy Safari (pre-v14.1) compatibility
         audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
         masterGain = audioCtx.createGain();
         masterGain.gain.value = 0;
@@ -1430,14 +1435,12 @@
      INIT ALL
   ──────────────────────────────────────────────────────── */
   function init() {
-    // Wait for GSAP to be available (loaded with defer)
-    const waitGSAP = setInterval(() => {
-      if (typeof gsap !== "undefined") {
-        clearInterval(waitGSAP);
-        gsap.registerPlugin(ScrollTrigger);
-        initGSAP();
-      }
-    }, 50);
+    // GSAP deferred scripts execute before DOMContentLoaded per HTML spec,
+    // so gsap is guaranteed to be available here.
+    if (typeof gsap !== "undefined") {
+      gsap.registerPlugin(ScrollTrigger);
+      initGSAP();
+    }
 
     initRipple();
     initMagnetic();
@@ -1447,11 +1450,9 @@
     observeCards();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  // Inline scripts at the bottom of <body> always run with readyState='loading'.
+  // DOMContentLoaded fires after deferred scripts (GSAP) have already executed.
+  document.addEventListener("DOMContentLoaded", init);
 })();
 </script>
 </body>
