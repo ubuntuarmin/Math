@@ -16,9 +16,164 @@
       display: block;
       touch-action: none;
     }
+
+    /* ── Custom pre-loader overlay ───────────────────────────── */
+    #preLoader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+      transition: opacity 0.7s ease;
+    }
+    #preLoader.pl-fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Fallback content shown until spot file is fetched */
+    .pl-fallback {
+      text-align: center;
+      color: #e2e8f0;
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+    }
+    .pl-fallback .pl-spinner {
+      width: 48px; height: 48px;
+      border: 3px solid rgba(56,189,248,0.25);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      margin: 0 auto 1.5rem;
+      animation: pl-spin 0.9s linear infinite;
+    }
+    .pl-fallback h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: #f1f5f9;
+      margin: 0 0 0.4rem;
+    }
+    .pl-fallback p {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin: 0;
+    }
+    @keyframes pl-spin {
+      to { transform: rotate(360deg); }
+    }
+    /* ── Spot-file content styles (injected #spotContent uses these) ─── */
+    #spotContent {
+      max-width: 540px;
+      width: 100%;
+      text-align: center;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #e2e8f0;
+      padding: 1.5rem;
+    }
+    .sp-spinner {
+      width: 52px; height: 52px;
+      border: 3px solid rgba(56,189,248,0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      margin: 0 auto 1.4rem;
+      animation: pl-spin 0.9s linear infinite;
+    }
+    .sp-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin: 0 0 0.35rem;
+      letter-spacing: 0.01em;
+    }
+    .sp-sub {
+      font-size: 0.875rem;
+      color: #64748b;
+      margin: 0 0 1.6rem;
+    }
+    .sp-card {
+      background: linear-gradient(145deg, #0f172a, #060c1e);
+      border: 1px solid rgba(56,189,248,0.18);
+      border-radius: 16px;
+      padding: 1.4rem 1.6rem;
+      text-align: left;
+      margin-bottom: 1.4rem;
+    }
+    .sp-card-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin: 0 0 0.75rem;
+    }
+    .sp-list {
+      list-style: none;
+      padding: 0; margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .sp-list li {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      padding-left: 1rem;
+      position: relative;
+    }
+    .sp-list li::before {
+      content: "›";
+      position: absolute;
+      left: 0;
+      color: #475569;
+    }
+    .sp-list li.sp-featured {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+    .sp-list li.sp-featured::before { color: #38bdf8; }
+    .sp-cta {
+      display: inline-block;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 0.65rem 1.6rem;
+      border-radius: 999px;
+      letter-spacing: 0.02em;
+    }
+    .sp-cta-note {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      color: #475569;
+    }
   </style>
 </head>
 <body>
+  <!-- ── Pre-loader bootstrap (runs before Babylon.js scripts) ── -->
+  <script>
+    window.__plStart = Date.now();
+    // Random delay between 4 000 ms and 6 000 ms
+    window.__plDelay = 4000 + Math.random() * 2000;
+    // Pick a random spot file 01-20 and start fetching immediately so the
+    // download happens in parallel with the heavy Babylon.js script loads.
+    var _n  = Math.floor(Math.random() * 20) + 1;
+    var _sf = 'spot_' + (_n < 10 ? '0' + _n : '' + _n) + '.html';
+    window.__spotFetch = typeof fetch !== 'undefined'
+      ? fetch(_sf).then(function(r){ return r.ok ? r.text() : null; }).catch(function(){ return null; })
+      : Promise.resolve(null);
+  </script>
+
+  <!-- ── Pre-loader overlay (immediately visible while scripts load) ── -->
+  <div id="preLoader">
+    <div class="pl-fallback">
+      <div class="pl-spinner"></div>
+      <h2>Checking your position in line…</h2>
+      <p>Loading your experience, please wait.</p>
+    </div>
+  </div>
+
   <canvas id="renderCanvas"></canvas>
 
   <!-- Babylon.js core + plugins (latest stable from official CDN) -->
@@ -364,9 +519,43 @@
       return scene;
     }
 
-    // Bootstrap: create engine (WebGPU preferred, WebGL fallback) and run scene
+    // Bootstrap: wait for pre-loader delay, then create engine (WebGPU preferred, WebGL fallback).
     const _canvas = document.getElementById("renderCanvas");
     (async function () {
+      // ── Pre-loader phase ─────────────────────────────────────────────────────
+      const preLoader = document.getElementById("preLoader");
+
+      // Wait for the spot-file fetch started before scripts loaded.
+      const spotHtml = await window.__spotFetch;
+
+      if (spotHtml && preLoader) {
+        try {
+          const parser = new DOMParser();
+          const spotDoc = parser.parseFromString(spotHtml, "text/html");
+          // Extract only the #spotContent element to avoid pulling in the
+          // spot page's own <style> and outer wrapper styles.
+          const spotContent = spotDoc.getElementById("spotContent");
+          if (spotContent) {
+            preLoader.innerHTML = spotContent.outerHTML;
+          }
+        } catch (parseErr) {
+          console.warn("[loading.html] Could not parse spot file:", parseErr);
+        }
+      }
+
+      // Wait out the remaining portion of the 4-6 s delay.
+      const elapsed   = Date.now() - window.__plStart;
+      const remaining = Math.max(0, window.__plDelay - elapsed);
+      await new Promise(function (resolve) { setTimeout(resolve, remaining); });
+
+      // Fade out and remove the pre-loader.
+      if (preLoader) {
+        preLoader.classList.add("pl-fade-out");
+        await new Promise(function (resolve) { setTimeout(resolve, 700); });
+        preLoader.style.display = "none";
+      }
+
+      // ── Engine bootstrap ──────────────────────────────────────────────────────
       let engine;
 
       // Prefer WebGPU – it satisfies all capability checks and offers better

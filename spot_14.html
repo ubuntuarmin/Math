@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checking your position in line… | GameLinks</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #030712;
+      color: #e2e8f0;
+      font-family: Arial, Helvetica, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    #spotContent {
+      max-width: 540px;
+      width: 100%;
+      text-align: center;
+    }
+    .sp-spinner {
+      width: 52px; height: 52px;
+      border: 3px solid rgba(56,189,248,0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      margin: 0 auto 1.4rem;
+      animation: sp-spin 0.9s linear infinite;
+    }
+    @keyframes sp-spin { to { transform: rotate(360deg); } }
+    .sp-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.35rem;
+      letter-spacing: 0.01em;
+    }
+    .sp-sub {
+      font-size: 0.875rem;
+      color: #64748b;
+      margin-bottom: 1.6rem;
+    }
+    .sp-card {
+      background: linear-gradient(145deg, #0f172a, #060c1e);
+      border: 1px solid rgba(56,189,248,0.18);
+      border-radius: 16px;
+      padding: 1.4rem 1.6rem;
+      text-align: left;
+      margin-bottom: 1.4rem;
+    }
+    .sp-card-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #38bdf8;
+      margin-bottom: 0.75rem;
+    }
+    .sp-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .sp-list li {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      padding-left: 1rem;
+      position: relative;
+    }
+    .sp-list li::before {
+      content: "›";
+      position: absolute;
+      left: 0;
+      color: #475569;
+    }
+    .sp-list li.sp-featured {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+    .sp-list li.sp-featured::before {
+      color: #38bdf8;
+    }
+    .sp-cta {
+      display: inline-block;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 0.65rem 1.6rem;
+      border-radius: 999px;
+      letter-spacing: 0.02em;
+      transition: opacity 0.2s;
+    }
+    .sp-cta:hover { opacity: 0.88; }
+    .sp-cta-note {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      color: #475569;
+    }
+  </style>
+</head>
+<body>
+  <div id="spotContent">
+    <div class="sp-spinner"></div>
+    <h1 class="sp-title">Checking your position in line…</h1>
+    <p class="sp-sub">Your experience is loading. This only takes a moment.</p>
+    <div class="sp-card">
+      <p class="sp-card-heading">While you wait — from the community</p>
+      <ul class="sp-list">
+    <li>Want to share your idea with the community?</li>
+    <li>Have a project you&rsquo;d love to showcase?</li>
+    <li>Know a game or site worth exploring?</li>
+    <li>Discovered a hidden gem online?</li>
+    <li>Want to feature your creative work here?</li>
+    <li>Have something fun to share with everyone?</li>
+    <li>Found a cool interactive experience?</li>
+    <li>Want to connect with fellow enthusiasts?</li>
+    <li>Have a passion project worth highlighting?</li>
+    <li>Know a resource others would benefit from?</li>
+    <li>Want your creation seen by thousands?</li>
+    <li>Have a unique tool to recommend?</li>
+    <li>Built something amazing recently?</li>
+    <li class="sp-featured">Want to spark a conversation in the community?</li>
+    <li>Have a story to tell through your work?</li>
+    <li>Found something worth spreading the word about?</li>
+    <li>Want to inspire others with your creation?</li>
+    <li>Have something that deserves more attention?</li>
+    <li>Ready to make your mark on the community?</li>
+    <li>Want to be part of what makes this community great?</li>      </ul>
+    </div>
+    <a class="sp-cta" href="promote.html">Feature Your Project &rarr;</a>
+    <p class="sp-cta-note">Free &bull; Your feature runs for 2&ndash;3 weeks &bull; No approval wait</p>
+  </div>
+</body>
+</html>
