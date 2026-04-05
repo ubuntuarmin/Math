@@ -362,7 +362,8 @@ window.addEventListener("userProfileUpdated", (event) => {
     refreshHeaderUI(data);
     renderDaily(data);
     updateAccount(data);
-    renderLeaderboard(data);
+    // Leaderboard is intentionally NOT re-rendered here — it only refreshes on full page load
+    // to reduce Firestore reads and avoid annoying resets of the scroll position.
 });
 
 if (logoutBtn) {

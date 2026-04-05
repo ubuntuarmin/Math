@@ -987,6 +987,25 @@ function closeIframeModal() {
   if (timeSpent >= RATING_REQUIRED_MS && iframeLoaded && pr?.linkId && auth.currentUser) {
     checkAndShowRatingModal(pr.linkId, pr.title, pr.submittedBy);
   }
+
+  // Track time spent and update leaderboard/profile minute counters.
+  // Only record whole minutes; cap at 500 to respect Firestore security rules.
+  // Guard: iframeOpenTime must have been set (non-zero) to avoid a bogus delta.
+  const uid = auth.currentUser?.uid;
+  const minutesSpent = iframeOpenTime > 0 ? Math.floor(timeSpent / 60000) : 0;
+  if (uid && minutesSpent > 0) {
+    const cappedMinutes = Math.min(minutesSpent, 500);
+    const userRef = doc(db, "users", uid);
+    updateDoc(userRef, {
+      weekMinutes:  increment(cappedMinutes),
+      totalMinutes: increment(cappedMinutes),
+    }).catch(err => console.warn(`Failed to update session minutes (uid=${uid}, minutes=${cappedMinutes}):`, err));
+    // Keep local cache in sync so the UI reflects the change immediately
+    if (currentUserData) {
+      currentUserData.weekMinutes  = (currentUserData.weekMinutes  || 0) + cappedMinutes;
+      currentUserData.totalMinutes = (currentUserData.totalMinutes || 0) + cappedMinutes;
+    }
+  }
 }
 
 // Check if already rated, then show rating modal
