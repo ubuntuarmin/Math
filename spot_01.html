@@ -111,7 +111,7 @@
     <div class="sp-card">
       <p class="sp-card-heading">While you wait — from the community</p>
       <ul class="sp-list">
-    <li class="sp-featured">Want to share your idea with the community?</li>
+    <li>Want to share your idea with the community?</li>
     <li>Have a project you&rsquo;d love to showcase?</li>
     <li>Know a game or site worth exploring?</li>
     <li>Discovered a hidden gem online?</li>
@@ -132,8 +132,16 @@
     <li>Ready to make your mark on the community?</li>
     <li>Want to be part of what makes this community great?</li>      </ul>
     </div>
-    <a class="sp-cta" href="promote.html" target="_blank" rel="noopener noreferrer">Feature Your Project &rarr;</a>
+    <a class="sp-cta" href="promote.html" target="_blank" rel="noopener noreferrer">Put your AD on this page &rarr;</a>
     <p class="sp-cta-note">Free &bull; Your feature runs for 2&ndash;3 weeks &bull; No approval wait</p>
   </div>
+  <script>
+    (function(){
+      var items = document.querySelectorAll('.sp-list li');
+      if(items.length){
+        items[Math.floor(Math.random()*items.length)].classList.add('sp-featured');
+      }
+    })();
+  </script>
 </body>
 </html>

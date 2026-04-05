@@ -116,7 +116,7 @@
     <li>Know a game or site worth exploring?</li>
     <li>Discovered a hidden gem online?</li>
     <li>Want to feature your creative work here?</li>
-    <li class="sp-featured">Have something fun to share with everyone?</li>
+    <li>Have something fun to share with everyone?</li>
     <li>Found a cool interactive experience?</li>
     <li>Want to connect with fellow enthusiasts?</li>
     <li>Have a passion project worth highlighting?</li>
@@ -132,8 +132,16 @@
     <li>Ready to make your mark on the community?</li>
     <li>Want to be part of what makes this community great?</li>      </ul>
     </div>
-    <a class="sp-cta" href="promote.html" target="_blank" rel="noopener noreferrer">Feature Your Project &rarr;</a>
+    <a class="sp-cta" href="promote.html" target="_blank" rel="noopener noreferrer">Put your AD on this page &rarr;</a>
     <p class="sp-cta-note">Free &bull; Your feature runs for 2&ndash;3 weeks &bull; No approval wait</p>
   </div>
+  <script>
+    (function(){
+      var items = document.querySelectorAll('.sp-list li');
+      if(items.length){
+        items[Math.floor(Math.random()*items.length)].classList.add('sp-featured');
+      }
+    })();
+  </script>
 </body>
 </html>
