@@ -60,28 +60,17 @@
     }
     .sp-list {
       list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
     }
     .sp-list li {
-      font-size: 0.82rem;
-      color: #94a3b8;
-      padding-left: 1rem;
-      position: relative;
-    }
-    .sp-list li::before {
-      content: "›";
-      position: absolute;
-      left: 0;
-      color: #475569;
+      display: none;
     }
     .sp-list li.sp-featured {
+      display: block;
+      font-size: 1.05rem;
       color: #e2e8f0;
       font-weight: 600;
-    }
-    .sp-list li.sp-featured::before {
-      color: #38bdf8;
+      text-align: center;
+      line-height: 1.5;
     }
     .sp-cta {
       display: inline-block;
