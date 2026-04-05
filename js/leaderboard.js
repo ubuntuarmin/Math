@@ -14,6 +14,7 @@ import { openProfileModal } from "./links.js";
 
 const leaderboardContainer = document.getElementById("leaderboard");
 let timerInterval = null;
+let leaderboardRendered = false; // render only once per page load
 
 /**
  * Compute the next bi-monthly reset date (15th or 29th of a month).
@@ -119,6 +120,10 @@ function getPotentialReward(rank) {
  */
 export async function renderLeaderboard() {
   if (!leaderboardContainer) return;
+  // Only render once per page load to avoid unnecessary Firestore reads/writes
+  // and prevent the leaderboard from flickering on profile updates.
+  if (leaderboardRendered) return;
+  leaderboardRendered = true;
 
   // Stop any previous countdown interval
   if (timerInterval) {
