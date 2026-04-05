@@ -537,6 +537,12 @@
           const spotContent = spotDoc.getElementById("spotContent");
           if (spotContent) {
             preLoader.innerHTML = spotContent.outerHTML;
+            // Ensure all links in the injected content open in a new tab
+            // so users are never navigated away from the current page.
+            preLoader.querySelectorAll("a[href]").forEach(function(a) {
+              a.target = "_blank";
+              a.rel = "noopener noreferrer";
+            });
           }
         } catch (parseErr) {
           console.warn("[loading.html] Could not parse spot file:", parseErr);
