@@ -27,13 +27,16 @@ const linksEmpty   = document.getElementById("linksEmpty");
 
 const LINK_CREDITS        = 50;
 const UPVOTE_CREDITS      = 10;
-const SESSION_COST        = 50;  // credits per session
+const SESSION_COST        = 50;  // credits per time top-up
 const MAX_SESSION_USERS   = 6;   // max concurrent users per link
 const REPORT_THRESHOLD    = 3;
 const APPEAL_VOTE_CREDITS   = 10;
 const APPEAL_VOTE_THRESHOLD = 10;
 const RATING_REQUIRED_MS  = 10000; // 10 seconds minimum to unlock rating
 const IFRAME_LOAD_TIMEOUT_MS = 15000; // 15 seconds before showing embed-blocked error
+const FREE_SESSION_MS     = 30 * 60 * 1000; // 30 free minutes per browser session
+const GLOBAL_SESSION_KEY  = "global_session"; // sessionStorage key for cross-link timer
+const SLOT_EXPIRY_FALLBACK_MS = 4 * 60 * 60 * 1000; // fallback slot expiry for orphaned sessions
 
 // Helper: compute average rating string ("4.2") or null
 function calcAvgRating(ratingSum, ratingCount) {
@@ -52,8 +55,8 @@ let isLoadingLinks = false;  // guard against concurrent loadLinks calls
 let currentUserData = null;
 
 // Session tracking state
-let activeSessionLinkId   = null; // linkId of the currently open paid session
-let activeSessionExpiry   = 0;    // ms since epoch when session expires
+let currentLinkId         = null; // linkId of the link currently open (non-owner)
+let activeSessionExpiry   = 0;    // ms since epoch when current session window expires
 let sessionTimerInterval  = null; // setInterval id for countdown
 
 // Iframe / rating state
@@ -571,31 +574,26 @@ function getActiveSessionCount(sessions) {
   return (sessions || []).filter(s => s.expiresAt > now).length;
 }
 
-/** Session storage key for a link */
-function sessionKey(linkId) { return `session_${linkId}`; }
-
-/** Retrieve a live session from sessionStorage, or null if expired/missing */
-function getStoredSession(linkId) {
+/**
+ * Get the global cross-link session from sessionStorage.
+ * Returns { remainingMs } or null if never started.
+ */
+function getGlobalSession() {
   try {
-    const raw = sessionStorage.getItem(sessionKey(linkId));
+    const raw = sessionStorage.getItem(GLOBAL_SESSION_KEY);
     if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (s.expiresAt > Date.now()) return s;
-    sessionStorage.removeItem(sessionKey(linkId));
-    return null;
+    return JSON.parse(raw);
   } catch (_) { return null; }
 }
 
-/** Store session info in sessionStorage */
-function storeSession(linkId, expiresAt) {
+/**
+ * Save the global session state to sessionStorage.
+ * @param {{ remainingMs: number }} session
+ */
+function saveGlobalSession(session) {
   try {
-    sessionStorage.setItem(sessionKey(linkId), JSON.stringify({ expiresAt }));
+    sessionStorage.setItem(GLOBAL_SESSION_KEY, JSON.stringify(session));
   } catch (_) {}
-}
-
-/** Remove session from sessionStorage */
-function clearStoredSession(linkId) {
-  try { sessionStorage.removeItem(sessionKey(linkId)); } catch (_) {}
 }
 
 /**
@@ -668,9 +666,9 @@ function showSessionPurchaseModal(title, sessionCount, tierName, sessionMinutes,
     const cancelBtn   = document.getElementById("sessionCancelBtn");
     if (!modal) { resolve(false); return; }
 
-    if (linkTitleEl) linkTitleEl.textContent = title || "this link";
+    if (linkTitleEl) linkTitleEl.textContent = title || "your session";
     if (slotsEl)     slotsEl.textContent     = `${sessionCount}/${MAX_SESSION_USERS}`;
-    if (tierEl)      tierEl.textContent      = `${tierName} — up to ${sessionMinutes} min`;
+    if (tierEl)      tierEl.textContent      = `${tierName} — +${sessionMinutes} min added`;
     if (creditsEl)   creditsEl.textContent   = userCredits;
 
     modal.classList.remove("hidden");
@@ -696,98 +694,123 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   const uid     = auth.currentUser?.uid;
   const isOwner = uid && submittedBy === uid;
 
-  // Non-owners must purchase a session
-  if (!isOwner && linkId) {
-    // Check if there's already a live session in this browser tab
-    const stored = getStoredSession(linkId);
-    if (stored) {
-      // Resume with remaining time
-      activeSessionLinkId = linkId;
-      _doOpenIframe(url, title, linkId, submittedBy, htmlContent, stored.expiresAt);
-      return;
-    }
+  // Owners always open freely with no timer
+  if (isOwner || !linkId) {
+    _doOpenIframe(url, title, linkId, submittedBy, htmlContent, 0);
+    return;
+  }
 
-    // Need to buy a session
-    const userData    = currentUserData || {};
+  // ── Non-owner flow: global session with 30 free minutes ──────────────────
+  const userData = currentUserData || {};
+  const tier     = calculateTier(userData.totalEarned || 0);
+
+  // Get or create global session (30 free minutes for new sessions)
+  let gs = getGlobalSession();
+  if (!gs) {
+    gs = { remainingMs: FREE_SESSION_MS };
+    saveGlobalSession(gs);
+  }
+
+  // If time is exhausted, prompt user to buy more time (50 credits → tier minutes)
+  if (gs.remainingMs <= 0) {
     const userCredits = userData.credits || 0;
-    const tier        = calculateTier(userData.totalEarned || 0);
 
     if (userCredits < SESSION_COST) {
-      showToast(`❌ Not enough credits — you need ${SESSION_COST} 🪙 to join this session.`);
+      showToast(`❌ Not enough credits — you need ${SESSION_COST} 🪙 to add more session time.`);
       return;
     }
 
-    // Rate limit: max 10 session purchases per hour
+    // Rate limit: max 10 time purchases per hour
     if (!checkRateLimit("sessionBuyHistory", 10, 3600000)) {
       showToast("⏳ You've reached the session purchase limit (10/hour). Please try again later.");
       return;
     }
 
-    // Use cached session count; re-checked server-side on purchase
-    const cachedLink    = allDocs.find(d => d.id === linkId);
-    const sessionCount  = getActiveSessionCount(cachedLink?.data?.activeSessions);
+    const cachedLink   = allDocs.find(d => d.id === linkId);
+    const sessionCount = getActiveSessionCount(cachedLink?.data?.activeSessions);
 
     const confirmed = await showSessionPurchaseModal(
       title, sessionCount, tier.name, tier.limitMinutes, userCredits
     );
     if (!confirmed) return;
 
-    // Confirm purchase: use a Firestore transaction to atomically enforce the 6-user limit
+    // Atomically deduct credits; time is tracked client-side in sessionStorage
     try {
-      const linkRef  = doc(db, "sharedLinks", linkId);
-      const userRef  = doc(db, "users", uid);
-      const expiresAt = Date.now() + tier.limitMinutes * 60 * 1000;
-      let freshSessions = [];
-
+      const userRef = doc(db, "users", uid);
       await runTransaction(db, async (txn) => {
-        const linkSnap = await txn.get(linkRef);
-        if (!linkSnap.exists()) throw new Error("LINK_NOT_FOUND");
-
-        // Filter out expired sessions inside the transaction
-        freshSessions = (linkSnap.data().activeSessions || [])
-          .filter(s => s.expiresAt > Date.now());
-
-        if (freshSessions.length >= MAX_SESSION_USERS) {
-          throw new Error("SESSION_FULL");
-        }
-
-        const newSession = { uid, expiresAt };
-        txn.update(linkRef, { activeSessions: [...freshSessions, newSession] });
+        const userSnap = await txn.get(userRef);
+        if (!userSnap.exists()) throw new Error("USER_NOT_FOUND");
+        if ((userSnap.data().credits || 0) < SESSION_COST) throw new Error("INSUFFICIENT_CREDITS");
         txn.update(userRef, { credits: increment(-SESSION_COST) });
       });
 
-      // Update local cache after successful transaction
-      const cachedLink = allDocs.find(d => d.id === linkId);
-      if (cachedLink) {
-        cachedLink.data.activeSessions = [...freshSessions, { uid, expiresAt }];
-      }
+      // Add rank-based minutes to the global session
+      gs.remainingMs = tier.limitMinutes * 60 * 1000;
+      saveGlobalSession(gs);
+
       if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
       const creditEl = document.getElementById("creditCount");
       if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
 
-      // Record purchase locally so rate limit counter is immediately accurate
       rateLimitRecord("sessionBuyHistory", 3600000);
-
-      // Persist session in sessionStorage
-      storeSession(linkId, expiresAt);
-      activeSessionLinkId = linkId;
-
-      _doOpenIframe(url, title, linkId, submittedBy, htmlContent, expiresAt);
     } catch (err) {
-      if (err.message === "SESSION_FULL") {
-        showToast(`❌ This link is full (${MAX_SESSION_USERS}/${MAX_SESSION_USERS} slots used). Try again later.`);
-      } else if (err.message === "LINK_NOT_FOUND") {
-        showToast("❌ Link not found.");
+      if (err.message === "INSUFFICIENT_CREDITS") {
+        showToast(`❌ Not enough credits.`);
       } else {
-        console.error("Session purchase error:", err);
-        showToast("❌ Failed to start session. Please try again.");
+        console.error("Session time purchase error:", err);
+        showToast("❌ Failed to add session time. Please try again.");
       }
+      return;
     }
-    return;
   }
 
-  // Owner opens freely (no cost)
-  _doOpenIframe(url, title, linkId, submittedBy, htmlContent, 0);
+  // Compute the effective session expiry from remaining time
+  const expiresAt = Date.now() + gs.remainingMs;
+
+  // Track this user in the link's activeSessions (enforces the 6-user capacity limit).
+  // Uses a transaction so concurrent opens can't exceed the cap.
+  try {
+    const linkRef = doc(db, "sharedLinks", linkId);
+    let freshSessions = [];
+
+    await runTransaction(db, async (txn) => {
+      const linkSnap = await txn.get(linkRef);
+      if (!linkSnap.exists()) throw new Error("LINK_NOT_FOUND");
+
+      freshSessions = (linkSnap.data().activeSessions || [])
+        .filter(s => s.expiresAt > Date.now());
+
+      // If user already has a slot (e.g. re-opened same link), skip adding again
+      const alreadyIn = freshSessions.some(s => s.uid === uid);
+      if (!alreadyIn) {
+        if (freshSessions.length >= MAX_SESSION_USERS) throw new Error("SESSION_FULL");
+        // Use a generous slot expiry as a fallback for orphaned sessions (browser crash etc.)
+        const slotExpiry = Date.now() + Math.max(gs.remainingMs, SLOT_EXPIRY_FALLBACK_MS);
+        txn.update(linkRef, { activeSessions: [...freshSessions, { uid, expiresAt: slotExpiry }] });
+      }
+    });
+
+    // Update local cache
+    const cl = allDocs.find(d => d.id === linkId);
+    if (cl && !freshSessions.some(s => s.uid === uid)) {
+      const slotExpiry = Date.now() + Math.max(gs.remainingMs, SLOT_EXPIRY_FALLBACK_MS);
+      cl.data.activeSessions = [...freshSessions, { uid, expiresAt: slotExpiry }];
+    }
+  } catch (err) {
+    if (err.message === "SESSION_FULL") {
+      showToast(`❌ This link is full (${MAX_SESSION_USERS}/${MAX_SESSION_USERS} slots used). Try again later.`);
+      return;
+    } else if (err.message === "LINK_NOT_FOUND") {
+      showToast("❌ Link not found.");
+      return;
+    } else {
+      // Non-critical: slot tracking failed, open anyway
+      console.warn("Session slot tracking failed (non-critical):", err);
+    }
+  }
+
+  currentLinkId = linkId;
+  _doOpenIframe(url, title, linkId, submittedBy, htmlContent, expiresAt);
 }
 
 /** Internal: actually open the iframe modal with optional session expiry tracking */
@@ -943,12 +966,18 @@ function closeIframeModal() {
   modal.classList.add("hidden");
   document.body.style.overflow = "";
 
-  // Clean up session timer and Firestore session entry
-  clearSessionTimer();
-  if (activeSessionLinkId) {
-    const lId = activeSessionLinkId;
-    activeSessionLinkId = null;
+  // Pause the global session: save remaining time before stopping the timer
+  if (activeSessionExpiry > 0) {
+    const remaining = Math.max(0, activeSessionExpiry - Date.now());
+    saveGlobalSession({ remainingMs: remaining });
     activeSessionExpiry = 0;
+  }
+
+  // Clean up session timer and Firestore session slot
+  clearSessionTimer();
+  if (currentLinkId) {
+    const lId = currentLinkId;
+    currentLinkId = null;
     removeSessionFromLink(lId); // best-effort cleanup
   }
 
@@ -2158,6 +2187,68 @@ document.addEventListener("click", () => {
 // Refresh links when the "Refresh" button is clicked
 document.addEventListener("refreshLinks", () => loadLinks());
 
+/**
+ * Buy more session time while already viewing a link (called from the "+" button
+ * next to the session timer). Deducts 50 credits and adds rank-based minutes.
+ */
+async function handleExtendSession() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  const userData    = currentUserData || {};
+  const tier        = calculateTier(userData.totalEarned || 0);
+  const userCredits = userData.credits || 0;
+
+  if (userCredits < SESSION_COST) {
+    showToast(`❌ Not enough credits — you need ${SESSION_COST} 🪙 to add more time.`);
+    return;
+  }
+
+  if (!checkRateLimit("sessionBuyHistory", 10, 3600000)) {
+    showToast("⏳ You've reached the session purchase limit (10/hour). Please try again later.");
+    return;
+  }
+
+  const cachedLink   = allDocs.find(d => d.id === currentLinkId);
+  const sessionCount = getActiveSessionCount(cachedLink?.data?.activeSessions);
+
+  const confirmed = await showSessionPurchaseModal(
+    null, sessionCount, tier.name, tier.limitMinutes, userCredits
+  );
+  if (!confirmed) return;
+
+  try {
+    const userRef = doc(db, "users", uid);
+    await runTransaction(db, async (txn) => {
+      const userSnap = await txn.get(userRef);
+      if (!userSnap.exists()) throw new Error("USER_NOT_FOUND");
+      if ((userSnap.data().credits || 0) < SESSION_COST) throw new Error("INSUFFICIENT_CREDITS");
+      txn.update(userRef, { credits: increment(-SESSION_COST) });
+    });
+
+    // Extend the running timer
+    const addMs = tier.limitMinutes * 60 * 1000;
+    activeSessionExpiry += addMs;
+
+    // Persist the updated remaining time
+    saveGlobalSession({ remainingMs: Math.max(0, activeSessionExpiry - Date.now()) });
+
+    if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
+    const creditEl = document.getElementById("creditCount");
+    if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
+
+    rateLimitRecord("sessionBuyHistory", 3600000);
+    showToast(`✅ Added ${tier.limitMinutes} minutes to your session!`);
+  } catch (err) {
+    if (err.message === "INSUFFICIENT_CREDITS") {
+      showToast(`❌ Not enough credits.`);
+    } else {
+      console.error("Session extend error:", err);
+      showToast("❌ Failed to add time. Please try again.");
+    }
+  }
+}
+
 // Expose modal close functions globally
 window.closeIframeModal        = closeIframeModal;
 window.closeProfileModal       = closeProfileModal;
@@ -2167,6 +2258,7 @@ window.closeSessionBuyModal    = () => {
   const modal = document.getElementById("sessionBuyModal");
   if (modal) { modal.classList.add("hidden"); document.body.style.overflow = ""; }
 };
+window.handleExtendSession = handleExtendSession;
 
 // XSS-safe helper
 function escapeHtml(str) {

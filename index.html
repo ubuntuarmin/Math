@@ -640,11 +640,16 @@
       <span id="iframeTitle" class="text-white font-bold text-sm truncate max-w-[50vw]">
         Loading…
       </span>
-      <!-- Session countdown timer (shown only during a purchased session) -->
+      <!-- Session countdown timer (shown while viewing any non-owned link) -->
       <div id="sessionTimer" class="hidden flex items-center gap-1 text-xs font-mono font-bold
                                      text-amber-300 bg-amber-500/10 border border-amber-500/30
                                      px-2 py-0.5 rounded-full shrink-0">
         ⏱ <span id="sessionTimeLeft">--:--</span>
+        <button id="sessionExtendBtn" onclick="handleExtendSession()"
+                title="Buy more time (50 🪙)"
+                class="ml-1 text-[10px] font-bold text-amber-400 hover:text-white
+                       bg-amber-500/20 hover:bg-amber-500/50 border border-amber-500/40
+                       rounded-full px-1.5 py-0 leading-4 transition-colors">+</button>
       </div>
     </div>
     <div class="flex items-center gap-2 shrink-0">
@@ -786,19 +791,19 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════
-     SESSION PURCHASE MODAL
+     SESSION TIME MODAL
 ════════════════════════════════════════════════════════ -->
 <div id="sessionBuyModal"
      class="hidden fixed inset-0 z-[450] flex items-center justify-center
             bg-gray-950/90 backdrop-blur-sm p-4">
   <div class="modal-glass border border-blue-700/40 rounded-3xl p-7 w-full max-w-sm shadow-2xl text-center">
-    <div class="w-14 h-14 bg-blue-500/20 rounded-2xl flex items-center justify-center
-                text-3xl mx-auto mb-4 border border-blue-500/30">
-      🎮
+    <div class="w-14 h-14 bg-amber-500/20 rounded-2xl flex items-center justify-center
+                text-3xl mx-auto mb-4 border border-amber-500/30">
+      ⏱
     </div>
-    <h3 class="text-white font-bold text-lg mb-1">Join Session</h3>
+    <h3 class="text-white font-bold text-lg mb-1">Add More Time</h3>
     <p class="text-gray-400 text-xs mb-4">
-      <span id="sessionLinkTitle" class="text-white font-semibold"></span>
+      Buy extra time for <span id="sessionLinkTitle" class="text-white font-semibold">your session</span>
     </p>
 
     <!-- Stats row -->
@@ -818,7 +823,7 @@
     </div>
 
     <p class="text-xs text-gray-500 mb-5">
-      <span id="sessionTierInfo" class="text-blue-300 font-semibold"></span>
+      <span id="sessionTierInfo" class="text-amber-300 font-semibold"></span>
     </p>
 
     <div class="flex gap-3">
@@ -828,10 +833,10 @@
         Cancel
       </button>
       <button id="sessionConfirmBtn"
-              class="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500
+              class="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500
                      text-white font-bold text-sm transition-colors
                      flex items-center justify-center gap-1.5">
-        Join (−50 🪙)
+        Buy Time (−50 🪙)
       </button>
     </div>
   </div>
