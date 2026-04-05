@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc, collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc, collection, query, where, orderBy, limit, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { deleteInactiveAccount } from "./deleteAccount.js";
 
 // UI modules
@@ -23,6 +23,15 @@ const tierLabel = document.getElementById("tierLabel");
 const INACTIVE_WARN_DAYS  = 30;   // show warning after 30 days
 const INACTIVE_DELETE_DAYS = 37;  // mark for deletion after 37 days
 
+// Leaderboard reset constants — kept here (server of truth) and shared
+// with the helpers below to prevent divergence.
+const RESET_DAYS = [15, 29];      // days of the month when the season ends
+const REWARD_BASE = 110;          // credits for rank 0 (sentinel); rank 1 gets REWARD_BASE - REWARD_DECREMENT
+const REWARD_DECREMENT = 10;      // credits decrease per rank step (rank 1 = 100, rank 10 = 10)
+// Maximum number of months to scan when looking for a crossed reset date.
+// 24 months covers any gap between visits without an unbounded loop.
+const RESET_SCAN_MAX_MONTHS = 24;
+
 export function refreshHeaderUI(userData) {
     if (!userData) return;
     const creditCount = document.getElementById("creditCount");
@@ -42,12 +51,10 @@ export function refreshHeaderUI(userData) {
 function hasCrossedBimonthlyReset(lastVisitMillis, now) {
     if (!lastVisitMillis || lastVisitMillis <= 0) return false;
     const last = new Date(lastVisitMillis);
-    const resetDays = [15, 29];
     let cursor = new Date(last.getFullYear(), last.getMonth(), 1);
     let iterations = 0;
-    const MAX_MONTHS = 24;
-    while (cursor <= now && iterations < MAX_MONTHS) {
-        for (const d of resetDays) {
+    while (cursor <= now && iterations < RESET_SCAN_MAX_MONTHS) {
+        for (const d of RESET_DAYS) {
             const resetDate = new Date(cursor.getFullYear(), cursor.getMonth(), d, 0, 0, 0, 0);
             if (resetDate > last && resetDate <= now) {
                 return true;
@@ -56,8 +63,101 @@ function hasCrossedBimonthlyReset(lastVisitMillis, now) {
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
         iterations++;
     }
-    if (iterations >= MAX_MONTHS) return true;
+    if (iterations >= RESET_SCAN_MAX_MONTHS) return true;
     return false;
+}
+
+/**
+ * Returns the most recently crossed bimonthly reset date (15th or 29th)
+ * between lastVisitMillis and now, or null if none was crossed.
+ */
+function getLastCrossedResetDate(lastVisitMillis, now) {
+    if (!lastVisitMillis || lastVisitMillis <= 0) return null;
+    const last = new Date(lastVisitMillis);
+    let latestCrossed = null;
+    let cursor = new Date(last.getFullYear(), last.getMonth(), 1);
+    let iterations = 0;
+    while (cursor <= now && iterations < RESET_SCAN_MAX_MONTHS) {
+        for (const d of RESET_DAYS) {
+            const resetDate = new Date(cursor.getFullYear(), cursor.getMonth(), d, 0, 0, 0, 0);
+            if (resetDate > last && resetDate <= now) {
+                if (!latestCrossed || resetDate > latestCrossed) {
+                    latestCrossed = resetDate;
+                }
+            }
+        }
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+        iterations++;
+    }
+    return latestCrossed;
+}
+
+/**
+ * If this user was in the top 10 at the time of the last reset, award them
+ * the corresponding credit prize and send an inbox notification.
+ *
+ * Uses userData.lastRewardedResetAt (ISO string) to guarantee each reset
+ * period is only rewarded once per user, even across multiple logins.
+ *
+ * Returns the number of credits awarded (0 if none).
+ */
+async function distributeLeaderboardReward(uid, userData, lastResetDate) {
+    const resetKey = lastResetDate.toISOString();
+
+    // Already rewarded for this exact reset period — skip
+    if (userData.lastRewardedResetAt === resetKey) return 0;
+
+    try {
+        // Query top-10 users by weekMinutes BEFORE the bimonthly counter is zeroed.
+        // We read a slightly wider window (top 15) to tolerate a few users who
+        // may have already had their weekMinutes reset concurrently; only the first
+        // 10 positions in the snapshot are eligible for a reward.
+        const snap = await getDocs(
+            query(
+                collection(db, "users"),
+                where("weekMinutes", ">", 0),
+                orderBy("weekMinutes", "desc"),
+                limit(15)
+            )
+        );
+
+        let rank = 0;
+        let userRank = 0;
+        snap.forEach((docSnap) => {
+            rank++;
+            if (docSnap.id === uid) userRank = rank;
+        });
+
+        const userRef = doc(db, "users", uid);
+
+        if (userRank >= 1 && userRank <= 10) {
+            const reward = REWARD_BASE - userRank * REWARD_DECREMENT;
+            await updateDoc(userRef, {
+                credits:              increment(reward),
+                totalEarned:          increment(reward),
+                lastRewardedResetAt:  resetKey,
+            });
+            try {
+                await addDoc(collection(db, "messages"), {
+                    to:        uid,
+                    fromName:  "System",
+                    title:     `Leaderboard Reward! 🏆`,
+                    text:      `You finished rank #${userRank} on the leaderboard and earned +${reward} credits! Keep it up!`,
+                    type:      "system",
+                    timestamp: serverTimestamp(),
+                    read:      false,
+                });
+            } catch (_) {}
+            return reward;
+        }
+
+        // Not in top 10 — still mark so we don't re-check this period
+        await updateDoc(userRef, { lastRewardedResetAt: resetKey });
+        return 0;
+    } catch (err) {
+        console.warn("Leaderboard reward distribution failed:", err);
+        return 0;
+    }
 }
 
 async function handleDailyData(uid, userData) {
@@ -81,7 +181,14 @@ async function handleDailyData(uid, userData) {
             : 0;
 
     const crossedReset = hasCrossedBimonthlyReset(lastVisitMillis, now);
+    let rewardedCredits = 0;
     if (crossedReset) {
+        // Award top-10 credits BEFORE weekMinutes is zeroed, so the leaderboard
+        // query still reflects the scores from the just-ended season.
+        const lastResetDate = getLastCrossedResetDate(lastVisitMillis, now);
+        if (lastResetDate) {
+            rewardedCredits = await distributeLeaderboardReward(uid, userData, lastResetDate);
+        }
         updates.weekMinutes = 0;
     }
 
@@ -106,6 +213,16 @@ async function handleDailyData(uid, userData) {
 
     if (Object.keys(updates).length > 0) {
         await updateDoc(userRef, updates);
+        // If leaderboard credits were awarded in this same flush, re-fetch so the
+        // local merged object reflects the correct credits/totalEarned values.
+        if (rewardedCredits > 0) {
+            const refreshed = await getDoc(userRef);
+            if (refreshed.exists()) return refreshed.data();
+            // Re-fetch unexpectedly returned nothing — fall through and apply the
+            // reward to the locally-merged object so the UI stays accurate.
+            updates.credits    = (userData.credits    || 0) + rewardedCredits;
+            updates.totalEarned = (userData.totalEarned || 0) + rewardedCredits;
+        }
         // Build the post-update state locally to avoid an extra Firestore read.
         const merged = { ...userData };
         for (const [key, val] of Object.entries(updates)) {

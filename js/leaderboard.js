@@ -44,15 +44,26 @@ const POST_RESET_REFRESH_DELAY = 10000;     // 10 s — wait for Firestore to pr
  * 1. Try sessionStorage cache (1-hour TTL) to reduce Firestore reads
  * 2. Try Firestore settings/leaderboard.nextReset
  * 3. Fallback to next 15th or 29th of the month
+ *
+ * Dates that are already in the past are always ignored so the countdown
+ * can never get permanently stuck on "Resetting…".
  */
 async function getNextResetDate() {
+  const now = Date.now();
+
   // Check sessionStorage cache first
   try {
     const cached = sessionStorage.getItem(SETTINGS_CACHE_KEY);
     if (cached) {
       const { value, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < SETTINGS_CACHE_TTL) {
-        return new Date(value);
+      if (now - timestamp < SETTINGS_CACHE_TTL) {
+        const date = new Date(value);
+        // Only use cached value if the reset date is still in the future
+        if (date.getTime() > now) {
+          return date;
+        }
+        // Stale/past — remove so the next path always fetches fresh data
+        try { sessionStorage.removeItem(SETTINGS_CACHE_KEY); } catch (_) {}
       }
     }
   } catch (_) {}
@@ -71,14 +82,18 @@ async function getNextResetDate() {
           // Plain Date/string/number
           date = new Date(data.nextReset);
         }
-        // Cache in sessionStorage
-        try {
-          sessionStorage.setItem(
-            SETTINGS_CACHE_KEY,
-            JSON.stringify({ value: date.toISOString(), timestamp: Date.now() })
-          );
-        } catch (_) {}
-        return date;
+        // Only use Firestore value if the reset date is still in the future.
+        // If the admin hasn't updated settings/leaderboard yet (past date),
+        // fall through to the computed fallback so the UI never freezes.
+        if (date.getTime() > now) {
+          try {
+            sessionStorage.setItem(
+              SETTINGS_CACHE_KEY,
+              JSON.stringify({ value: date.toISOString(), timestamp: now })
+            );
+          } catch (_) {}
+          return date;
+        }
       }
     }
   } catch (err) {
