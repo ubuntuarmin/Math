@@ -950,7 +950,7 @@ function closeIframeModal() {
   const frame   = document.getElementById("iframeFrame");
   const rateBtn = document.getElementById("iframeRateBtn");
   const errEl   = document.getElementById("iframeError");
-  if (!modal) return;
+  if (!modal || modal.classList.contains("hidden")) return;
 
   if (ratingTimerOut)     { clearTimeout(ratingTimerOut);     ratingTimerOut     = null; }
   if (iframeLoadTimeout)  { clearTimeout(iframeLoadTimeout);  iframeLoadTimeout  = null; }
@@ -993,6 +993,7 @@ function closeIframeModal() {
   // Guard: iframeOpenTime must have been set (non-zero) to avoid a bogus delta.
   const uid = auth.currentUser?.uid;
   const minutesSpent = iframeOpenTime > 0 ? Math.floor(timeSpent / 60000) : 0;
+  iframeOpenTime = 0; // reset so a second accidental close cannot double-count
   if (uid && minutesSpent > 0) {
     const cappedMinutes = Math.min(minutesSpent, 500);
     const userRef = doc(db, "users", uid);

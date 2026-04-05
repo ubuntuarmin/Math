@@ -161,7 +161,7 @@ export async function renderLeaderboard() {
     const time = getTimeRemainingTo(nextResetDate);
     if (!countdownEl) return;
     if (time.total <= 0) {
-      countdownEl.textContent = "0d 0h 0m";
+      countdownEl.textContent = "Resetting…";
       if (!resetFired) {
         resetFired = true;
         // Clear the cache so the next render fetches the new reset date
@@ -169,7 +169,10 @@ export async function renderLeaderboard() {
         clearInterval(timerInterval);
         timerInterval = null;
         // Re-render the leaderboard after POST_RESET_REFRESH_DELAY to pick up post-reset data
-        setTimeout(() => renderLeaderboard(), POST_RESET_REFRESH_DELAY);
+        setTimeout(() => {
+          leaderboardRendered = false;
+          renderLeaderboard();
+        }, POST_RESET_REFRESH_DELAY);
       }
       return;
     }
