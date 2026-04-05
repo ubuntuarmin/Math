@@ -60,28 +60,17 @@
     }
     .sp-list {
       list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
     }
     .sp-list li {
-      font-size: 0.82rem;
-      color: #94a3b8;
-      padding-left: 1rem;
-      position: relative;
-    }
-    .sp-list li::before {
-      content: "›";
-      position: absolute;
-      left: 0;
-      color: #475569;
+      display: none;
     }
     .sp-list li.sp-featured {
+      display: block;
+      font-size: 1.05rem;
       color: #e2e8f0;
       font-weight: 600;
-    }
-    .sp-list li.sp-featured::before {
-      color: #38bdf8;
+      text-align: center;
+      line-height: 1.5;
     }
     .sp-cta {
       display: inline-block;
@@ -130,10 +119,18 @@
     <li>Want to inspire others with your creation?</li>
     <li>Have something that deserves more attention?</li>
     <li>Ready to make your mark on the community?</li>
-    <li class="sp-featured">Want to be part of what makes this community great?</li>      </ul>
+    <li>Want to be part of what makes this community great?</li>      </ul>
     </div>
-    <a class="sp-cta" href="promote.html" target="_blank" rel="noopener noreferrer">Feature Your Project &rarr;</a>
+    <a class="sp-cta" href="promote.html" target="_blank" rel="noopener noreferrer">Put your AD on this page &rarr;</a>
     <p class="sp-cta-note">Free &bull; Your feature runs for 2&ndash;3 weeks &bull; No approval wait</p>
   </div>
+  <script>
+    (function(){
+      var items = document.querySelectorAll('.sp-list li');
+      if(items.length){
+        items[Math.floor(Math.random()*items.length)].classList.add('sp-featured');
+      }
+    })();
+  </script>
 </body>
 </html>
