@@ -8,6 +8,14 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
 
+  <!-- GSAP — Professional animation engine
+       Note: Add SRI integrity hashes in production for security.
+       Deferred scripts execute before DOMContentLoaded, so gsap is available in our DOMContentLoaded handlers. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"
+          crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"
+          crossorigin="anonymous" defer></script>
+
   <style>
     /* ── Tab system ─────────────────────────────────────── */
     .tab-content   { display: none; }
@@ -58,9 +66,53 @@
       grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
       gap: 0.75rem;
     }
+
+    /* ── Login logo shine sweep ──────────────────────────── */
+    @keyframes login-shine-sweep {
+      0%   { transform: translateX(-150%) skewX(-20deg); }
+      100% { transform: translateX(300%)  skewX(-20deg); }
+    }
+    .login-logo-shine {
+      animation: login-shine-sweep 3.5s ease-in-out infinite 1s;
+      background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%);
+      position: absolute; inset: 0; pointer-events: none;
+    }
+
+    /* ── Login card inner glow border ────────────────────── */
+    @keyframes card-border-pulse {
+      0%,100% { box-shadow: 0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(56,189,248,0.15),
+                             inset 0 1px 0 rgba(255,255,255,0.07); }
+      50%      { box-shadow: 0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(168,85,247,0.30),
+                             0 0 50px rgba(168,85,247,0.12),
+                             inset 0 1px 0 rgba(255,255,255,0.09); }
+    }
+    #loginCard {
+      animation: card-border-pulse 5s ease-in-out infinite;
+    }
+
+    /* ── Login orbs animation ─────────────────────────────── */
+    @keyframes login-orb-drift-blue {
+      0%,100% { transform: translate(0,0) scale(1); }
+      50%     { transform: translate(40px,-25px) scale(1.08); }
+    }
+    @keyframes login-orb-drift-purple {
+      0%,100% { transform: translate(0,0) scale(1); }
+      50%     { transform: translate(-35px,20px) scale(1.06); }
+    }
+    .login-orb-blue   { animation: login-orb-drift-blue   9s ease-in-out infinite; }
+    .login-orb-purple { animation: login-orb-drift-purple 11s ease-in-out infinite 1s; }
   </style>
 </head>
 <body class="page">
+
+<!-- ════ ANIMATED BACKGROUND ════ -->
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
+<div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-3" aria-hidden="true"></div>
+
+<!-- ════ AMBIENT MUSIC TOGGLE ════ -->
+<button id="musicToggle" class="muted" aria-label="Toggle ambient music" title="Toggle background music">🎵</button>
 
 <!-- ════════════════════════════════════════════════════════
      WELCOME OVERLAY (shown to returning users)
@@ -185,7 +237,7 @@
       </div>
       <h1 class="text-4xl md:text-5xl font-black text-white mb-3 leading-tight">
         Discover & Share <br class="hidden sm:block"/>
-        <span class="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+        <span class="hero-gradient-text">
           Game Sites
         </span>
       </h1>
@@ -195,14 +247,16 @@
       </p>
       <div class="mt-5 flex flex-wrap gap-3 justify-center">
         <a href="share.html"
-           class="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500
-                  text-white font-bold text-sm transition-colors shadow-lg
+           class="px-5 py-2.5 rounded-full btn-shimmer btn-glow ripple-container
+                  bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400
+                  text-white font-bold text-sm transition-all duration-200 shadow-lg
                   shadow-blue-500/30 flex items-center gap-2">
           🔗 Share a Link <span class="text-blue-200">(+50 credits)</span>
         </a>
         <a href="inbox.html"
-           class="px-5 py-2.5 rounded-full bg-gray-800 hover:bg-gray-700
-                  text-gray-200 font-bold text-sm transition-colors border border-gray-700
+           class="px-5 py-2.5 rounded-full btn-shimmer ripple-container
+                  bg-gray-800 hover:bg-gray-700
+                  text-gray-200 font-bold text-sm transition-all duration-200 border border-gray-700
                   flex items-center gap-2">
           📬 Inbox
         </a>
@@ -450,78 +504,99 @@
      class="fixed inset-0 z-[100] flex items-center justify-center
             bg-gray-950/95 backdrop-blur-sm hidden">
 
-  <!-- Glow orbs -->
+  <!-- Animated glow orbs -->
   <div class="absolute top-[-10%] left-[-5%] w-[40%] h-[40%]
-              bg-blue-600/15 rounded-full blur-[120px] pointer-events-none"></div>
+              bg-blue-600/20 rounded-full blur-[120px] pointer-events-none login-orb-blue"></div>
   <div class="absolute bottom-[5%] right-[-5%] w-[35%] h-[35%]
-              bg-purple-600/15 rounded-full blur-[100px] pointer-events-none"></div>
+              bg-purple-600/20 rounded-full blur-[100px] pointer-events-none login-orb-purple"></div>
+  <div class="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[60%] h-[60%]
+              bg-cyan-900/10 rounded-full blur-[160px] pointer-events-none"></div>
 
-  <div class="modal-glass relative rounded-3xl
-              p-8 w-full max-w-md shadow-2xl mx-4">
+  <div id="loginCard" class="modal-glass relative rounded-3xl
+              p-8 w-full max-w-md shadow-2xl mx-4" style="opacity:0;transform:translateY(32px) scale(0.94)">
 
-    <!-- Logo -->
-    <div class="flex justify-center mb-6">
-      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600
-                  flex items-center justify-center text-3xl shadow-lg">
-        🎮
+    <!-- Particle canvas inside the modal -->
+    <canvas id="loginParticles" class="absolute inset-0 rounded-3xl pointer-events-none" aria-hidden="true"
+            style="z-index:0;opacity:0.45;"></canvas>
+
+    <!-- Content above particles -->
+    <div class="relative z-10">
+      <!-- Logo -->
+      <div class="flex justify-center mb-6">
+        <div id="loginLogoWrap" class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600
+                    flex items-center justify-center text-4xl shadow-lg login-logo-icon
+                    relative overflow-hidden" style="transform:scale(0.4);opacity:0">
+          <!-- Shine sweep -->
+          <span class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl login-logo-shine"></span>
+          🎮
+        </div>
       </div>
+
+      <h1 id="loginTitle" class="text-center text-2xl font-black text-white mb-1"
+          style="opacity:0;transform:translateY(12px)">GameLinks</h1>
+      <p id="loginSub" class="text-center text-gray-400 text-sm mb-7"
+         style="opacity:0;transform:translateY(8px)">
+        Share game sites, earn credits, build community.
+      </p>
+
+      <!-- Error message -->
+      <div id="loginError" class="text-xs text-red-400 text-center min-h-[1.25rem] mb-3"></div>
+
+      <div class="space-y-4" id="loginFields" style="opacity:0;transform:translateY(10px)">
+        <div class="login-field-group">
+          <label class="block text-xs font-semibold text-gray-300 mb-1.5 tracking-wide uppercase">Email</label>
+          <input id="email" type="email" placeholder="your@email.com"
+                 class="w-full bg-gray-800/80 border border-gray-700/80 rounded-xl
+                        px-4 py-3 text-sm text-white outline-none
+                        focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
+                        transition-all duration-200 placeholder-gray-600" />
+        </div>
+        <div class="login-field-group">
+          <label class="block text-xs font-semibold text-gray-300 mb-1.5 tracking-wide uppercase">Password</label>
+          <input id="password" type="password" placeholder="••••••••"
+                 class="w-full bg-gray-800/80 border border-gray-700/80 rounded-xl
+                        px-4 py-3 text-sm text-white outline-none
+                        focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
+                        transition-all duration-200 placeholder-gray-600" />
+        </div>
+        <div class="login-field-group">
+          <label class="block text-xs font-semibold text-gray-300 mb-1.5 tracking-wide uppercase">
+            Referral Code <span class="text-gray-600 normal-case font-normal">(optional)</span>
+          </label>
+          <input id="referralCodeInput" type="text" placeholder="e.g. ABC123"
+                 class="w-full bg-gray-800/80 border border-gray-700/80 rounded-xl
+                        px-4 py-3 text-sm text-white outline-none
+                        focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
+                        transition-all duration-200 placeholder-gray-600 uppercase" />
+        </div>
+      </div>
+
+      <div class="mt-5 flex gap-3" id="loginBtns" style="opacity:0;transform:translateY(8px)">
+        <button id="signInBtn"
+                class="flex-1 py-3 rounded-xl text-white font-bold text-sm
+                       shadow-lg active:scale-95 btn-shimmer ripple-container
+                       transition-all duration-200
+                       bg-gradient-to-r from-blue-600 to-blue-500
+                       hover:from-blue-500 hover:to-blue-400
+                       shadow-blue-500/25 hover:shadow-blue-500/50">
+          Sign In
+        </button>
+        <button id="signUpBtn"
+                class="flex-1 py-3 rounded-xl text-white font-bold text-sm
+                       active:scale-95 btn-shimmer ripple-container
+                       transition-all duration-200
+                       bg-gradient-to-r from-gray-700 to-gray-600
+                       hover:from-gray-600 hover:to-gray-500
+                       border border-gray-600/50 hover:border-gray-500">
+          Sign Up
+        </button>
+      </div>
+
+      <p class="mt-5 text-center text-[10px] text-gray-600">
+        By signing in you agree to use this app responsibly.
+        New users get 20 starter credits.
+      </p>
     </div>
-
-    <h1 class="text-center text-2xl font-black text-white mb-1">GameLinks</h1>
-    <p class="text-center text-gray-400 text-sm mb-7">
-      Share game sites, earn credits, build community.
-    </p>
-
-    <!-- Error message -->
-    <div id="loginError" class="text-xs text-red-400 text-center min-h-[1.25rem] mb-3"></div>
-
-    <div class="space-y-3">
-      <div>
-        <label class="block text-xs text-gray-400 mb-1.5">Email</label>
-        <input id="email" type="email" placeholder="your@email.com"
-               class="w-full bg-gray-800/80 border border-gray-700 rounded-xl
-                      px-4 py-3 text-sm text-white outline-none
-                      focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
-                      transition placeholder-gray-600" />
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1.5">Password</label>
-        <input id="password" type="password" placeholder="••••••••"
-               class="w-full bg-gray-800/80 border border-gray-700 rounded-xl
-                      px-4 py-3 text-sm text-white outline-none
-                      focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
-                      transition placeholder-gray-600" />
-      </div>
-      <div>
-        <label class="block text-xs text-gray-400 mb-1.5">
-          Referral Code <span class="text-gray-600">(optional)</span>
-        </label>
-        <input id="referralCodeInput" type="text" placeholder="e.g. ABC123"
-               class="w-full bg-gray-800/80 border border-gray-700 rounded-xl
-                      px-4 py-3 text-sm text-white outline-none
-                      focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
-                      transition placeholder-gray-600 uppercase" />
-      </div>
-    </div>
-
-    <div class="mt-5 flex gap-3">
-      <button id="signInBtn"
-              class="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500
-                     text-white font-bold text-sm transition-colors shadow-lg
-                     shadow-blue-500/20 active:scale-95">
-        Sign In
-      </button>
-      <button id="signUpBtn"
-              class="flex-1 py-3 rounded-xl bg-gray-700 hover:bg-gray-600
-                     text-white font-bold text-sm transition-colors active:scale-95">
-        Sign Up
-      </button>
-    </div>
-
-    <p class="mt-5 text-center text-[10px] text-gray-600">
-      By signing in you agree to use this app responsibly.
-      New users get 20 starter credits.
-    </p>
   </div>
 </div>
 
@@ -917,6 +992,471 @@
     btn.addEventListener("click", styleTabBtns)
   );
   styleTabBtns();
+</script>
+
+<!-- ════════════════════════════════════════════════════════
+     ADVANCED ANIMATIONS (GSAP + Canvas + Web Audio)
+════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  "use strict";
+
+  /* ────────────────────────────────────────────────────────
+     1. ANIMATED CANVAS BACKGROUND  (aurora nebula effect)
+  ──────────────────────────────────────────────────────── */
+  (function initBgCanvas() {
+    const canvas = document.getElementById("bgCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // Floating nebula blobs
+    const blobs = [
+      { x: 0.15, y: 0.25, r: 0.30, hue: 210, speed: 0.00018, phase: 0 },
+      { x: 0.80, y: 0.70, r: 0.28, hue: 270, speed: 0.00014, phase: 2 },
+      { x: 0.50, y: 0.10, r: 0.22, hue: 180, speed: 0.00021, phase: 4 },
+      { x: 0.20, y: 0.85, r: 0.25, hue: 240, speed: 0.00016, phase: 1 },
+      { x: 0.85, y: 0.20, r: 0.20, hue: 200, speed: 0.00019, phase: 3 },
+    ];
+
+    // Particles (stars)
+    const PARTICLE_COUNT = 130;
+    const particles = Array.from({ length: PARTICLE_COUNT }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: Math.random() * 1.4 + 0.3,
+      alpha: Math.random() * 0.6 + 0.1,
+      twinkleSpeed: Math.random() * 0.002 + 0.0008,
+      twinklePhase: Math.random() * Math.PI * 2,
+    }));
+
+    let t = 0;
+    function draw() {
+      t += 16;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw nebula blobs
+      blobs.forEach((b) => {
+        const px = (b.x + Math.sin(t * b.speed + b.phase) * 0.08) * canvas.width;
+        const py = (b.y + Math.cos(t * b.speed * 0.7 + b.phase) * 0.07) * canvas.height;
+        const rad = b.r * Math.min(canvas.width, canvas.height);
+        const pulse = 1 + Math.sin(t * b.speed * 2 + b.phase) * 0.12;
+
+        const g = ctx.createRadialGradient(px, py, 0, px, py, rad * pulse);
+        g.addColorStop(0, `hsla(${b.hue},80%,60%,0.13)`);
+        g.addColorStop(0.5, `hsla(${b.hue},70%,50%,0.06)`);
+        g.addColorStop(1, `hsla(${b.hue},60%,40%,0)`);
+
+        ctx.beginPath();
+        ctx.arc(px, py, rad * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = g;
+        ctx.fill();
+      });
+
+      // Draw twinkling stars
+      particles.forEach((p) => {
+        const alpha = p.alpha * (0.5 + 0.5 * Math.sin(t * p.twinkleSpeed + p.twinklePhase));
+        ctx.beginPath();
+        ctx.arc(p.x * canvas.width, p.y * canvas.height, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200,220,255,${alpha})`;
+        ctx.fill();
+      });
+    }
+
+    // Use requestAnimationFrame for smooth rendering
+    let lastFrame = 0;
+    const FRAME_INTERVAL = 1000 / 30; // target 30fps (~33.33ms per frame) to conserve CPU
+    function loop(ts) {
+      if (ts - lastFrame > FRAME_INTERVAL) {
+        lastFrame = ts;
+        draw();
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  })();
+
+  /* ────────────────────────────────────────────────────────
+     2. LOGIN MODAL PARTICLES  (mini starfield inside card)
+  ──────────────────────────────────────────────────────── */
+  function initLoginParticles() {
+    const canvas = document.getElementById("loginParticles");
+    const card   = document.getElementById("loginCard");
+    if (!canvas || !card) return;
+    const ctx = canvas.getContext("2d");
+    canvas.width  = card.offsetWidth  || 420;
+    canvas.height = card.offsetHeight || 540;
+
+    const pts = Array.from({ length: 35 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.2 + 0.3,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      alpha: Math.random() * 0.5 + 0.1,
+    }));
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      pts.forEach((p) => {
+        p.x = (p.x + p.vx + canvas.width)  % canvas.width;
+        p.y = (p.y + p.vy + canvas.height) % canvas.height;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(56,189,248,${p.alpha})`;
+        ctx.fill();
+      });
+      requestAnimationFrame(draw);
+    }
+    draw();
+  }
+
+  /* ────────────────────────────────────────────────────────
+     3. GSAP ANIMATIONS  (login modal, hero, page elements)
+  ──────────────────────────────────────────────────────── */
+  function initGSAP() {
+    if (typeof gsap === "undefined") return;
+
+    // ── Login modal entrance (triggered by MutationObserver) ──
+    const loginModal = document.getElementById("loginModal");
+    if (loginModal) {
+      const observer = new MutationObserver(() => {
+        if (!loginModal.classList.contains("hidden")) {
+          // Reset
+          gsap.set("#loginCard", { opacity: 0, y: 32, scale: 0.94 });
+          gsap.set("#loginLogoWrap", { scale: 0.4, opacity: 0 });
+          gsap.set("#loginTitle",   { opacity: 0, y: 12 });
+          gsap.set("#loginSub",     { opacity: 0, y: 8  });
+          gsap.set("#loginFields",  { opacity: 0, y: 10 });
+          gsap.set("#loginBtns",    { opacity: 0, y: 8  });
+
+          // Animate orbs
+          gsap.to(".login-orb-blue",
+            { x: 40, y: -20, duration: 8, ease: "sine.inOut", yoyo: true, repeat: -1 });
+          gsap.to(".login-orb-purple",
+            { x: -30, y: 25, duration: 10, ease: "sine.inOut", yoyo: true, repeat: -1, delay: 1 });
+
+          // Card entrance
+          const tl = gsap.timeline({ defaults: { ease: "back.out(1.6)" } });
+          tl.to("#loginCard",    { opacity: 1, y: 0,  scale: 1,   duration: 0.55 })
+            .to("#loginLogoWrap",{ opacity: 1, scale: 1,           duration: 0.5  }, "-=0.2")
+            .to("#loginTitle",   { opacity: 1, y: 0,               duration: 0.35 }, "-=0.15")
+            .to("#loginSub",     { opacity: 1, y: 0,               duration: 0.3  }, "-=0.1")
+            .to("#loginFields",  { opacity: 1, y: 0,               duration: 0.35 }, "-=0.1")
+            .to("#loginBtns",    { opacity: 1, y: 0,               duration: 0.3  }, "-=0.1");
+
+          // Init particles after card is sized
+          setTimeout(initLoginParticles, 100);
+        }
+      });
+      observer.observe(loginModal, { attributes: true, attributeFilter: ["class"] });
+    }
+
+    // ── Hero section entrance ──
+    const appContainer = document.getElementById("appContainer");
+    if (appContainer) {
+      const heroObserver = new MutationObserver(() => {
+        if (!appContainer.classList.contains("hidden")) {
+          gsap.from(".site-header", { y: -64, opacity: 0, duration: 0.6, ease: "power3.out" });
+          gsap.from("[data-tab='links']", { opacity: 0, duration: 0.5, delay: 0.2 });
+          // Hero elements
+          gsap.from(".mb-8 .inline-flex", { y: -20, opacity: 0, duration: 0.5, delay: 0.3, ease: "back.out(1.4)" });
+          gsap.from(".mb-8 h1",           { y: 24, opacity: 0, duration: 0.6, delay: 0.45, ease: "power3.out" });
+          gsap.from(".mb-8 p",            { y: 16, opacity: 0, duration: 0.5, delay: 0.6,  ease: "power3.out" });
+          gsap.from(".mb-8 .mt-5 a",      { y: 12, opacity: 0, duration: 0.45, delay: 0.75, stagger: 0.12, ease: "back.out(1.5)" });
+          heroObserver.disconnect();
+        }
+      });
+      heroObserver.observe(appContainer, { attributes: true, attributeFilter: ["class"] });
+    }
+  }
+
+  /* ────────────────────────────────────────────────────────
+     4. RIPPLE EFFECT  (click any .ripple-container)
+  ──────────────────────────────────────────────────────── */
+  function initRipple() {
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest(".ripple-container");
+      if (!btn) return;
+      const rect = btn.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height) * 1.5;
+      const x    = e.clientX - rect.left - size / 2;
+      const y    = e.clientY - rect.top  - size / 2;
+
+      const ripple = document.createElement("span");
+      ripple.className = "ripple-wave";
+      ripple.style.cssText = `width:${size}px;height:${size}px;left:${x}px;top:${y}px;`;
+      btn.appendChild(ripple);
+      ripple.addEventListener("animationend", () => ripple.remove());
+    });
+  }
+
+  /* ────────────────────────────────────────────────────────
+     5. MAGNETIC BUTTON EFFECT  (subtle cursor pull)
+  ──────────────────────────────────────────────────────── */
+  function initMagnetic() {
+    document.querySelectorAll(".btn-magnetic").forEach((el) => {
+      el.addEventListener("mousemove", (e) => {
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left + rect.width  / 2;
+        const cy = rect.top  + rect.height / 2;
+        const dx = (e.clientX - cx) * 0.25;
+        const dy = (e.clientY - cy) * 0.25;
+        el.style.transform = `translate(${dx}px, ${dy}px)`;
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.transform = "";
+      });
+    });
+  }
+
+  /* ────────────────────────────────────────────────────────
+     6. WEB AUDIO AMBIENT MUSIC
+     Pentatonic ambient pad + gentle random melody
+  ──────────────────────────────────────────────────────── */
+  const AmbientMusic = (function () {
+    let audioCtx  = null;
+    let masterGain = null;
+    let melodyTimer = null;
+    let padOscillators = [];
+    let isRunning = false;
+    let isMuted   = true;
+
+    // C4 major pentatonic: C D E G A  (and lower octave)
+    const SCALE = [130.81, 164.81, 196.00, 261.63, 293.66,
+                   329.63, 392.00, 440.00, 523.25, 587.33];
+
+    function ensureCtx() {
+      if (!audioCtx) {
+        // webkitAudioContext is kept for legacy Safari (pre-v14.1) compatibility
+        audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0;
+        masterGain.connect(audioCtx.destination);
+      }
+    }
+
+    // Build a reverb-like effect with a chain of delays
+    function makeReverb() {
+      const delay  = audioCtx.createDelay(2.0);
+      const fb     = audioCtx.createGain();
+      delay.delayTime.value = 0.45;
+      fb.gain.value = 0.35;
+      delay.connect(fb);
+      fb.connect(delay);
+      delay.connect(masterGain);
+      return delay;
+    }
+
+    function startPad(reverb) {
+      const padFreqs = [130.81, 196.00, 261.63, 329.63, 392.00];
+      padFreqs.forEach((freq, i) => {
+        const osc  = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        const lfo  = audioCtx.createOscillator();
+        const lfog = audioCtx.createGain();
+
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        lfo.type = "sine";
+        lfo.frequency.value = 0.06 + i * 0.015;
+        lfog.gain.value = freq * 0.003;
+
+        lfo.connect(lfog);
+        lfog.connect(osc.frequency);
+        gain.gain.value = 0;
+        osc.connect(gain);
+        gain.connect(reverb);
+        gain.connect(masterGain);
+
+        lfo.start();
+        osc.start();
+
+        // Staggered fade-in
+        gain.gain.setTargetAtTime(0.018, audioCtx.currentTime + i * 0.8, 2.5);
+        padOscillators.push({ osc, gain, lfo });
+      });
+    }
+
+    function scheduleNote(reverb) {
+      const freq  = SCALE[Math.floor(Math.random() * SCALE.length)];
+      const osc   = audioCtx.createOscillator();
+      const env   = audioCtx.createGain();
+      const now   = audioCtx.currentTime;
+
+      osc.type = Math.random() > 0.5 ? "sine" : "triangle";
+      osc.frequency.value = freq;
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(0.025, now + 0.12);
+      env.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
+
+      osc.connect(env);
+      env.connect(reverb);
+      env.connect(masterGain);
+      osc.start(now);
+      osc.stop(now + 4);
+
+      const MIN_NOTE_GAP_MS    = 1800; // minimum ms between melody notes
+      const RANDOM_NOTE_RANGE_MS = 3500; // additional random ms range
+      const gap = MIN_NOTE_GAP_MS + Math.random() * RANDOM_NOTE_RANGE_MS;
+      melodyTimer = setTimeout(() => { if (isRunning) scheduleNote(reverb); }, gap);
+    }
+
+    function start() {
+      ensureCtx();
+      if (isRunning) return;
+      isRunning = true;
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      const reverb = makeReverb();
+      startPad(reverb);
+      setTimeout(() => scheduleNote(reverb), 2000);
+      if (!isMuted) {
+        masterGain.gain.setTargetAtTime(0.055, audioCtx.currentTime, 2);
+      }
+    }
+
+    function unmute() {
+      isMuted = false;
+      if (!isRunning) start();
+      else if (audioCtx) masterGain.gain.setTargetAtTime(0.055, audioCtx.currentTime, 1.5);
+    }
+
+    function mute() {
+      isMuted = true;
+      if (audioCtx && masterGain) {
+        masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 1.2);
+      }
+    }
+
+    function pause() {
+      if (audioCtx && masterGain) {
+        masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.8);
+      }
+    }
+
+    function resume() {
+      if (!isMuted && audioCtx && masterGain) {
+        masterGain.gain.setTargetAtTime(0.055, audioCtx.currentTime, 1.2);
+      }
+    }
+
+    return { start, unmute, mute, pause, resume, get isMuted() { return isMuted; } };
+  })();
+
+  // Expose for iframe modal hooks
+  window._ambientMusic = AmbientMusic;
+
+  /* ── Music toggle button ── */
+  function initMusicToggle() {
+    const btn = document.getElementById("musicToggle");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+      if (AmbientMusic.isMuted) {
+        AmbientMusic.unmute();
+        btn.textContent = "🎵";
+        btn.classList.remove("muted");
+        btn.classList.add("playing");
+        btn.title = "Mute background music";
+      } else {
+        AmbientMusic.mute();
+        btn.textContent = "🔇";
+        btn.classList.remove("playing");
+        btn.classList.add("muted");
+        btn.title = "Play background music";
+      }
+    });
+  }
+
+  /* ── Pause music when iframe opens, resume on close ── */
+  function hookIframeModalMusic() {
+    const iframeModal = document.getElementById("iframeModal");
+    if (!iframeModal) return;
+
+    const mo = new MutationObserver(() => {
+      if (iframeModal.classList.contains("hidden")) {
+        window._ambientMusic.resume();
+      } else {
+        window._ambientMusic.pause();
+      }
+    });
+    mo.observe(iframeModal, { attributes: true, attributeFilter: ["class"] });
+  }
+
+  /* ────────────────────────────────────────────────────────
+     7. STAGGER CARD ANIMATIONS  (link cards entrance)
+  ──────────────────────────────────────────────────────── */
+  function observeCards() {
+    if (typeof gsap === "undefined") return;
+    const grid = document.getElementById("linksGrid");
+    if (!grid) return;
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          gsap.from(entry.target, {
+            y: 22, opacity: 0, duration: 0.45,
+            ease: "power3.out",
+            clearProps: "all",
+          });
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1 });
+
+    // Watch for new cards being added to the grid
+    const mutObs = new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        m.addedNodes.forEach((n) => {
+          if (n.nodeType === 1) io.observe(n);
+        });
+      });
+    });
+    mutObs.observe(grid, { childList: true });
+  }
+
+  /* ────────────────────────────────────────────────────────
+     8. ADD RIPPLE CLASS TO NAV BUTTONS
+  ──────────────────────────────────────────────────────── */
+  function addRippleToNavBtns() {
+    document.querySelectorAll(".tab-btn, .nav-toggle, #logoutBtn").forEach((b) => {
+      b.classList.add("ripple-container");
+    });
+    // Share / Promote nav links
+    document.querySelectorAll(".navbar-nav a").forEach((a) => {
+      a.classList.add("ripple-container");
+    });
+  }
+
+  /* ────────────────────────────────────────────────────────
+     INIT ALL
+  ──────────────────────────────────────────────────────── */
+  function init() {
+    // GSAP deferred scripts execute before DOMContentLoaded per HTML spec,
+    // so gsap is guaranteed to be available here.
+    if (typeof gsap !== "undefined") {
+      gsap.registerPlugin(ScrollTrigger);
+      initGSAP();
+    }
+
+    initRipple();
+    initMagnetic();
+    initMusicToggle();
+    hookIframeModalMusic();
+    addRippleToNavBtns();
+    observeCards();
+  }
+
+  // Inline scripts at the bottom of <body> always run with readyState='loading'.
+  // DOMContentLoaded fires after deferred scripts (GSAP) have already executed.
+  document.addEventListener("DOMContentLoaded", init);
+})();
 </script>
 </body>
 </html>
