@@ -1006,6 +1006,8 @@ function closeIframeModal() {
       currentUserData.weekMinutes  = (currentUserData.weekMinutes  || 0) + cappedMinutes;
       currentUserData.totalMinutes = (currentUserData.totalMinutes || 0) + cappedMinutes;
     }
+    // Notify the leaderboard to refresh so the new minutes are reflected
+    document.dispatchEvent(new CustomEvent("weekMinutesUpdated"));
   }
 }
 

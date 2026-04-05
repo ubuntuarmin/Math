@@ -112,14 +112,15 @@ function getTimeRemainingTo(targetDate) {
   const diff = targetDate - now;
 
   if (diff <= 0) {
-    return { days: 0, hours: 0, mins: 0, total: 0 };
+    return { days: 0, hours: 0, mins: 0, secs: 0, total: 0 };
   }
 
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
   const mins = Math.floor((diff / 1000 / 60) % 60);
+  const secs = Math.floor((diff / 1000) % 60);
 
-  return { days, hours, mins, total: diff };
+  return { days, hours, mins, secs, total: diff };
 }
 
 /**
@@ -191,7 +192,11 @@ export async function renderLeaderboard() {
       }
       return;
     }
-    countdownEl.textContent = `${time.days}d ${time.hours}h ${time.mins}m`;
+    if (time.days === 0 && time.hours === 0 && time.mins === 0) {
+      countdownEl.textContent = `${time.secs}s`;
+    } else {
+      countdownEl.textContent = `${time.days}d ${time.hours}h ${time.mins}m`;
+    }
   };
   updateCountdown();
   timerInterval = setInterval(updateCountdown, 1000);
@@ -273,3 +278,16 @@ export async function renderLeaderboard() {
     listContainer.innerHTML = `<p class="text-red-500 text-xs text-center">Failed to load rankings.</p>`;
   }
 }
+
+/**
+ * Refresh the leaderboard by clearing the rendered flag and re-rendering.
+ * Called after weekMinutes is updated so the new score is reflected.
+ */
+function refreshLeaderboard() {
+  leaderboardRendered = false;
+  renderLeaderboard();
+}
+
+// Re-render the leaderboard whenever the user finishes a study session
+// (links.js dispatches this event after updating weekMinutes).
+document.addEventListener("weekMinutesUpdated", refreshLeaderboard);
