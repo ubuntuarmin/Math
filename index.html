@@ -111,9 +111,6 @@
 <div class="bg-orb bg-orb-2" aria-hidden="true"></div>
 <div class="bg-orb bg-orb-3" aria-hidden="true"></div>
 
-<!-- ════ AMBIENT MUSIC TOGGLE ════ -->
-<button id="musicToggle" class="muted" aria-label="Toggle ambient music" title="Toggle background music">🎵</button>
-
 <!-- ════════════════════════════════════════════════════════
      WELCOME OVERLAY (shown to returning users)
 ════════════════════════════════════════════════════════ -->
@@ -187,6 +184,15 @@
         <span class="text-gray-500">·</span>
         <span id="tierLabel" class="text-xs"></span>
       </div>
+
+      <!-- Session time (click to buy more) -->
+      <button id="navSessionTime" onclick="handleNavSessionTimerClick()"
+              title="Session time remaining — click to buy more"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-full
+                     bg-blue-500/10 border border-blue-500/30 text-xs font-bold text-blue-300
+                     hover:bg-blue-500/20 hover:border-blue-400/50 transition-colors">
+        ⏱ <span id="navSessionTimeLeft">30:00</span>
+      </button>
 
       <button id="logoutBtn"
               class="px-3 py-1.5 rounded-full text-xs text-gray-400
@@ -1026,7 +1032,7 @@
     ];
 
     // Particles (stars)
-    const PARTICLE_COUNT = 130;
+    const PARTICLE_COUNT = 80;
     const particles = Array.from({ length: PARTICLE_COUNT }, () => ({
       x: Math.random(),
       y: Math.random(),
@@ -1217,179 +1223,6 @@
   }
 
   /* ────────────────────────────────────────────────────────
-     6. WEB AUDIO AMBIENT MUSIC
-     Pentatonic ambient pad + gentle random melody
-  ──────────────────────────────────────────────────────── */
-  const AmbientMusic = (function () {
-    let audioCtx  = null;
-    let masterGain = null;
-    let melodyTimer = null;
-    let padOscillators = [];
-    let isRunning = false;
-    let isMuted   = true;
-
-    // C4 major pentatonic: C D E G A  (and lower octave)
-    const SCALE = [130.81, 164.81, 196.00, 261.63, 293.66,
-                   329.63, 392.00, 440.00, 523.25, 587.33];
-
-    function ensureCtx() {
-      if (!audioCtx) {
-        // webkitAudioContext is kept for legacy Safari (pre-v14.1) compatibility
-        audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
-        masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0;
-        masterGain.connect(audioCtx.destination);
-      }
-    }
-
-    // Build a reverb-like effect with a chain of delays
-    function makeReverb() {
-      const delay  = audioCtx.createDelay(2.0);
-      const fb     = audioCtx.createGain();
-      delay.delayTime.value = 0.45;
-      fb.gain.value = 0.35;
-      delay.connect(fb);
-      fb.connect(delay);
-      delay.connect(masterGain);
-      return delay;
-    }
-
-    function startPad(reverb) {
-      const padFreqs = [130.81, 196.00, 261.63, 329.63, 392.00];
-      padFreqs.forEach((freq, i) => {
-        const osc  = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        const lfo  = audioCtx.createOscillator();
-        const lfog = audioCtx.createGain();
-
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        lfo.type = "sine";
-        lfo.frequency.value = 0.06 + i * 0.015;
-        lfog.gain.value = freq * 0.003;
-
-        lfo.connect(lfog);
-        lfog.connect(osc.frequency);
-        gain.gain.value = 0;
-        osc.connect(gain);
-        gain.connect(reverb);
-        gain.connect(masterGain);
-
-        lfo.start();
-        osc.start();
-
-        // Staggered fade-in
-        gain.gain.setTargetAtTime(0.018, audioCtx.currentTime + i * 0.8, 2.5);
-        padOscillators.push({ osc, gain, lfo });
-      });
-    }
-
-    function scheduleNote(reverb) {
-      const freq  = SCALE[Math.floor(Math.random() * SCALE.length)];
-      const osc   = audioCtx.createOscillator();
-      const env   = audioCtx.createGain();
-      const now   = audioCtx.currentTime;
-
-      osc.type = Math.random() > 0.5 ? "sine" : "triangle";
-      osc.frequency.value = freq;
-      env.gain.setValueAtTime(0, now);
-      env.gain.linearRampToValueAtTime(0.025, now + 0.12);
-      env.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
-
-      osc.connect(env);
-      env.connect(reverb);
-      env.connect(masterGain);
-      osc.start(now);
-      osc.stop(now + 4);
-
-      const MIN_NOTE_GAP_MS    = 1800; // minimum ms between melody notes
-      const RANDOM_NOTE_RANGE_MS = 3500; // additional random ms range
-      const gap = MIN_NOTE_GAP_MS + Math.random() * RANDOM_NOTE_RANGE_MS;
-      melodyTimer = setTimeout(() => { if (isRunning) scheduleNote(reverb); }, gap);
-    }
-
-    function start() {
-      ensureCtx();
-      if (isRunning) return;
-      isRunning = true;
-      if (audioCtx.state === "suspended") audioCtx.resume();
-      const reverb = makeReverb();
-      startPad(reverb);
-      setTimeout(() => scheduleNote(reverb), 2000);
-      if (!isMuted) {
-        masterGain.gain.setTargetAtTime(0.055, audioCtx.currentTime, 2);
-      }
-    }
-
-    function unmute() {
-      isMuted = false;
-      if (!isRunning) start();
-      else if (audioCtx) masterGain.gain.setTargetAtTime(0.055, audioCtx.currentTime, 1.5);
-    }
-
-    function mute() {
-      isMuted = true;
-      if (audioCtx && masterGain) {
-        masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 1.2);
-      }
-    }
-
-    function pause() {
-      if (audioCtx && masterGain) {
-        masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.8);
-      }
-    }
-
-    function resume() {
-      if (!isMuted && audioCtx && masterGain) {
-        masterGain.gain.setTargetAtTime(0.055, audioCtx.currentTime, 1.2);
-      }
-    }
-
-    return { start, unmute, mute, pause, resume, get isMuted() { return isMuted; } };
-  })();
-
-  // Expose for iframe modal hooks
-  window._ambientMusic = AmbientMusic;
-
-  /* ── Music toggle button ── */
-  function initMusicToggle() {
-    const btn = document.getElementById("musicToggle");
-    if (!btn) return;
-
-    btn.addEventListener("click", () => {
-      if (AmbientMusic.isMuted) {
-        AmbientMusic.unmute();
-        btn.textContent = "🎵";
-        btn.classList.remove("muted");
-        btn.classList.add("playing");
-        btn.title = "Mute background music";
-      } else {
-        AmbientMusic.mute();
-        btn.textContent = "🔇";
-        btn.classList.remove("playing");
-        btn.classList.add("muted");
-        btn.title = "Play background music";
-      }
-    });
-  }
-
-  /* ── Pause music when iframe opens, resume on close ── */
-  function hookIframeModalMusic() {
-    const iframeModal = document.getElementById("iframeModal");
-    if (!iframeModal) return;
-
-    const mo = new MutationObserver(() => {
-      if (iframeModal.classList.contains("hidden")) {
-        window._ambientMusic.resume();
-      } else {
-        window._ambientMusic.pause();
-      }
-    });
-    mo.observe(iframeModal, { attributes: true, attributeFilter: ["class"] });
-  }
-
-  /* ────────────────────────────────────────────────────────
      7. STAGGER CARD ANIMATIONS  (link cards entrance)
   ──────────────────────────────────────────────────────── */
   function observeCards() {
@@ -1447,8 +1280,6 @@
 
     initRipple();
     initMagnetic();
-    initMusicToggle();
-    hookIframeModalMusic();
     addRippleToNavBtns();
     observeCards();
   }

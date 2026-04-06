@@ -121,7 +121,7 @@ service cloud.firestore {
     // authenticated users (admin) may read or update them via 281509.html.
     // Fields are validated: htmlCode must be present and under 20 000 chars.
     match /promotions/{promotionId} {
-      allow create: if request.resource.data.keys().hasAll(['htmlCode', 'status', 'submittedAt'])
+      allow create: if request.resource.data.keys().hasAll(['htmlCode', 'status'])
                     && request.resource.data.status == 'pending'
                     && request.resource.data.htmlCode is string
                     && request.resource.data.htmlCode.size() > 0

@@ -16,6 +16,9 @@ const leaderboardContainer = document.getElementById("leaderboard");
 let timerInterval = null;
 let leaderboardRendered = false; // render only once per page load
 
+// Must match the Firestore security rule cap on weekMinutes
+const MAX_WEEKLY_MINUTES = 10000;
+
 /**
  * Compute the next bi-monthly reset date (15th or 29th of a month).
  */
@@ -206,20 +209,23 @@ export async function renderLeaderboard() {
     const leaderboardQuery = query(
       collection(db, "users"),
       where("weekMinutes", ">", 0),
+      where("weekMinutes", "<=", MAX_WEEKLY_MINUTES),
       orderBy("weekMinutes", "desc"),
-      limit(10)
+      limit(15)
     );
 
     const snap = await getDocs(leaderboardQuery);
+    // Client-side guard: exclude any doc that somehow exceeds the cap
+    const validDocs = snap.docs.filter(d => (d.data().weekMinutes || 0) <= MAX_WEEKLY_MINUTES).slice(0, 10);
     listContainer.innerHTML = "";
 
-    if (snap.empty) {
+    if (validDocs.length === 0) {
       listContainer.innerHTML = `<p class="text-center py-10 text-gray-500">No activity yet. Be the first!</p>`;
       return;
     }
 
     let rank = 1;
-    snap.forEach((docSnap) => {
+    validDocs.forEach((docSnap) => {
       const data = docSnap.data();
       const tier = calculateTier(data.totalEarned || 0);
       const reward = getPotentialReward(rank);
@@ -231,9 +237,10 @@ export async function renderLeaderboard() {
 
       const entry = document.createElement("div");
       entry.className = `relative flex justify-between items-center p-4 rounded-xl border cursor-pointer ${
-        rank <= 3
-          ? "bg-gray-800/80 border-blue-500/30"
-          : "bg-gray-900/40 border-gray-800"
+        rank === 1 ? "bg-yellow-900/20 border-yellow-500/40 shadow-lg shadow-yellow-900/20" :
+        rank === 2 ? "bg-gray-700/30 border-gray-400/30" :
+        rank === 3 ? "bg-amber-900/20 border-amber-700/40" :
+        "bg-gray-900/40 border-gray-800"
       } hover:border-blue-400/50 transition-colors`;
 
       const entryUid  = docSnap.id;
