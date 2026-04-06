@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  FIREBASE_PROJECT: math-katy
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -15,5 +18,18 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: math-katy
+          projectId: ${{ env.FIREBASE_PROJECT }}
           channelId: live
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Firestore Rules and Indexes
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          SA_FILE=$(mktemp)
+          trap 'rm -f "$SA_FILE"' EXIT
+          chmod 600 "$SA_FILE"
+          echo "$SERVICE_ACCOUNT" > "$SA_FILE"
+          GOOGLE_APPLICATION_CREDENTIALS="$SA_FILE" firebase deploy --only firestore:rules,firestore:indexes --project "$FIREBASE_PROJECT"
