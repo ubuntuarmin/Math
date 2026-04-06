@@ -183,6 +183,7 @@
         🪙 <span id="creditCount">0</span>
         <span class="text-gray-500">·</span>
         <span id="tierLabel" class="text-xs"></span>
+        <span class="tooltip-icon" tabindex="0" role="note" aria-label="Credits help">?<span class="tooltip-text">Earn credits by sharing links (+50), getting upvotes (+10 each), referring friends (+150), and daily streaks. Spend them to buy extra session time (50 🪙 each top-up).</span></span>
       </div>
 
       <!-- Session time (click to buy more) -->
@@ -192,6 +193,7 @@
                      bg-blue-500/10 border border-blue-500/30 text-xs font-bold text-blue-300
                      hover:bg-blue-500/20 hover:border-blue-400/50 transition-colors">
         ⏱ <span id="navSessionTimeLeft">30:00</span>
+        <span class="tooltip-icon" tabindex="0" role="note" aria-label="Session timer help">?<span class="tooltip-text">You get 30 free minutes per browser session shared across all links. When it runs out, spend 50 🪙 to add more time (amount depends on your rank). Click this button to top up.</span></span>
       </button>
 
       <button id="logoutBtn"
@@ -566,8 +568,9 @@
                         transition-all duration-200 placeholder-gray-600" />
         </div>
         <div class="login-field-group">
-          <label class="block text-xs font-semibold text-gray-300 mb-1.5 tracking-wide uppercase">
+          <label class="block text-xs font-semibold text-gray-300 mb-1.5 tracking-wide uppercase flex items-center gap-1">
             Referral Code <span class="text-gray-600 normal-case font-normal">(optional)</span>
+            <span class="tooltip-icon" tabindex="0" role="note" aria-label="Referral code help">?<span class="tooltip-text">If a friend shared their invite link with you, their code is already filled in! Sign up to give them 150 🪙 bonus credits.</span></span>
           </label>
           <input id="referralCodeInput" type="text" placeholder="e.g. ABC123"
                  class="w-full bg-gray-800/80 border border-gray-700/80 rounded-xl
@@ -776,6 +779,7 @@
   <!-- The iframe itself -->
   <iframe id="iframeFrame"
           class="flex-1 w-full border-0 opacity-0 transition-opacity duration-300"
+          style="will-change: opacity; transform: translateZ(0);"
           sandbox="allow-scripts allow-forms allow-popups allow-pointer-lock allow-modals allow-same-origin"
           allowfullscreen
           title="Game Site Viewer">
@@ -873,6 +877,77 @@
                      text-white font-bold text-sm transition-colors
                      disabled:opacity-40 disabled:cursor-not-allowed">
         🗑️ Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     EDIT LINK MODAL (owner can edit once per 24 hours)
+════════════════════════════════════════════════════════ -->
+<div id="editLinkModal"
+     class="hidden fixed inset-0 z-[400] flex items-center justify-center
+            bg-gray-950/90 backdrop-blur-sm p-4">
+  <div class="modal-glass border border-blue-700/40 rounded-3xl p-7 w-full max-w-sm shadow-2xl
+              max-h-[90vh] overflow-y-auto">
+    <h3 class="text-white font-bold text-lg mb-4 flex items-center gap-2">
+      ✏️ Edit Your Link
+      <span class="tooltip-icon" tabindex="0" role="note" aria-label="Edit info">?<span class="tooltip-text">You can edit your submission once every 24 hours. Editing does not affect your credits.</span></span>
+    </h3>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
+          Title <span class="text-red-400">*</span>
+        </label>
+        <input id="editLinkTitle" type="text" maxlength="80"
+               class="w-full bg-gray-900/80 px-4 py-2.5 rounded-xl border border-gray-700
+                      text-sm text-white outline-none focus:border-blue-500 transition" />
+      </div>
+
+      <div id="editLinkUrlWrap">
+        <label class="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
+          Link URL <span class="text-red-400">*</span>
+        </label>
+        <input id="editLinkUrl" type="url"
+               class="w-full bg-gray-900/80 px-4 py-2.5 rounded-xl border border-gray-700
+                      text-sm text-white outline-none focus:border-blue-500 transition" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wide">
+          Description <span class="text-red-400">*</span>
+        </label>
+        <textarea id="editLinkDesc" rows="3" maxlength="300"
+                  class="w-full bg-gray-900/80 px-4 py-2.5 rounded-xl border border-gray-700
+                         text-sm text-white outline-none resize-none focus:border-blue-500 transition">
+        </textarea>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wide flex items-center">
+          Hashtags <span class="text-gray-600 ml-1 normal-case font-normal">(optional)</span>
+          <span class="tooltip-icon" tabindex="0" role="note" aria-label="Hashtag help">?<span class="tooltip-text">Up to 5 hashtags separated by spaces. E.g. #racing fun</span></span>
+        </label>
+        <input id="editLinkTags" type="text" maxlength="120"
+               class="w-full bg-gray-900/80 px-4 py-2.5 rounded-xl border border-gray-700
+                      text-sm text-white outline-none focus:border-blue-500 transition" />
+      </div>
+    </div>
+
+    <div id="editLinkError" class="text-xs text-red-400 mt-3 min-h-[1rem] hidden"></div>
+
+    <div class="flex gap-3 mt-5">
+      <button id="editLinkCancelBtn"
+              class="flex-1 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600
+                     text-gray-300 font-bold text-sm transition-colors">
+        Cancel
+      </button>
+      <button id="editLinkSaveBtn"
+              class="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500
+                     text-white font-bold text-sm transition-colors
+                     disabled:opacity-40 disabled:cursor-not-allowed">
+        Save Changes
       </button>
     </div>
   </div>
@@ -979,6 +1054,7 @@
       if (typeof closeRatingModal        === "function") closeRatingModal();
       if (typeof closeDeleteConfirmModal === "function") closeDeleteConfirmModal();
       if (typeof closeSessionBuyModal    === "function") closeSessionBuyModal();
+      if (typeof closeEditLinkModal      === "function") closeEditLinkModal();
     }
   });
 
@@ -1079,7 +1155,8 @@
     let lastFrame = 0;
     const FRAME_INTERVAL = 1000 / 30; // target 30fps (~33.33ms per frame) to conserve CPU
     function loop(ts) {
-      if (ts - lastFrame > FRAME_INTERVAL) {
+      // Pause background animation while the iframe modal is open to free CPU/GPU for games
+      if (!window._bgPaused && ts - lastFrame > FRAME_INTERVAL) {
         lastFrame = ts;
         draw();
       }

@@ -114,7 +114,7 @@ export async function updateAccount(userData) {
             }
 
             <!-- Stats row -->
-            <div class="grid grid-cols-3 gap-3 mb-6">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               <div class="bg-gray-900/60 border border-gray-700/60 rounded-xl p-3 text-center hover:border-emerald-500/40 transition-colors">
                 <div class="text-lg font-black text-emerald-400">${totalEarned}</div>
                 <div class="text-[10px] text-gray-500 uppercase font-bold mt-0.5">Lifetime 🪙</div>
@@ -126,6 +126,10 @@ export async function updateAccount(userData) {
               <div class="bg-gray-900/60 border border-gray-700/60 rounded-xl p-3 text-center hover:border-orange-500/40 transition-colors">
                 <div class="text-lg font-black text-orange-400">${data.streak || 0}</div>
                 <div class="text-[10px] text-gray-500 uppercase font-bold mt-0.5">🔥 Streak</div>
+              </div>
+              <div class="bg-gray-900/60 border border-gray-700/60 rounded-xl p-3 text-center hover:border-purple-500/40 transition-colors">
+                <div class="text-lg font-black text-purple-400">${(data.referrals || []).length}</div>
+                <div class="text-[10px] text-gray-500 uppercase font-bold mt-0.5">👥 Referrals</div>
               </div>
             </div>
 
@@ -183,15 +187,20 @@ function renderReferralUI(code) {
     }
 
     const fullLink = `${window.location.origin}${window.location.pathname}?ref=${code}`;
+    const hasNativeShare = window.isSecureContext && typeof navigator.share === "function";
 
     referralArea.innerHTML = `
         <div class="mt-4 p-4 bg-gray-900/50 rounded-xl border border-gray-700">
-            <div class="text-xs text-gray-400 uppercase font-bold tracking-wider mb-2">Your Invite Link</div>
+            <div class="flex items-center gap-2 mb-2">
+              <div class="text-xs text-gray-400 uppercase font-bold tracking-wider">Your Invite Link</div>
+              <span class="tooltip-icon" tabindex="0" role="note" aria-label="Referral help">?<span class="tooltip-text">Share this link with friends. When they sign up, you earn 150 🪙 bonus credits and they start with 20 credits!</span></span>
+            </div>
             <div class="flex items-center gap-2">
                 <input readonly id="refInput" value="${fullLink}" class="bg-gray-950 text-xs p-2 rounded border border-gray-800 w-full text-blue-300 font-mono outline-none">
-                <button id="copyRefBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded font-bold transition">COPY</button>
+                <button id="copyRefBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-2 rounded font-bold transition whitespace-nowrap">COPY</button>
+                ${hasNativeShare ? '<button id="shareRefBtn" class="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-2 rounded font-bold transition whitespace-nowrap">SHARE</button>' : ''}
             </div>
-            <p class="text-[10px] text-gray-500 mt-2">New friends start with 20 credits; you earn 150!</p>
+            <p class="text-[10px] text-gray-500 mt-2">New friends start with 20 credits; you earn 150 🪙 per referral!</p>
         </div>
     `;
 
@@ -210,6 +219,27 @@ function renderReferralUI(code) {
             alert("Press Ctrl+C to copy your link!");
         }
     };
+
+    if (hasNativeShare) {
+        const shareBtn = document.getElementById("shareRefBtn");
+        if (shareBtn) {
+            shareBtn.onclick = async function() {
+                try {
+                    await navigator.share({
+                        title: "Join me on GameLinks!",
+                        text: "Hey! Join GameLinks — share and discover game sites and earn credits. Use my invite link to get started with bonus credits!",
+                        url: fullLink,
+                    });
+                } catch (e) {
+                    // User cancelled or share failed — fall back to copy
+                    if (e.name !== "AbortError") {
+                        try { await navigator.clipboard.writeText(fullLink); } catch (_) {}
+                        alert("Link copied to clipboard!");
+                    }
+                }
+            };
+        }
+    }
 }
 
 // --- Interaction Logic ---
