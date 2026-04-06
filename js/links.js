@@ -180,6 +180,7 @@ export function updateUI(userData) {
     setupSearchSort();
     setupRatingModal();
     setupDeleteModal();
+    setupEditLinkModal();
     setupAppealsTab();
     // Keep currentUserData in sync when other modules update the profile
     window.addEventListener("userProfileUpdated", (e) => {
@@ -451,9 +452,13 @@ function renderLinkCard(id, data, currentUid) {
 
   const isOwner = submittedBy === currentUid;
 
-  // Owners see a delete button instead of the report section; they also can't upvote their own
+  // Owners see edit + delete buttons instead of the report section; they also can't upvote their own
   const actionSection = isOwner
-    ? '<button class="delete-link-btn text-[10px] text-red-500 hover:text-red-400 ' +
+    ? '<button class="edit-link-btn text-[10px] text-blue-400 hover:text-blue-300 ' +
+      'transition-colors px-2 py-1 rounded border border-gray-700 ' +
+      'hover:border-blue-500/60 leading-none flex items-center gap-1" ' +
+      'data-id="' + id + '">\u270F\uFE0F Edit</button>' +
+      '<button class="delete-link-btn text-[10px] text-red-500 hover:text-red-400 ' +
       'transition-colors px-2 py-1 rounded border border-gray-700 ' +
       'hover:border-red-500/60 leading-none flex items-center gap-1" ' +
       'data-id="' + id + '">\uD83D\uDDD1\uFE0F Delete</button>'
@@ -562,6 +567,14 @@ function renderLinkCard(id, data, currentUid) {
     deleteBtn.addEventListener("click", () => {
       if (!auth.currentUser) { alert("You must be signed in."); return; }
       openDeleteConfirmModal(id, data, card);
+    });
+  }
+
+  const editBtn = card.querySelector(".edit-link-btn");
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      if (!auth.currentUser) { alert("You must be signed in."); return; }
+      openEditLinkModal(id, data, card);
     });
   }
 
@@ -870,6 +883,8 @@ function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpi
 
   modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  // Pause the background canvas animation so the embedded game gets more CPU/GPU
+  window._bgPaused = true;
 
   // Start session countdown if this is a purchased session
   if (sessionExpiresAt > Date.now()) {
@@ -1000,6 +1015,8 @@ function closeIframeModal() {
   iframeFrameLoaded = false;
   modal.classList.add("hidden");
   document.body.style.overflow = "";
+  // Resume background canvas animation
+  window._bgPaused = false;
 
   // Pause the global session: save remaining time before stopping the timer
   if (activeSessionExpiry > 0) {
@@ -1271,6 +1288,172 @@ function showToast(msg) {
 function setupDeleteModal() {
   document.getElementById("deleteConfirmCancelBtn")?.addEventListener("click", closeDeleteConfirmModal);
   document.getElementById("deleteConfirmBtn")?.addEventListener("click", handleDeleteLink);
+}
+
+// ── Edit link ─────────────────────────────────────────────────────────────────
+
+const EDIT_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+let pendingEdit = null; // { linkId, data, cardEl }
+
+function parseHashtagsEdit(input) {
+  if (!input) return [];
+  return input
+    .split(/[\s,]+/)
+    .map(t => {
+      t = t.trim().toLowerCase().replace(/[^a-z0-9_#]/g, "");
+      if (t && !t.startsWith("#")) t = "#" + t;
+      return t;
+    })
+    .filter(t => t.length > 1)
+    .slice(0, 5);
+}
+
+// Setup edit link modal event listeners (called once)
+function setupEditLinkModal() {
+  document.getElementById("editLinkCancelBtn")?.addEventListener("click", closeEditLinkModal);
+  document.getElementById("editLinkSaveBtn")?.addEventListener("click", handleEditLinkSave);
+}
+
+function openEditLinkModal(linkId, data, cardEl) {
+  // Check 24-hour cooldown
+  const lastEdited = data.lastEditedAt?.toMillis ? data.lastEditedAt.toMillis() : 0;
+  if (lastEdited > 0) {
+    const msSinceLast = Date.now() - lastEdited;
+    if (msSinceLast < EDIT_COOLDOWN_MS) {
+      const hoursLeft = Math.ceil((EDIT_COOLDOWN_MS - msSinceLast) / 3600000);
+      showToast(`✏️ You can edit again in ~${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.`);
+      return;
+    }
+  }
+
+  pendingEdit = { linkId, data, cardEl };
+
+  const modal = document.getElementById("editLinkModal");
+  const titleInput = document.getElementById("editLinkTitle");
+  const urlInput   = document.getElementById("editLinkUrl");
+  const descInput  = document.getElementById("editLinkDesc");
+  const tagsInput  = document.getElementById("editLinkTags");
+  const urlWrap    = document.getElementById("editLinkUrlWrap");
+  const errEl      = document.getElementById("editLinkError");
+  if (!modal) return;
+
+  if (titleInput) titleInput.value = data.title || "";
+  if (urlInput)   urlInput.value   = data.url   || "";
+  if (descInput)  descInput.value  = data.description || "";
+  if (tagsInput)  tagsInput.value  = (data.hashtags || []).join(" ");
+  // Hide URL field for HTML submissions
+  if (urlWrap) urlWrap.classList.toggle("hidden", data.type === "html");
+  if (errEl)   errEl.classList.add("hidden");
+
+  modal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeEditLinkModal() {
+  const modal = document.getElementById("editLinkModal");
+  if (modal) modal.classList.add("hidden");
+  document.body.style.overflow = "";
+  pendingEdit = null;
+}
+
+async function handleEditLinkSave() {
+  if (!pendingEdit) return;
+  const { linkId, data, cardEl } = pendingEdit;
+  const uid = auth.currentUser?.uid;
+  if (!uid || data.submittedBy !== uid) return;
+
+  const titleInput = document.getElementById("editLinkTitle");
+  const urlInput   = document.getElementById("editLinkUrl");
+  const descInput  = document.getElementById("editLinkDesc");
+  const tagsInput  = document.getElementById("editLinkTags");
+  const saveBtn    = document.getElementById("editLinkSaveBtn");
+  const errEl      = document.getElementById("editLinkError");
+
+  const title = (titleInput?.value || "").trim();
+  const desc  = (descInput?.value  || "").trim();
+  const tags  = parseHashtagsEdit(tagsInput?.value || "");
+
+  if (!title || title.length < 3) {
+    if (errEl) { errEl.textContent = "Title must be at least 3 characters."; errEl.classList.remove("hidden"); }
+    return;
+  }
+  if (!desc || desc.length < 10) {
+    if (errEl) { errEl.textContent = "Description must be at least 10 characters."; errEl.classList.remove("hidden"); }
+    return;
+  }
+
+  let url = data.url || "";
+  if (data.type !== "html") {
+    url = (urlInput?.value || "").trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+      if (errEl) { errEl.textContent = "Please enter a valid URL starting with https://"; errEl.classList.remove("hidden"); }
+      return;
+    }
+  }
+
+  // Re-check 24-hour cooldown server-side by re-reading the doc
+  try {
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+    const linkRef = doc(db, "sharedLinks", linkId);
+    const freshSnap = await getDoc(linkRef);
+    if (!freshSnap.exists()) {
+      if (errEl) { errEl.textContent = "Link not found."; errEl.classList.remove("hidden"); }
+      return;
+    }
+    const freshData = freshSnap.data();
+    const lastEdited = freshData.lastEditedAt?.toMillis ? freshData.lastEditedAt.toMillis() : 0;
+    if (lastEdited > 0 && (Date.now() - lastEdited) < EDIT_COOLDOWN_MS) {
+      const hoursLeft = Math.ceil((EDIT_COOLDOWN_MS - (Date.now() - lastEdited)) / 3600000);
+      if (errEl) { errEl.textContent = `You can edit again in ~${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.`; errEl.classList.remove("hidden"); }
+      return;
+    }
+
+    const updates = {
+      title,
+      description: desc,
+      hashtags:    tags,
+      lastEditedAt: serverTimestamp(),
+    };
+    if (data.type !== "html") updates.url = url;
+
+    await updateDoc(linkRef, updates);
+
+    // Update local cache
+    const entry = allDocs.find(d => d.id === linkId);
+    if (entry) {
+      entry.data.title       = title;
+      entry.data.description = desc;
+      entry.data.hashtags    = tags;
+      if (data.type !== "html") entry.data.url = url;
+      entry.data.lastEditedAt = { toMillis: () => Date.now() };
+    }
+
+    // Update the card title and description inline
+    if (cardEl) {
+      const titleSpan = cardEl.querySelector(".text-white.font-bold.text-base.truncate");
+      if (titleSpan) titleSpan.textContent = title;
+      const descP = cardEl.querySelector(".text-gray-400.text-xs.leading-relaxed");
+      if (descP) descP.textContent = desc;
+      // Replace the open-link-btn to update its click handler with the new URL/title
+      const oldOpenBtn = cardEl.querySelector(".open-link-btn");
+      if (oldOpenBtn) {
+        const newOpenBtn = oldOpenBtn.cloneNode(true);
+        newOpenBtn.addEventListener("click", () => {
+          openIframeModal(url, escapeHtml(title), linkId, uid, data.type === "html" ? (entry?.data?.htmlContent || null) : null);
+        });
+        oldOpenBtn.replaceWith(newOpenBtn);
+      }
+    }
+
+    closeEditLinkModal();
+    showToast("✏️ Link updated!");
+  } catch (err) {
+    console.error("Edit link error:", err);
+    if (errEl) { errEl.textContent = "Failed to save changes. Please try again."; errEl.classList.remove("hidden"); }
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; }
+  }
 }
 
 // Open delete confirm modal
@@ -2312,6 +2495,7 @@ window.closeIframeModal        = closeIframeModal;
 window.closeProfileModal       = closeProfileModal;
 window.closeRatingModal        = closeRatingModal;
 window.closeDeleteConfirmModal = closeDeleteConfirmModal;
+window.closeEditLinkModal      = closeEditLinkModal;
 window.closeSessionBuyModal    = () => {
   const modal = document.getElementById("sessionBuyModal");
   if (modal) { modal.classList.add("hidden"); document.body.style.overflow = ""; }

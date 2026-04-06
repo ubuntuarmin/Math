@@ -71,6 +71,15 @@ const initLogin = () => {
 
   console.log("Login system listeners attached.");
 
+  // Auto-fill referral code input if arriving via a referral link
+  if (referralInput) {
+    const pendingRef = localStorage.getItem("pendingReferral");
+    if (pendingRef) {
+      referralInput.value = pendingRef;
+      referralInput.classList.add("border-emerald-500");
+    }
+  }
+
   // SIGN IN LOGIC
   signInBtn.onclick = async (e) => {
     e.preventDefault();
