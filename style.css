@@ -824,42 +824,11 @@ body {
   transform: translateY(20px);
 }
 
-/* ── Music toggle button ─────────────────────────────────── */
-#musicToggle {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  z-index: 9000;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(56,189,248,0.35);
-  backdrop-filter: blur(16px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 1.1rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-}
-#musicToggle:hover {
-  transform: scale(1.12);
-  border-color: rgba(56,189,248,0.7);
-  box-shadow: 0 6px 28px rgba(56,189,248,0.3);
-}
-#musicToggle.muted {
-  opacity: 0.55;
-  border-color: rgba(148,163,184,0.25);
-}
-@keyframes music-pulse {
-  0%, 100% { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 0 rgba(56,189,248,0.4); }
-  50%       { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 8px rgba(56,189,248,0); }
-}
-#musicToggle.playing {
-  animation: music-pulse 2s ease-in-out infinite;
-  border-color: rgba(56,189,248,0.6);
+/* ── Navbar session timer low-time warning ───────────────── */
+#navSessionTime.session-time-low {
+  border-color: rgba(239,68,68,0.5) !important;
+  color: #f87171 !important;
+  background: rgba(239,68,68,0.1) !important;
 }
 
 /* ── Navbar tab-btn improvements ────────────────────────── */

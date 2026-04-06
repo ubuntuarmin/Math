@@ -37,6 +37,7 @@ const IFRAME_LOAD_TIMEOUT_MS = 15000; // 15 seconds before showing embed-blocked
 const FREE_SESSION_MS     = 30 * 60 * 1000; // 30 free minutes per browser session
 const GLOBAL_SESSION_KEY  = "global_session"; // sessionStorage key for cross-link timer
 const SLOT_EXPIRY_FALLBACK_MS = 4 * 60 * 60 * 1000; // fallback slot expiry for orphaned sessions
+const LOW_TIME_WARNING_MS = 5 * 60 * 1000;  // warn when < 5 minutes remain in session
 
 // Helper: compute average rating string ("4.2") or null
 function calcAvgRating(ratingSum, ratingCount) {
@@ -173,6 +174,7 @@ export function updateUI(userData) {
     tierLabel.textContent = tier.name;
     tierLabel.style.color = tier.color;
   }
+  updateNavSessionTimer();
   if (!setupDone) {
     setupDone = true;
     setupSearchSort();
@@ -597,6 +599,36 @@ function saveGlobalSession(session) {
 }
 
 /**
+ * Update the navbar session time display.
+ * Shows live countdown when a session is active, otherwise shows saved remaining time.
+ */
+function updateNavSessionTimer() {
+  const navTimeEl = document.getElementById("navSessionTimeLeft");
+  const navBtn    = document.getElementById("navSessionTime");
+  if (!navTimeEl) return;
+
+  let remainingMs;
+  if (activeSessionExpiry > 0) {
+    remainingMs = Math.max(0, activeSessionExpiry - Date.now());
+  } else {
+    const gs = getGlobalSession();
+    remainingMs = gs ? gs.remainingMs : FREE_SESSION_MS;
+  }
+
+  const mins = Math.floor(remainingMs / 60000);
+  const secs = Math.floor((remainingMs % 60000) / 1000);
+  navTimeEl.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
+
+  if (navBtn) {
+    if (remainingMs < LOW_TIME_WARNING_MS) {
+      navBtn.classList.add("session-time-low");
+    } else {
+      navBtn.classList.remove("session-time-low");
+    }
+  }
+}
+
+/**
  * Start the live session countdown in the iframe header.
  * Closes the modal automatically when time runs out.
  */
@@ -614,6 +646,7 @@ function startSessionTimer(expiresAt) {
     if (timeLeftEl) {
       timeLeftEl.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
     }
+    updateNavSessionTimer();
     if (remaining <= 0) {
       clearSessionTimer();
       showToast("⏰ Session time expired — you have been removed.");
@@ -629,6 +662,7 @@ function clearSessionTimer() {
   if (sessionTimerInterval) { clearInterval(sessionTimerInterval); sessionTimerInterval = null; }
   const timerEl = document.getElementById("sessionTimer");
   if (timerEl) timerEl.classList.add("hidden");
+  updateNavSessionTimer();
 }
 
 /**
@@ -753,6 +787,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
 
       rateLimitRecord("sessionBuyHistory", 3600000);
+      updateNavSessionTimer();
     } catch (err) {
       if (err.message === "INSUFFICIENT_CREDITS") {
         showToast(`❌ Not enough credits.`);
@@ -2260,6 +2295,7 @@ async function handleExtendSession() {
     if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
 
     rateLimitRecord("sessionBuyHistory", 3600000);
+    updateNavSessionTimer();
     showToast(`✅ Added ${tier.limitMinutes} minutes to your session!`);
   } catch (err) {
     if (err.message === "INSUFFICIENT_CREDITS") {
@@ -2281,6 +2317,70 @@ window.closeSessionBuyModal    = () => {
   if (modal) { modal.classList.add("hidden"); document.body.style.overflow = ""; }
 };
 window.handleExtendSession = handleExtendSession;
+
+/**
+ * Navbar session time button click handler.
+ * When a session is active, extends it. Otherwise allows purchasing additional time.
+ */
+window.handleNavSessionTimerClick = async function handleNavSessionTimerClick() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+
+  // If actively in a session, just extend it
+  if (currentLinkId) {
+    handleExtendSession();
+    return;
+  }
+
+  // No active session — allow pre-purchasing time
+  const userData    = currentUserData || {};
+  const tier        = calculateTier(userData.totalEarned || 0);
+  const userCredits = userData.credits || 0;
+
+  if (userCredits < SESSION_COST) {
+    showToast(`❌ Not enough credits — you need ${SESSION_COST} 🪙 to buy session time.`);
+    return;
+  }
+
+  if (!checkRateLimit("sessionBuyHistory", 10, 3600000)) {
+    showToast("⏳ You've reached the session purchase limit (10/hour). Please try again later.");
+    return;
+  }
+
+  const confirmed = await showSessionPurchaseModal(
+    null, 0, tier.name, tier.limitMinutes, userCredits
+  );
+  if (!confirmed) return;
+
+  try {
+    const userRef = doc(db, "users", uid);
+    await runTransaction(db, async (txn) => {
+      const userSnap = await txn.get(userRef);
+      if (!userSnap.exists()) throw new Error("USER_NOT_FOUND");
+      if ((userSnap.data().credits || 0) < SESSION_COST) throw new Error("INSUFFICIENT_CREDITS");
+      txn.update(userRef, { credits: increment(-SESSION_COST) });
+    });
+
+    const gs = getGlobalSession() || { remainingMs: 0 };
+    gs.remainingMs += tier.limitMinutes * 60 * 1000;
+    saveGlobalSession(gs);
+
+    if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
+    const creditEl = document.getElementById("creditCount");
+    if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
+
+    rateLimitRecord("sessionBuyHistory", 3600000);
+    updateNavSessionTimer();
+    showToast(`✅ +${tier.limitMinutes} minutes added to your session time!`);
+  } catch (err) {
+    if (err.message === "INSUFFICIENT_CREDITS") {
+      showToast(`❌ Not enough credits.`);
+    } else {
+      console.error("Nav session purchase error:", err);
+      showToast("❌ Failed to add session time. Please try again.");
+    }
+  }
+};
 
 // XSS-safe helper
 function escapeHtml(str) {
