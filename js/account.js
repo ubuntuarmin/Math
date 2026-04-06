@@ -187,13 +187,13 @@ function renderReferralUI(code) {
     }
 
     const fullLink = `${window.location.origin}${window.location.pathname}?ref=${code}`;
-    const hasNativeShare = typeof navigator.share === "function";
+    const hasNativeShare = window.isSecureContext && typeof navigator.share === "function";
 
     referralArea.innerHTML = `
         <div class="mt-4 p-4 bg-gray-900/50 rounded-xl border border-gray-700">
             <div class="flex items-center gap-2 mb-2">
               <div class="text-xs text-gray-400 uppercase font-bold tracking-wider">Your Invite Link</div>
-              <span class="tooltip-icon" tabindex="0" role="button" aria-label="Referral help">?<span class="tooltip-text">Share this link with friends. When they sign up, you earn 150 🪙 bonus credits and they start with 20 credits!</span></span>
+              <span class="tooltip-icon" tabindex="0" role="note" aria-label="Referral help">?<span class="tooltip-text">Share this link with friends. When they sign up, you earn 150 🪙 bonus credits and they start with 20 credits!</span></span>
             </div>
             <div class="flex items-center gap-2">
                 <input readonly id="refInput" value="${fullLink}" class="bg-gray-950 text-xs p-2 rounded border border-gray-800 w-full text-blue-300 font-mono outline-none">
@@ -221,21 +221,24 @@ function renderReferralUI(code) {
     };
 
     if (hasNativeShare) {
-        document.getElementById("shareRefBtn").onclick = async function() {
-            try {
-                await navigator.share({
-                    title: "Join me on GameLinks!",
-                    text: "Hey! Join GameLinks — share and discover game sites and earn credits. Use my invite link to get started with bonus credits!",
-                    url: fullLink,
-                });
-            } catch (e) {
-                // User cancelled or share failed — fall back to copy
-                if (e.name !== "AbortError") {
-                    try { await navigator.clipboard.writeText(fullLink); } catch (_) {}
-                    alert("Link copied to clipboard!");
+        const shareBtn = document.getElementById("shareRefBtn");
+        if (shareBtn) {
+            shareBtn.onclick = async function() {
+                try {
+                    await navigator.share({
+                        title: "Join me on GameLinks!",
+                        text: "Hey! Join GameLinks — share and discover game sites and earn credits. Use my invite link to get started with bonus credits!",
+                        url: fullLink,
+                    });
+                } catch (e) {
+                    // User cancelled or share failed — fall back to copy
+                    if (e.name !== "AbortError") {
+                        try { await navigator.clipboard.writeText(fullLink); } catch (_) {}
+                        alert("Link copied to clipboard!");
+                    }
                 }
-            }
-        };
+            };
+        }
     }
 }
 

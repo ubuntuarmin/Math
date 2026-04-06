@@ -1292,7 +1292,8 @@ function setupDeleteModal() {
 
 // ── Edit link ─────────────────────────────────────────────────────────────────
 
-const EDIT_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MS_PER_HOUR    = 3600000;                        // milliseconds in one hour
+const EDIT_COOLDOWN_MS = 24 * MS_PER_HOUR;             // 24-hour edit cooldown
 
 let pendingEdit = null; // { linkId, data, cardEl }
 
@@ -1321,7 +1322,7 @@ function openEditLinkModal(linkId, data, cardEl) {
   if (lastEdited > 0) {
     const msSinceLast = Date.now() - lastEdited;
     if (msSinceLast < EDIT_COOLDOWN_MS) {
-      const hoursLeft = Math.ceil((EDIT_COOLDOWN_MS - msSinceLast) / 3600000);
+      const hoursLeft = Math.ceil((EDIT_COOLDOWN_MS - msSinceLast) / MS_PER_HOUR);
       showToast(`✏️ You can edit again in ~${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.`);
       return;
     }
@@ -1404,7 +1405,7 @@ async function handleEditLinkSave() {
     const freshData = freshSnap.data();
     const lastEdited = freshData.lastEditedAt?.toMillis ? freshData.lastEditedAt.toMillis() : 0;
     if (lastEdited > 0 && (Date.now() - lastEdited) < EDIT_COOLDOWN_MS) {
-      const hoursLeft = Math.ceil((EDIT_COOLDOWN_MS - (Date.now() - lastEdited)) / 3600000);
+      const hoursLeft = Math.ceil((EDIT_COOLDOWN_MS - (Date.now() - lastEdited)) / MS_PER_HOUR);
       if (errEl) { errEl.textContent = `You can edit again in ~${hoursLeft} hour${hoursLeft !== 1 ? "s" : ""}.`; errEl.classList.remove("hidden"); }
       return;
     }
