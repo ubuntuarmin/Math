@@ -226,8 +226,8 @@ function renderReferralUI(code) {
             shareBtn.onclick = async function() {
                 try {
                     await navigator.share({
-                        title: "Join me on GameLinks!",
-                        text: "Hey! Join GameLinks — share and discover game sites and earn credits. Use my invite link to get started with bonus credits!",
+                        title: "Join me on Math Katy!",
+                        text: "Hey! Join Math Katy — share and discover game sites and earn credits. Use my invite link to get started with bonus credits!",
                         url: fullLink,
                     });
                 } catch (e) {
