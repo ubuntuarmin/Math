@@ -519,12 +519,52 @@
       return scene;
     }
 
-    // Bootstrap: wait for pre-loader delay, then create engine (WebGPU preferred, WebGL fallback).
+    // Bootstrap: create engine immediately so Babylon warms up behind the overlay.
     const _canvas = document.getElementById("renderCanvas");
     (async function () {
-      // ── Pre-loader phase ─────────────────────────────────────────────────────
       const preLoader = document.getElementById("preLoader");
 
+      // ── Engine + scene: start IMMEDIATELY (parallel with pre-loader) ──────────
+      // Prefer WebGPU; fall back to WebGL2/WebGL1 when WebGPU is unavailable.
+      // Kicking this off now – before awaiting the spot fetch – means shader
+      // compilation and asset loading happen during the overlay display window
+      // rather than after it, so the first visible frame is fully rendered.
+      const enginePromise = (async function () {
+        const webgpuSupported = await BABYLON.WebGPUEngine.IsSupportedAsync;
+        let engine;
+        if (webgpuSupported) {
+          engine = new BABYLON.WebGPUEngine(_canvas, { antialias: true });
+          await engine.initAsync();
+        } else {
+          engine = new BABYLON.Engine(_canvas, /* antialias= */ true, {
+            preserveDrawingBuffer: false,
+            stencil: true,
+            disableWebGL2Support: false
+          });
+        }
+        // Expose engine globally so createScene (which references it as a free
+        // var resolved through the global scope) can use it.
+        window.engine = engine;
+        return engine;
+      })();
+
+      // Chain scene creation immediately after the engine is ready.
+      const scenePromise = enginePromise.then(function () {
+        return createScene();
+      }).catch(function (err) {
+        console.error("[loading.html] Scene creation failed:", err);
+        return null;
+      });
+
+      // Start the render loop as soon as the scene resolves so the GPU pipeline
+      // is warm when the overlay fades out – the reveal is seamless.
+      scenePromise.then(function (scene) {
+        if (!scene) return;
+        window.engine.runRenderLoop(function () { scene.render(); });
+        window.addEventListener("resize", function () { window.engine.resize(); });
+      });
+
+      // ── Pre-loader phase (runs concurrently with engine + scene init) ─────────
       // Wait for the spot-file fetch started before scripts loaded.
       const spotHtml = await window.__spotFetch;
 
@@ -539,7 +579,7 @@
             preLoader.innerHTML = spotContent.outerHTML;
             // Ensure all links in the injected content open in a new tab
             // so users are never navigated away from the current page.
-            preLoader.querySelectorAll("a[href]").forEach(function(a) {
+            preLoader.querySelectorAll("a[href]").forEach(function (a) {
               a.target = "_blank";
               a.rel = "noopener noreferrer";
             });
@@ -549,46 +589,30 @@
         }
       }
 
-      // Wait out the remaining portion of the 4-6 s delay.
+      // Wait for the remaining portion of the 4-6 s delay AND for the scene to
+      // finish loading before removing the overlay.  Whichever takes longer wins:
+      // the full delay is always honoured, but if the scene is still loading we
+      // hold the overlay so the reveal is never a blank canvas.
       const elapsed   = Date.now() - window.__plStart;
       const remaining = Math.max(0, window.__plDelay - elapsed);
-      await new Promise(function (resolve) { setTimeout(resolve, remaining); });
+      await Promise.all([
+        new Promise(function (resolve) { setTimeout(resolve, remaining); }),
+        scenePromise,
+      ]);
 
-      // Fade out and remove the pre-loader.
+      // Fade out and remove the pre-loader.  The scene is already rendering
+      // behind the overlay, so the transition to 3-D is seamless.
       if (preLoader) {
         preLoader.classList.add("pl-fade-out");
         await new Promise(function (resolve) { setTimeout(resolve, 700); });
         preLoader.style.display = "none";
       }
 
-      // ── Engine bootstrap ──────────────────────────────────────────────────────
-      let engine;
-
-      // Prefer WebGPU – it satisfies all capability checks and offers better
-      // performance; fall back to WebGL2/WebGL1 when WebGPU is unavailable.
-      const webgpuSupported = await BABYLON.WebGPUEngine.IsSupportedAsync;
-      if (webgpuSupported) {
-        engine = new BABYLON.WebGPUEngine(_canvas, { antialias: true });
-        await engine.initAsync();
-      } else {
-        engine = new BABYLON.Engine(_canvas, /* antialias= */ true, {
-          preserveDrawingBuffer: false,
-          stencil: true,
-          disableWebGL2Support: false
-        });
-      }
-
-      // Expose engine globally so createScene (which references it as a free var) can use it
-      window.engine = engine;
-
-      const scene = await createScene();
+      const scene = await scenePromise;
       if (!scene) {
-        console.error("[loading.html] createScene() returned no scene – aborting render loop.");
+        console.error("[loading.html] Scene creation failed – render loop not started.");
         return;
       }
-      engine.runRenderLoop(function () { scene.render(); });
-
-      window.addEventListener("resize", function () { engine.resize(); });
     })().catch(function (err) {
       console.error("[loading.html] Fatal init error:", err);
       // Show a minimal error message so the user knows something went wrong
