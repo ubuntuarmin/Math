@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rules & Credits — Math Katy</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+
+  <style>
+    /* ── Rules-page specific styles ─────────────────── */
+    .rules-hero-gradient {
+      background: linear-gradient(270deg, #38bdf8, #a855f7, #10b981, #38bdf8);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: hero-shimmer 6s ease infinite;
+    }
+    @keyframes hero-shimmer {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .rule-card {
+      background: linear-gradient(135deg, rgba(15,23,42,0.65), rgba(9,16,34,0.75));
+      border: 1px solid rgba(56,189,248,0.10);
+      border-radius: 20px;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .rule-card:hover {
+      border-color: rgba(56,189,248,0.35);
+      transform: translateY(-2px);
+    }
+
+    .tier-card {
+      border-radius: 20px;
+      padding: 1.5rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .tier-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+
+    .credit-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      background: rgba(15,23,42,0.5);
+      border: 1px solid rgba(148,163,184,0.08);
+      transition: background 0.15s ease;
+    }
+    .credit-row:hover {
+      background: rgba(15,23,42,0.8);
+    }
+
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.2rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+  </style>
+</head>
+<body class="page">
+
+<!-- ════ ANIMATED BACKGROUND ════ -->
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
+<div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+<div class="bg-orb bg-orb-3" aria-hidden="true"></div>
+
+<!-- ════ HEADER ════ -->
+<header class="site-header" style="display:block;">
+  <nav class="navbar">
+    <a href="index.html" class="navbar-brand">
+      <span class="navbar-brand-logo">📐</span>
+      <span class="navbar-brand-text">Math Katy</span>
+    </a>
+    <div class="flex items-center gap-3">
+      <a href="index.html"
+         class="text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5
+                rounded-full border border-gray-700 hover:border-gray-500">
+        ← Back to App
+      </a>
+      <a href="share.html"
+         class="navbar-action-btn navbar-action-share whitespace-nowrap">
+        + Share
+      </a>
+    </div>
+  </nav>
+</header>
+
+<!-- ════ MAIN CONTENT ════ -->
+<main>
+  <div class="container" style="max-width: 860px;">
+
+    <!-- ── HERO ─────────────────────────────────────────── -->
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center gap-2 mb-4 px-4 py-1.5 rounded-full
+                  bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-bold
+                  uppercase tracking-widest">
+        📖 How Everything Works
+      </div>
+      <h1 class="text-4xl md:text-5xl font-black text-white mb-3 leading-tight">
+        Rules &amp; <span class="rules-hero-gradient">Credits</span>
+      </h1>
+      <p class="text-gray-400 max-w-xl mx-auto text-sm leading-relaxed">
+        Everything you need to know about earning credits, unlocking ranks, spending your rewards,
+        and keeping the community safe.
+      </p>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         SECTION 1 — HOW TO EARN CREDITS
+    ══════════════════════════════════════════════════════ -->
+    <section class="mb-8">
+      <div class="surface rounded-3xl p-7">
+        <div class="section-badge bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 mb-4">
+          🪙 How to Earn Credits
+        </div>
+        <h2 class="text-xl font-black text-white mb-2">Ways to Earn</h2>
+        <p class="text-gray-400 text-sm mb-5 leading-relaxed">
+          Credits are the currency of Math Katy. Earn them by contributing to the community —
+          sharing links, helping others, and showing up daily.
+        </p>
+
+        <div class="space-y-2">
+          <div class="credit-row">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">🔗</span>
+              <div>
+                <div class="text-white font-bold text-sm">Share a Link</div>
+                <div class="text-gray-500 text-xs">Submit a game site that passes community review</div>
+              </div>
+            </div>
+            <div class="text-emerald-400 font-black text-base whitespace-nowrap">+50 🪙</div>
+          </div>
+
+          <div class="credit-row">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">👍</span>
+              <div>
+                <div class="text-white font-bold text-sm">Receive an Upvote</div>
+                <div class="text-gray-500 text-xs">Another community member upvotes your link</div>
+              </div>
+            </div>
+            <div class="text-emerald-400 font-black text-base whitespace-nowrap">+10 🪙</div>
+          </div>
+
+          <div class="credit-row">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">👥</span>
+              <div>
+                <div class="text-white font-bold text-sm">Refer a Friend</div>
+                <div class="text-gray-500 text-xs">Someone signs up using your referral link</div>
+              </div>
+            </div>
+            <div class="text-emerald-400 font-black text-base whitespace-nowrap">+150 🪙</div>
+          </div>
+
+          <div class="credit-row">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">🔥</span>
+              <div>
+                <div class="text-white font-bold text-sm">Daily Streak</div>
+                <div class="text-gray-500 text-xs">Claim your daily reward — miss a day and the streak resets</div>
+              </div>
+            </div>
+            <div class="text-emerald-400 font-black text-base whitespace-nowrap">Varies</div>
+          </div>
+
+          <div class="credit-row">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">⭐</span>
+              <div>
+                <div class="text-white font-bold text-sm">Quality Bonus</div>
+                <div class="text-gray-500 text-xs">Monthly bonus if you have 10+ reviews with an average rating above 4.7</div>
+              </div>
+            </div>
+            <div class="text-emerald-400 font-black text-base whitespace-nowrap">+50 🪙</div>
+          </div>
+
+          <div class="credit-row">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">⚖️</span>
+              <div>
+                <div class="text-white font-bold text-sm">Vote on Appeals</div>
+                <div class="text-gray-500 text-xs">Cast a vote on a removed link's appeal (community service)</div>
+              </div>
+            </div>
+            <div class="text-emerald-400 font-black text-base whitespace-nowrap">+10 🪙</div>
+          </div>
+
+          <div class="credit-row">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">🎮</span>
+              <div>
+                <div class="text-white font-bold text-sm">New Account Bonus</div>
+                <div class="text-gray-500 text-xs">Starter credits given to every new user on sign-up</div>
+              </div>
+            </div>
+            <div class="text-emerald-400 font-black text-base whitespace-nowrap">+20 🪙</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════
+         SECTION 2 — WHAT TO DO WITH CREDITS
+    ══════════════════════════════════════════════════════ -->
+    <section class="mb-8">
+      <div class="surface rounded-3xl p-7">
+        <div class="section-badge bg-blue-500/15 border border-blue-500/30 text-blue-300 mb-4">
+          💸 Spending Credits
+        </div>
+        <h2 class="text-xl font-black text-white mb-2">What To Do With Credits</h2>
+        <p class="text-gray-400 text-sm mb-5 leading-relaxed">
+          Credits unlock more time inside game sites. You get <strong class="text-white">30 free minutes</strong> per
+          browser session shared across all links. When time runs out, spend 50 credits to top up.
+        </p>
+
+        <div class="rule-card p-5 mb-4">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-500/30
+                        flex items-center justify-center text-2xl shrink-0">⏱️</div>
+            <div>
+              <div class="text-white font-bold mb-1">Buy Session Time — 50 🪙 per top-up</div>
+              <p class="text-gray-400 text-sm leading-relaxed">
+                When your session timer runs out, click the <span class="text-amber-300 font-bold">+ button</span>
+                next to the countdown to purchase more time.
+                The amount of extra time you get depends on your <strong class="text-white">rank</strong>
+                (see the tier table below).
+              </p>
+              <ul class="mt-3 space-y-1 text-xs text-gray-500">
+                <li class="flex items-center gap-2"><span class="text-slate-400 font-bold">Basic</span> → +45 minutes per top-up</li>
+                <li class="flex items-center gap-2"><span class="text-indigo-300 font-bold">Silver</span> → +60 minutes per top-up</li>
+                <li class="flex items-center gap-2"><span class="text-amber-400 font-bold">Gold</span> → +120 minutes per top-up</li>
+                <li class="flex items-center gap-2"><span class="text-fuchsia-400 font-bold">VIP</span> → +360 minutes (6 hours!) per top-up</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="rule-card p-5">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-500/30
+                        flex items-center justify-center text-2xl shrink-0">🚀</div>
+            <div>
+              <div class="text-white font-bold mb-1">Unlock Higher Ranks</div>
+              <p class="text-gray-400 text-sm leading-relaxed">
+                Credits also accumulate toward your lifetime total, which determines your tier.
+                Higher tiers unlock more session time per purchase. Credits you earn are
+                <em>always</em> tracked, even the ones you spend.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════
+         SECTION 3 — RANKS / TIERS
+    ══════════════════════════════════════════════════════ -->
+    <section class="mb-8">
+      <div class="surface rounded-3xl p-7">
+        <div class="section-badge bg-amber-500/15 border border-amber-500/30 text-amber-300 mb-4">
+          🏅 Ranks &amp; Tiers
+        </div>
+        <h2 class="text-xl font-black text-white mb-2">Community Ranks</h2>
+        <p class="text-gray-400 text-sm mb-5 leading-relaxed">
+          Your rank is based on your <strong class="text-white">total lifetime credits earned</strong>
+          (not your current balance). Keep earning to climb the ranks.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          <!-- Basic -->
+          <div class="tier-card bg-slate-800/40 border border-slate-500/20">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-slate-500/20 border border-slate-500/30
+                          flex items-center justify-center text-xl">🔰</div>
+              <div>
+                <div class="text-slate-300 font-black text-lg">Basic</div>
+                <div class="text-slate-500 text-xs">0 – 149 lifetime credits</div>
+              </div>
+            </div>
+            <p class="text-gray-500 text-xs leading-relaxed">Starting rank for all new members.
+              Get 30 free minutes per session + 45 minutes per time purchase (50 🪙).</p>
+          </div>
+
+          <!-- Silver -->
+          <div class="tier-card bg-indigo-900/20 border border-indigo-500/20">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30
+                          flex items-center justify-center text-xl">🥈</div>
+              <div>
+                <div class="text-slate-200 font-black text-lg">Silver</div>
+                <div class="text-slate-500 text-xs">150 – 299 lifetime credits</div>
+              </div>
+            </div>
+            <p class="text-gray-500 text-xs leading-relaxed">Active contributors. Get 30 free minutes per session
+              + <strong class="text-slate-300">60 minutes</strong> per time purchase (50 🪙).</p>
+          </div>
+
+          <!-- Gold -->
+          <div class="tier-card bg-amber-900/20 border border-amber-500/20">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30
+                          flex items-center justify-center text-xl">🥇</div>
+              <div>
+                <div class="text-amber-400 font-black text-lg">Gold</div>
+                <div class="text-slate-500 text-xs">300 – 599 lifetime credits</div>
+              </div>
+            </div>
+            <p class="text-gray-500 text-xs leading-relaxed">Power users. Get 30 free minutes per session
+              + <strong class="text-amber-300">120 minutes (2 hours)</strong> per time purchase (50 🪙).</p>
+          </div>
+
+          <!-- VIP -->
+          <div class="tier-card bg-fuchsia-900/20 border border-fuchsia-500/20">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/30
+                          flex items-center justify-center text-xl">💎</div>
+              <div>
+                <div class="text-fuchsia-400 font-black text-lg">VIP</div>
+                <div class="text-slate-500 text-xs">600+ lifetime credits</div>
+              </div>
+            </div>
+            <p class="text-gray-500 text-xs leading-relaxed">Elite members. Get 30 free minutes per session
+              + <strong class="text-fuchsia-300">360 minutes (6 hours)</strong> per time purchase (50 🪙).</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════
+         SECTION 4 — COMMUNITY RULES
+    ══════════════════════════════════════════════════════ -->
+    <section class="mb-8">
+      <div class="surface rounded-3xl p-7">
+        <div class="section-badge bg-red-500/15 border border-red-500/30 text-red-300 mb-4">
+          📋 Community Rules
+        </div>
+        <h2 class="text-xl font-black text-white mb-2">Rules You Must Follow</h2>
+        <p class="text-gray-400 text-sm mb-5 leading-relaxed">
+          The community is self-governing. Breaking these rules will result in your links being
+          removed and your account flagged.
+        </p>
+
+        <div class="space-y-3">
+
+          <div class="rule-card p-4 flex items-start gap-3">
+            <span class="text-xl shrink-0">🚫</span>
+            <div>
+              <div class="text-white font-bold text-sm mb-0.5">No Fake or Spam Links</div>
+              <p class="text-gray-500 text-xs leading-relaxed">
+                Links that are broken, misleading, or designed purely for farming credits will be
+                reported and removed. 3 reports by different users removes a link instantly.
+              </p>
+            </div>
+          </div>
+
+          <div class="rule-card p-4 flex items-start gap-3">
+            <span class="text-xl shrink-0">⏱️</span>
+            <div>
+              <div class="text-white font-bold text-sm mb-0.5">Respect Rate Limits</div>
+              <p class="text-gray-500 text-xs leading-relaxed">
+                You can share up to <strong class="text-white">3 links per hour</strong>,
+                write up to <strong class="text-white">10 reviews per 10 seconds</strong>,
+                upvote up to <strong class="text-white">30 links per hour</strong>,
+                and purchase session time up to <strong class="text-white">10 times per hour</strong>.
+                These limits prevent abuse.
+              </p>
+            </div>
+          </div>
+
+          <div class="rule-card p-4 flex items-start gap-3">
+            <span class="text-xl shrink-0">✏️</span>
+            <div>
+              <div class="text-white font-bold text-sm mb-0.5">Edit Policy</div>
+              <p class="text-gray-500 text-xs leading-relaxed">
+                You can edit your submitted link once every <strong class="text-white">24 hours</strong>.
+                Editing does not affect your credits.
+              </p>
+            </div>
+          </div>
+
+          <div class="rule-card p-4 flex items-start gap-3">
+            <span class="text-xl shrink-0">⚖️</span>
+            <div>
+              <div class="text-white font-bold text-sm mb-0.5">Appeals Process</div>
+              <p class="text-gray-500 text-xs leading-relaxed">
+                If your link is removed, you can submit an appeal. Ten community members vote on
+                whether it should be reinstated. Voters earn +10 credits for each vote cast.
+                You can submit up to <strong class="text-white">2 appeals per day</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div class="rule-card p-4 flex items-start gap-3">
+            <span class="text-xl shrink-0">🗑️</span>
+            <div>
+              <div class="text-white font-bold text-sm mb-0.5">Deleting Your Link</div>
+              <p class="text-gray-500 text-xs leading-relaxed">
+                You can delete your own link at any time but you will lose the
+                <strong class="text-white">50 credits</strong> you earned from sharing it.
+                Deletion is permanent and cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          <div class="rule-card p-4 flex items-start gap-3">
+            <span class="text-xl shrink-0">😴</span>
+            <div>
+              <div class="text-white font-bold text-sm mb-0.5">Stay Active</div>
+              <p class="text-gray-500 text-xs leading-relaxed">
+                Accounts inactive for <strong class="text-red-400">37 days</strong> are
+                flagged for deletion. Log in regularly to keep your account and credits safe.
+              </p>
+            </div>
+          </div>
+
+          <div class="rule-card p-4 flex items-start gap-3">
+            <span class="text-xl shrink-0">👥</span>
+            <div>
+              <div class="text-white font-bold text-sm mb-0.5">Session Capacity</div>
+              <p class="text-gray-500 text-xs leading-relaxed">
+                Each link supports a maximum of <strong class="text-white">6 concurrent users</strong> in a session at once.
+                If a link is full, wait for a slot to free up.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════
+         SECTION 5 — SESSIONS EXPLAINED
+    ══════════════════════════════════════════════════════ -->
+    <section class="mb-10">
+      <div class="surface rounded-3xl p-7">
+        <div class="section-badge bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 mb-4">
+          🎮 Sessions Explained
+        </div>
+        <h2 class="text-xl font-black text-white mb-2">How Sessions Work</h2>
+
+        <div class="space-y-4 text-sm text-gray-400 leading-relaxed">
+          <p>
+            Every browser session starts with <strong class="text-white">30 free minutes</strong>
+            shared across all links. The timer ticks down while you are inside any game site and
+            <em>pauses</em> when you close the viewer.
+          </p>
+          <p>
+            Once the 30 minutes run out, you can top up by spending
+            <strong class="text-white">50 credits</strong>. The extra time added depends on your rank.
+            Link owners never use session time — they can always open their own links for free.
+          </p>
+          <p>
+            Session time is stored in your browser (<em>sessionStorage</em>). Closing the tab or
+            opening a new browser window starts a fresh 30-minute session.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CTA ─────────────────────────────────────────── -->
+    <div class="text-center pb-8">
+      <a href="share.html"
+         class="inline-flex items-center gap-2 px-7 py-3 rounded-full font-bold text-base
+                bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400
+                text-white transition-all duration-200 shadow-lg shadow-emerald-500/30
+                hero-share-btn">
+        🔗 Share a Link &amp; Earn 50 🪙
+      </a>
+      <p class="mt-3 text-xs text-gray-600">
+        <a href="index.html" class="text-gray-500 hover:text-gray-300 transition-colors">← Back to the app</a>
+      </p>
+    </div>
+
+  </div><!-- /container -->
+</main>
+
+<!-- ════ FOOTER ════ -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <span>© 2026 Math Katy</span>
+    <span class="text-xs text-gray-600">Community link sharing · Earn credits · Report bad links</span>
+  </div>
+</footer>
+
+</body>
+</html>
