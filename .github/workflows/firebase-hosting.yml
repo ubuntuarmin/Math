@@ -21,9 +21,6 @@ jobs:
           projectId: ${{ env.FIREBASE_PROJECT }}
           channelId: live
 
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
       - name: Deploy Firestore Rules and Indexes
         env:
           SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -32,4 +29,58 @@ jobs:
           trap 'rm -f "$SA_FILE"' EXIT
           chmod 600 "$SA_FILE"
           echo "$SERVICE_ACCOUNT" > "$SA_FILE"
-          GOOGLE_APPLICATION_CREDENTIALS="$SA_FILE" firebase deploy --only firestore:rules,firestore:indexes --project "$FIREBASE_PROJECT"
+
+          # Obtain a short-lived access token from the service account.
+          # Using gcloud (pre-installed on ubuntu-latest) avoids calling
+          # serviceusage.googleapis.com, which the firebase CLI does internally
+          # and which requires roles/serviceusage.serviceUsageConsumer.
+          gcloud auth activate-service-account --key-file="$SA_FILE" --quiet
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+
+          # ── Deploy Firestore Security Rules via Firebase Rules REST API ───────
+          RULES_JSON=$(jq -Rs . < firestore.rules)
+          RULESET_RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://firebaserules.googleapis.com/v1/projects/$FIREBASE_PROJECT/rulesets" \
+            -d "{\"source\":{\"files\":[{\"content\":$RULES_JSON,\"name\":\"firestore.rules\"}]}}")
+          RULESET_NAME=$(echo "$RULESET_RESPONSE" | jq -r '.name')
+          if [ -z "$RULESET_NAME" ] || [ "$RULESET_NAME" = "null" ]; then
+            echo "::error::Failed to create Firestore ruleset: $RULESET_RESPONSE"
+            exit 1
+          fi
+          echo "Created ruleset: $RULESET_NAME"
+
+          RELEASE_RESPONSE=$(curl -s -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://firebaserules.googleapis.com/v1/projects/$FIREBASE_PROJECT/releases/cloud.firestore" \
+            -d "{\"release\":{\"name\":\"projects/$FIREBASE_PROJECT/releases/cloud.firestore\",\"rulesetName\":\"$RULESET_NAME\"}}")
+          RELEASE_NAME=$(echo "$RELEASE_RESPONSE" | jq -r '.name')
+          if [ -z "$RELEASE_NAME" ] || [ "$RELEASE_NAME" = "null" ]; then
+            echo "::error::Failed to update Firestore release: $RELEASE_RESPONSE"
+            exit 1
+          fi
+          echo "Firestore security rules deployed."
+
+          # ── Deploy Firestore Indexes via Firestore Admin REST API ─────────────
+          while IFS= read -r INDEX; do
+            COLLECTION=$(echo "$INDEX" | jq -r '.collectionGroup')
+            QUERY_SCOPE=$(echo "$INDEX" | jq -r '.queryScope')
+            FIELDS=$(echo "$INDEX" | jq -c '.fields')
+            INDEX_BODY=$(printf '{"queryScope":"%s","fields":%s}' "$QUERY_SCOPE" "$FIELDS")
+            INDEX_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              "https://firestore.googleapis.com/v1/projects/$FIREBASE_PROJECT/databases/(default)/collectionGroups/$COLLECTION/indexes" \
+              -d "$INDEX_BODY")
+            HTTP_STATUS=$(echo "$INDEX_RESPONSE" | tail -1)
+            RESPONSE_BODY=$(echo "$INDEX_RESPONSE" | head -n -1)
+            # 200 = created, 409 = already exists (both are acceptable)
+            if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "409" ]; then
+              echo "::warning::Index creation for $COLLECTION returned HTTP $HTTP_STATUS: $RESPONSE_BODY"
+            else
+              echo "Index for collection '$COLLECTION': HTTP $HTTP_STATUS"
+            fi
+          done < <(jq -c '.indexes[]' firestore.indexes.json)
+          echo "Firestore indexes deployment complete."
