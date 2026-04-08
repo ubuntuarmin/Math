@@ -55,6 +55,24 @@ body {
   color: var(--text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeSpeed;
+}
+
+/* ===== PERFORMANCE: hardware-accelerate heavy elements ===== */
+
+/* Tab panels that are hidden get content-visibility:auto so the browser skips
+   layout & paint work for off-screen content */
+.tab-content:not(.active) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+/* Compositor layers for elements that animate or scroll frequently */
+#linksGrid,
+#iframeModal,
+#iframeFrame {
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 /* Optional background grid effect */
@@ -208,6 +226,32 @@ header.site-header::before {
   background: linear-gradient(135deg, #059669, #10b981);
   color: #fff;
   box-shadow: 0 4px 14px rgba(16, 185, 129, 0.28);
+  animation: share-btn-pulse 2.5s ease-in-out infinite;
+  position: relative;
+}
+
+@keyframes share-btn-pulse {
+  0%, 100% { box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3), 0 0 0 0 rgba(16, 185, 129, 0); }
+  50%       { box-shadow: 0 4px 20px rgba(16, 185, 129, 0.6), 0 0 0 5px rgba(16, 185, 129, 0); }
+}
+
+.navbar-action-share::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #059669, #10b981, #34d399, #10b981);
+  background-size: 200% 200%;
+  animation: share-border-spin 3s linear infinite;
+  z-index: -1;
+  border-radius: 999px;
+  opacity: 0.7;
+}
+
+@keyframes share-border-spin {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .navbar-action-promote {
@@ -1126,3 +1170,32 @@ body {
 .tooltip-icon:hover .tooltip-text,
 .tooltip-icon:focus .tooltip-text { visibility: visible; opacity: 1; }
 
+/* ========= HERO SHARE BUTTON ========= */
+
+@keyframes hero-share-glow {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.45),
+                0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    box-shadow: 0 6px 30px rgba(16, 185, 129, 0.75),
+                0 0 0 6px rgba(16, 185, 129, 0.08);
+  }
+}
+
+.hero-share-btn {
+  animation: hero-share-glow 2.5s ease-in-out infinite;
+  border: 1px solid rgba(52, 211, 153, 0.5);
+}
+
+/* ========= COMING SOON CARDS ========= */
+
+.coming-soon-card {
+  transition: opacity 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.coming-soon-card:hover {
+  opacity: 1 !important;
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+}

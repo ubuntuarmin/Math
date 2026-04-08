@@ -61,17 +61,18 @@ let activeSessionExpiry   = 0;    // ms since epoch when current session window 
 let sessionTimerInterval  = null; // setInterval id for countdown
 
 // Iframe / rating state
-let iframeOpenTime    = 0;
-let iframeLoaded      = false;
-let pendingRating     = null; // { linkId, title, submittedBy }
-let selectedStars     = 0;
-let ratingTimerOut    = null;
-let iframeLoadTimeout = null; // 15-second embed-detection timeout
-let currentBlobUrl    = null; // active Blob URL for HTML submissions
-let loadingFrame      = null; // cached reference to loading animation iframe
-let setupDone         = false;
-let pendingDelete     = null; // { linkId, data, cardEl }
-let appealsLoaded     = false;
+let iframeOpenTime       = 0;
+let iframeLoaded         = false;
+let pendingRating        = null; // { linkId, title, submittedBy }
+let selectedStars        = 0;
+let ratingTimerOut       = null;
+let iframeLoadTimeout    = null; // 15-second embed-detection timeout
+let currentBlobUrl       = null; // active Blob URL for HTML submissions
+let loadingFrame         = null; // cached reference to loading animation iframe
+let loadingAnimCompleted = false; // true once loading.html has sent animationComplete at least once
+let setupDone            = false;
+let pendingDelete        = null; // { linkId, data, cardEl }
+let appealsLoaded        = false;
 
 // ── Optimization caches ───────────────────────────────────────────────────────
 // Avoids redundant Firestore reads within a session.
@@ -161,6 +162,7 @@ window.addEventListener("message", (event) => {
   if (!loadingFrame || event.source !== loadingFrame.contentWindow) return;
   if (event.data === "animationComplete") {
     animationDone = true;
+    loadingAnimCompleted = true; // remember that the animation has played at least once
     if (iframeFrameLoaded) revealIframe();
   }
 });
@@ -376,9 +378,14 @@ function setupSearchSort() {
   const sortSelect  = document.getElementById("linksSort");
   const clearBtn    = document.getElementById("clearFilterBtn");
 
+  // Debounce search input so Firestore filtering doesn't fire on every keystroke
+  let searchDebounce = null;
   searchInput?.addEventListener("input", () => {
-    searchTerm = searchInput.value.trim();
-    filterAndRenderLinks();
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      searchTerm = searchInput.value.trim();
+      filterAndRenderLinks();
+    }, 150);
   });
 
   sortSelect?.addEventListener("change", () => {
@@ -874,9 +881,19 @@ function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpi
   if (titleEl) titleEl.textContent = title || "Loading\u2026";
   frame.src = "";
   loader.classList.remove("hidden");
-  // Restart the loading animation from the beginning on each open
+  // Re-use the loading animation if it has already completed (avoids a costly
+  // Babylon.js reload). On first open, or whenever the iframe was unloaded,
+  // fall back to loading loading.html fresh.
   if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
-  if (loadingFrame) { loadingFrame.src = "loading.html"; }
+  if (loadingAnimCompleted) {
+    // Animation already played — treat it as done immediately so content
+    // is revealed as soon as the target iframe fires its onload event.
+    animationDone = true;
+  } else {
+    // First open: (re)load the animation so Babylon.js initialises.
+    if (loadingFrame) { loadingFrame.src = "loading.html"; }
+    animationDone = false;
+  }
   frame.classList.add("opacity-0");
   if (rateBtn) rateBtn.classList.add("hidden");
   if (errEl)   errEl.classList.add("hidden");
@@ -895,7 +912,9 @@ function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpi
 
   iframeOpenTime    = Date.now();
   iframeLoaded      = false;
-  animationDone     = false;
+  // Keep animationDone = true if loadingAnimCompleted (set above); only reset when waiting
+  // for a fresh animation.
+  if (!loadingAnimCompleted) { animationDone = false; }
   iframeFrameLoaded = false;
   pendingRating  = { linkId: linkId || null, title, submittedBy: submittedBy || null };
 
@@ -1008,10 +1027,12 @@ function closeIframeModal() {
   if (rateBtn) rateBtn.classList.add("hidden");
   if (errEl)   errEl.classList.add("hidden");
   if (frame) frame.src = "";
-  // Stop the loading animation to free resources
+  // Keep the loading animation iframe alive so Babylon.js stays warm for the
+  // next open — avoids re-downloading and re-initialising the 3-D engine.
   if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
-  if (loadingFrame) { loadingFrame.src = "about:blank"; }
-  animationDone     = false;
+  // animationDone is intentionally left in its current state; loadingAnimCompleted
+  // tracks whether the animation has run at least once so _doOpenIframe can skip
+  // the animation on subsequent opens.
   iframeFrameLoaded = false;
   modal.classList.add("hidden");
   document.body.style.overflow = "";

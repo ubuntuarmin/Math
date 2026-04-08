@@ -154,6 +154,12 @@
       <a href="promote.html" class="navbar-action-btn navbar-action-promote whitespace-nowrap">
         ✨ Promote
       </a>
+      <a href="rules.html"
+         class="text-xs font-bold text-purple-300 hover:text-purple-200 transition-colors
+                px-2.5 py-1.5 rounded-full border border-purple-500/30 hover:border-purple-400/60
+                hover:bg-purple-500/10 whitespace-nowrap">
+        📖 Rules
+      </a>
 
       <!-- Inbox bell -->
       <a href="inbox.html"
@@ -175,7 +181,7 @@
         🪙 <span id="creditCount">0</span>
         <span class="text-gray-600">·</span>
         <span id="tierLabel" class="text-xs font-semibold text-sky-400"></span>
-        <span class="tooltip-icon" tabindex="0" role="note" aria-label="Credits help">?<span class="tooltip-text">Earn credits by sharing links (+50), getting upvotes (+10 each), referring friends (+150), and daily streaks. Spend them to buy extra session time (50 🪙 each top-up).</span></span>
+        <span class="tooltip-icon" tabindex="0" role="note" aria-label="Credits help">?<span class="tooltip-text">Earn credits by sharing links (+50), getting upvotes (+10 each), referring friends (+150), and daily streaks. Spend them to buy extra session time (50 🪙 each top-up). See the 📖 Rules page for full details.</span></span>
       </div>
 
       <!-- Session time (click to buy more) -->
@@ -243,11 +249,19 @@
       </p>
       <div class="mt-5 flex flex-wrap gap-3 justify-center">
         <a href="share.html"
-           class="px-5 py-2.5 rounded-full btn-shimmer btn-glow ripple-container
-                  bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400
+           class="hero-share-btn px-6 py-2.5 rounded-full btn-shimmer ripple-container
+                  bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400
                   text-white font-bold text-sm transition-all duration-200 shadow-lg
-                  shadow-blue-500/30 flex items-center gap-2">
-          🔗 Share a Link <span class="text-blue-200">(+50 credits)</span>
+                  shadow-emerald-500/40 flex items-center gap-2">
+          🔗 Share a Link <span class="text-emerald-100 font-black">(+50 🪙)</span>
+        </a>
+        <a href="rules.html"
+           class="px-5 py-2.5 rounded-full btn-shimmer ripple-container
+                  bg-purple-900/40 hover:bg-purple-800/60
+                  text-purple-200 font-bold text-sm transition-all duration-200
+                  border border-purple-500/40 hover:border-purple-400/70
+                  flex items-center gap-2">
+          📖 Rules & Credits
         </a>
         <a href="inbox.html"
            class="px-5 py-2.5 rounded-full btn-shimmer ripple-container
@@ -487,6 +501,97 @@
         </div>
 
         <div id="referralArea"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════
+         COMING SOON SECTION
+    ══════════════════════════════════════════════════════ -->
+    <div class="mt-12 mb-4">
+      <div class="surface rounded-3xl p-7 relative overflow-hidden">
+        <!-- Background glow -->
+        <div class="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-transparent to-blue-900/20 pointer-events-none rounded-3xl"></div>
+
+        <!-- Header -->
+        <div class="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+          <div>
+            <div class="inline-flex items-center gap-2 mb-2 px-3 py-1 rounded-full
+                        bg-purple-500/15 border border-purple-500/35 text-purple-300 text-xs font-bold
+                        uppercase tracking-widest">
+              <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
+              Coming Soon
+            </div>
+            <h2 class="text-xl font-black text-white">New Hierarchy: Admin Rank</h2>
+            <p class="text-gray-400 text-sm mt-1 max-w-lg">
+              Launching an elite Admin rank for trusted community members. This is a preview — nothing here is live yet.
+            </p>
+          </div>
+          <div class="shrink-0 w-14 h-14 rounded-2xl bg-purple-500/20 border border-purple-500/30
+                      flex items-center justify-center text-3xl">
+            🛡️
+          </div>
+        </div>
+
+        <!-- Feature items -->
+        <div class="relative grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          <!-- Admin Hub -->
+          <div class="coming-soon-card rounded-2xl p-4 bg-gray-900/60 border border-gray-700/60
+                      flex items-start gap-3 opacity-75">
+            <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30
+                        flex items-center justify-center text-lg shrink-0">🏛️</div>
+            <div>
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-white font-bold text-sm">Admin Hub</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400 font-bold uppercase tracking-wide">Soon</span>
+              </div>
+              <p class="text-gray-500 text-xs leading-relaxed">A dedicated section to find and contact available Admins for help or escalations.</p>
+            </div>
+          </div>
+
+          <!-- Smart Messaging -->
+          <div class="coming-soon-card rounded-2xl p-4 bg-gray-900/60 border border-gray-700/60
+                      flex items-start gap-3 opacity-75">
+            <div class="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/30
+                        flex items-center justify-center text-lg shrink-0">💬</div>
+            <div>
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-white font-bold text-sm">Smart Messaging</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400 font-bold uppercase tracking-wide">Soon</span>
+              </div>
+              <p class="text-gray-500 text-xs leading-relaxed">New 24-hour communication cycle per inquiry to keep conversations focused and prevent spam.</p>
+            </div>
+          </div>
+
+          <!-- Productive Rewards -->
+          <div class="coming-soon-card rounded-2xl p-4 bg-gray-900/60 border border-gray-700/60
+                      flex items-start gap-3 opacity-75">
+            <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30
+                        flex items-center justify-center text-lg shrink-0">🏆</div>
+            <div>
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-white font-bold text-sm">Productive Rewards</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400 font-bold uppercase tracking-wide">Soon</span>
+              </div>
+              <p class="text-gray-500 text-xs leading-relaxed">Earn <strong class="text-emerald-400">+15 credits</strong> when an Admin marks your inquiry as productive — good questions pay off.</p>
+            </div>
+          </div>
+
+          <!-- Accountability -->
+          <div class="coming-soon-card rounded-2xl p-4 bg-gray-900/60 border border-gray-700/60
+                      flex items-start gap-3 opacity-75">
+            <div class="w-9 h-9 rounded-xl bg-orange-500/20 border border-orange-500/30
+                        flex items-center justify-center text-lg shrink-0">⚖️</div>
+            <div>
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-white font-bold text-sm">Accountability</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400 font-bold uppercase tracking-wide">Soon</span>
+              </div>
+              <p class="text-gray-500 text-xs leading-relaxed">Automatic message forwarding (48-hour rule) ensures no inquiry goes unanswered. Admin performance is monitored.</p>
+            </div>
+          </div>
+
+        </div><!-- /grid -->
       </div>
     </div>
 
@@ -768,7 +873,9 @@
   <iframe id="iframeFrame"
           class="flex-1 w-full border-0 opacity-0 transition-opacity duration-300"
           style="will-change: opacity; transform: translateZ(0);"
-          sandbox="allow-scripts allow-forms allow-popups allow-pointer-lock allow-modals allow-same-origin"
+          sandbox="allow-scripts allow-forms allow-popups allow-pointer-lock allow-modals allow-same-origin allow-downloads"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gamepad; picture-in-picture"
+          fetchpriority="high"
           allowfullscreen
           title="Game Site Viewer">
   </iframe>
