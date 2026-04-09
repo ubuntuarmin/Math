@@ -31,9 +31,8 @@ jobs:
           chmod 600 "$SA_FILE" "$KEY_FILE"
           echo "$SERVICE_ACCOUNT" > "$SA_FILE"
 
-          # Extract service account fields from the JSON key.
-          SA_EMAIL=$(python3 -c "import json; print(json.load(open('$SA_FILE'))['client_email'])")
-          python3 -c "import json; print(json.load(open('$SA_FILE'))['private_key'], end='')" > "$KEY_FILE"
+          # Extract both fields from the JSON key in a single pass.
+          SA_EMAIL=$(python3 -c "import json; d=json.load(open('$SA_FILE')); open('$KEY_FILE','w').write(d['private_key']); print(d['client_email'])")
 
           # Build a signed JWT that requests the 'firebase' OAuth scope.
           # gcloud auth print-access-token only includes the 'cloud-platform'
@@ -47,13 +46,13 @@ jobs:
           SIG=$(printf '%s' "${HDR}.${PAY}" | openssl dgst -sha256 -sign "$KEY_FILE" | base64 -w0 | tr '+/' '-_' | tr -d '=')
           JWT="${HDR}.${PAY}.${SIG}"
 
-          ACCESS_TOKEN=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
+          TOKEN_RESPONSE=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
             -H "Content-Type: application/x-www-form-urlencoded" \
             --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
-            --data-urlencode "assertion=$JWT" \
-            | jq -r '.access_token')
+            --data-urlencode "assertion=$JWT")
+          ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
           if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
-            echo "::error::Failed to obtain access token"
+            echo "::error::Failed to obtain access token: $TOKEN_RESPONSE"
             exit 1
           fi
 
