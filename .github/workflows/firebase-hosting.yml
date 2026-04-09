@@ -26,16 +26,35 @@ jobs:
           SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           SA_FILE=$(mktemp)
-          trap 'rm -f "$SA_FILE"' EXIT
-          chmod 600 "$SA_FILE"
+          KEY_FILE=$(mktemp)
+          trap 'rm -f "$SA_FILE" "$KEY_FILE"' EXIT
+          chmod 600 "$SA_FILE" "$KEY_FILE"
           echo "$SERVICE_ACCOUNT" > "$SA_FILE"
 
-          # Obtain a short-lived access token from the service account.
-          # Using gcloud (pre-installed on ubuntu-latest) avoids calling
-          # serviceusage.googleapis.com, which the firebase CLI does internally
-          # and which requires roles/serviceusage.serviceUsageConsumer.
-          gcloud auth activate-service-account --key-file="$SA_FILE" --quiet
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          # Extract both fields from the JSON key in a single pass.
+          SA_EMAIL=$(python3 -c "import json; d=json.load(open('$SA_FILE')); open('$KEY_FILE','w').write(d['private_key']); print(d['client_email'])")
+
+          # Build a signed JWT that requests the 'firebase' OAuth scope.
+          # gcloud auth print-access-token only includes the 'cloud-platform'
+          # scope by default; firebaserules.googleapis.com requires the
+          # 'firebase' scope and returns 403 PERMISSION_DENIED without it.
+          NOW=$(date +%s)
+          EXP=$((NOW + 3600))
+          HDR=$(echo -n '{"alg":"RS256","typ":"JWT"}' | base64 -w0 | tr '+/' '-_' | tr -d '=')
+          PAY=$(printf '{"iss":"%s","scope":"https://www.googleapis.com/auth/firebase https://www.googleapis.com/auth/cloud-platform","aud":"https://oauth2.googleapis.com/token","iat":%d,"exp":%d}' \
+            "$SA_EMAIL" "$NOW" "$EXP" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+          SIG=$(printf '%s' "${HDR}.${PAY}" | openssl dgst -sha256 -sign "$KEY_FILE" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+          JWT="${HDR}.${PAY}.${SIG}"
+
+          TOKEN_RESPONSE=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
+            --data-urlencode "assertion=$JWT")
+          ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "::error::Failed to obtain access token: $TOKEN_RESPONSE"
+            exit 1
+          fi
 
           # ── Deploy Firestore Security Rules via Firebase Rules REST API ───────
           RULES_JSON=$(jq -Rs . < firestore.rules)
