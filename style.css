@@ -1199,3 +1199,54 @@ body {
   border-color: rgba(99, 102, 241, 0.4);
   transform: translateY(-1px);
 }
+
+/* ========= UI POLISH: SNAPPIER LINK CARDS ========= */
+
+/* Faster, crisper card transition for a more responsive feel */
+.link-card {
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 160ms ease-out !important;
+  will-change: transform;
+}
+
+/* Open / Play button — stronger accent on hover */
+.open-link-btn {
+  transition: background-color 120ms ease, transform 120ms ease !important;
+  will-change: transform;
+}
+.open-link-btn:active {
+  transform: scale(0.95) !important;
+}
+
+/* Better active press feedback on all small action buttons */
+.upvote-btn:active,
+.report-btn:active,
+.edit-link-btn:active,
+.delete-link-btn:active {
+  transform: scale(0.93);
+}
+
+/* Share reminder banner — subtle shimmer */
+@keyframes sr-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+#shareReminderBanner {
+  background-size: 200% 200%;
+  animation: sr-shimmer 6s ease-in-out infinite;
+}
+
+/* Toast — slightly wider on mobile so long messages fit */
+@media (max-width: 480px) {
+  .toast-enter { max-width: 90vw !important; text-align: center; }
+}
+
+/* Session timer — pulsing red when low */
+.session-time-low {
+  animation: session-low-pulse 1s ease-in-out infinite !important;
+}
+@keyframes session-low-pulse {
+  0%, 100% { color: #fbbf24; border-color: rgba(251,191,36,0.4); }
+  50%       { color: #ef4444; border-color: rgba(239,68,68,0.5); }
+}

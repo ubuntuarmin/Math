@@ -35,7 +35,8 @@ const APPEAL_VOTE_THRESHOLD = 10;
 const RATING_REQUIRED_MS  = 10000; // 10 seconds minimum to unlock rating
 const IFRAME_LOAD_TIMEOUT_MS = 15000; // 15 seconds before showing embed-blocked error
 const FREE_SESSION_MS     = 30 * 60 * 1000; // 30 free minutes per browser session
-const GLOBAL_SESSION_KEY  = "global_session"; // sessionStorage key for cross-link timer
+const GLOBAL_SESSION_KEY  = "global_session"; // localStorage key for cross-link timer
+const SESSION_TTL_MS      = 24 * 60 * 60 * 1000; // 24-hour TTL for stored session data
 const SLOT_EXPIRY_FALLBACK_MS = 4 * 60 * 60 * 1000; // fallback slot expiry for orphaned sessions
 const LOW_TIME_WARNING_MS = 5 * 60 * 1000;  // warn when < 5 minutes remain in session
 
@@ -143,10 +144,14 @@ let iframeFrameLoaded = false; // set when the content iframe fires onload
 
 /** Reveal the content iframe and hide the loading overlay */
 function revealIframe() {
-  const loader  = document.getElementById("iframeLoader");
-  const frame   = document.getElementById("iframeFrame");
-  const rateBtn = document.getElementById("iframeRateBtn");
-  if (loader) loader.classList.add("hidden");
+  const loader      = document.getElementById("iframeLoader");
+  const quickLoader = document.getElementById("quickLoader");
+  const frame       = document.getElementById("iframeFrame");
+  const rateBtn     = document.getElementById("iframeRateBtn");
+  if (loader)      loader.classList.add("hidden");
+  if (quickLoader) quickLoader.classList.add("hidden");
+  // Restore loadingFrame visibility so it is ready for the next first-open
+  if (loadingFrame) loadingFrame.style.display = "";
   if (frame)  frame.classList.remove("opacity-0");
   iframeLoaded = true;
   if (pendingRating?.linkId && auth.currentUser) {
@@ -184,12 +189,60 @@ export function updateUI(userData) {
     setupDeleteModal();
     setupEditLinkModal();
     setupAppealsTab();
+    setupShareReminder();
     // Keep currentUserData in sync when other modules update the profile
     window.addEventListener("userProfileUpdated", (e) => {
       if (e.detail) currentUserData = e.detail;
     });
   }
   loadLinks();
+}
+
+// ── Share reminder ────────────────────────────────────────────────────────────
+
+const SHARE_BANNER_KEY     = "shareReminderDismissed"; // localStorage key
+const SHARE_REMINDER_TOAST_INTERVAL_MS = 8 * 60 * 1000; // show toast every 8 min of browsing
+
+let shareReminderToastTimer = null;
+
+/**
+ * Wire up the share reminder banner dismiss button and schedule periodic
+ * toast nudges to encourage link sharing for credits.
+ */
+function setupShareReminder() {
+  const banner    = document.getElementById("shareReminderBanner");
+  const dismissBtn = document.getElementById("dismissShareBanner");
+
+  // Hide banner permanently if the user already dismissed it this session
+  if (banner) {
+    const dismissed = sessionStorage.getItem(SHARE_BANNER_KEY);
+    if (dismissed) {
+      banner.classList.add("sr-hide");
+    }
+  }
+
+  if (dismissBtn) {
+    dismissBtn.addEventListener("click", () => {
+      sessionStorage.setItem(SHARE_BANNER_KEY, "1");
+      if (banner) banner.classList.add("sr-hide");
+    });
+  }
+
+  // Schedule a periodic toast nudge (only while the user is on the page and browsing)
+  scheduleShareReminderToast();
+}
+
+function scheduleShareReminderToast() {
+  if (shareReminderToastTimer) clearTimeout(shareReminderToastTimer);
+  shareReminderToastTimer = setTimeout(() => {
+    // Only show the toast if no modal is open and user is signed in
+    const iframeOpen = document.getElementById("iframeModal") &&
+      !document.getElementById("iframeModal").classList.contains("hidden");
+    if (!iframeOpen && auth.currentUser) {
+      showToast("🔗 Share a link to earn +50 credits! Help the community grow.");
+    }
+    scheduleShareReminderToast(); // reschedule
+  }, SHARE_REMINDER_TOAST_INTERVAL_MS);
 }
 
 // Notification helper
@@ -597,24 +650,34 @@ function getActiveSessionCount(sessions) {
 }
 
 /**
- * Get the global cross-link session from sessionStorage.
- * Returns { remainingMs } or null if never started.
+ * Get the global cross-link session from localStorage.
+ * Returns { remainingMs } or null if never started / expired.
+ * Uses a 24-hour TTL so purchased time survives tab refreshes and re-opens.
  */
 function getGlobalSession() {
   try {
-    const raw = sessionStorage.getItem(GLOBAL_SESSION_KEY);
+    const raw = localStorage.getItem(GLOBAL_SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const sess = JSON.parse(raw);
+    // Invalidate stale entries older than 24 hours
+    if (sess.ttlExpiry && Date.now() >= sess.ttlExpiry) {
+      localStorage.removeItem(GLOBAL_SESSION_KEY);
+      return null;
+    }
+    return sess;
   } catch (_) { return null; }
 }
 
 /**
- * Save the global session state to sessionStorage.
+ * Save the global session state to localStorage.
+ * Preserves an existing TTL expiry or starts a fresh 24-hour window.
  * @param {{ remainingMs: number }} session
  */
 function saveGlobalSession(session) {
   try {
-    sessionStorage.setItem(GLOBAL_SESSION_KEY, JSON.stringify(session));
+    const existing   = getGlobalSession();
+    const ttlExpiry  = existing?.ttlExpiry || (Date.now() + SESSION_TTL_MS);
+    localStorage.setItem(GLOBAL_SESSION_KEY, JSON.stringify({ ...session, ttlExpiry }));
   } catch (_) {}
 }
 
@@ -788,7 +851,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
     );
     if (!confirmed) return;
 
-    // Atomically deduct credits; time is tracked client-side in sessionStorage
+    // Atomically deduct credits; time is tracked client-side in localStorage
     try {
       const userRef = doc(db, "users", uid);
       await runTransaction(db, async (txn) => {
@@ -872,26 +935,29 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
 function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpiresAt) {
   const modal   = document.getElementById("iframeModal");
   const frame   = document.getElementById("iframeFrame");
-  const loader  = document.getElementById("iframeLoader");
-  const titleEl = document.getElementById("iframeTitle");
-  const rateBtn = document.getElementById("iframeRateBtn");
-  const errEl   = document.getElementById("iframeError");
+  const loader     = document.getElementById("iframeLoader");
+  const quickLoader = document.getElementById("quickLoader");
+  const titleEl    = document.getElementById("iframeTitle");
+  const rateBtn    = document.getElementById("iframeRateBtn");
+  const errEl      = document.getElementById("iframeError");
   if (!modal || !frame || !loader) return;
 
   if (titleEl) titleEl.textContent = title || "Loading\u2026";
   frame.src = "";
   loader.classList.remove("hidden");
   // Re-use the loading animation if it has already completed (avoids a costly
-  // Babylon.js reload). On first open, or whenever the iframe was unloaded,
-  // fall back to loading loading.html fresh.
+  // Babylon.js reload). After the first run, switch to a lightweight CSS spinner
+  // so Babylon.js does not consume GPU/CPU on every subsequent open.
   if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
   if (loadingAnimCompleted) {
-    // Animation already played — treat it as done immediately so content
-    // is revealed as soon as the target iframe fires its onload event.
+    // Animation already played — skip Babylon.js, use CSS spinner instead.
     animationDone = true;
+    if (loadingFrame) loadingFrame.style.display = "none";
+    if (quickLoader)  quickLoader.classList.remove("hidden");
   } else {
     // First open: (re)load the animation so Babylon.js initialises.
-    if (loadingFrame) { loadingFrame.src = "loading.html"; }
+    if (loadingFrame) { loadingFrame.style.display = ""; loadingFrame.src = "loading.html"; }
+    if (quickLoader)  quickLoader.classList.add("hidden");
     animationDone = false;
   }
   frame.classList.add("opacity-0");
@@ -988,13 +1054,19 @@ function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpi
 
 /** Show an inline error inside the iframe modal when embedding is blocked */
 function showIframeError(url, title) {
-  const errEl = document.getElementById("iframeError");
-  const frame = document.getElementById("iframeFrame");
+  const errEl      = document.getElementById("iframeError");
+  const frame      = document.getElementById("iframeFrame");
+  const loader     = document.getElementById("iframeLoader");
+  const quickLoader = document.getElementById("quickLoader");
   // Reset animation state so a late 'animationComplete' message does not
   // accidentally reveal a frame that failed to load
   animationDone     = false;
   iframeFrameLoaded = false;
-  if (frame) frame.classList.add("opacity-0");
+  if (frame)       frame.classList.add("opacity-0");
+  if (loader)      loader.classList.add("hidden");
+  if (quickLoader) quickLoader.classList.add("hidden");
+  // Restore loadingFrame for next open
+  if (loadingFrame) loadingFrame.style.display = "";
   if (!errEl) return;
   errEl.innerHTML =
     '<div class="flex flex-col items-center gap-3 text-center">' +
