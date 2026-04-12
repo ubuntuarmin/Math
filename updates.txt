@@ -1,0 +1,213 @@
+====================================================
+  MATH KATY — SUGGESTED UPDATES, FIXES & NEW FEATURES
+====================================================
+Generated: April 2026
+Based on: full codebase review (HTML, JS, Firestore rules, CSS)
+
+----------------------------------------------------
+BUG FIXES
+----------------------------------------------------
+
+1. Inconsistent site name in HTML titles
+   - index.html uses "Math Katy" but inbox.html uses "Katy Math"
+     and auth-related pages vary. Standardise to one name throughout.
+
+2. Inbox missing navbar logo emoji
+   - inbox.html has an empty <span class="navbar-brand-logo"></span>
+     (no emoji). All other pages use 📐. Add the missing emoji.
+
+3. Session timer not persisted across page refreshes
+   - The global session timer is stored in sessionStorage, which is
+     wiped on tab close. If a user refreshes the page mid-session,
+     the full 30 minutes are restored even if they had almost run out.
+     Use localStorage with an expiresAt timestamp instead.
+
+4. Orphaned Firestore session slots not always cleaned up
+   - SLOT_EXPIRY_FALLBACK_MS (4 hours) is used as a last resort, but
+     if a user crashes before removeSessionFromLink runs, the slot can
+     block a new user for up to 4 hours. Add a Cloud Function (or
+     scheduled client sweep) to release slots older than 1 hour.
+
+5. profileCache TTL uses local clock, not server time
+   - The 5-minute profile cache (profileCache Map) compares Date.now()
+     against a client-set expiresAt. Clock skew between devices can
+     cause stale profiles to be served. Consider using the Firestore
+     document's updateTime as the cache key instead.
+
+6. Firestore rules allow any authenticated user to update sharedLinks
+   - "allow update: if isAuthenticated();" on /sharedLinks/{linkId}
+     is too permissive. It lets any signed-in user overwrite arbitrary
+     fields (e.g. submittedBy, upvotes, htmlContent). Tighten the rule
+     to only allow changes to the specific fields each flow needs
+     (upvotes, reports, activeSessions).
+
+7. HTML submission size limit not enforced server-side
+   - share.html caps htmlContent at 50,000 characters client-side, but
+     there is no matching size check in Firestore rules for sharedLinks.
+     A malicious user can bypass the UI and store arbitrarily large HTML.
+     Add a rule: request.resource.data.htmlContent.size() <= 50000.
+
+8. promotions collection publicly readable
+   - The Firestore rule for /promotions allows "read: if true" (no auth
+     required) to support the hidden admin page. This exposes all
+     promotion submissions, including any PII in htmlCode, to the public.
+     Move the admin page behind Firebase Auth or use a service-account
+     backend endpoint instead.
+
+9. Admin demotion criteria (maxOfflineDays, maxMissedResponses) defined
+   but never enforced
+   - ADMIN_DEMOTION_CRITERIA is exported from tier.js but no code in
+     auth.js or admin.js actually checks or acts on these values. Either
+     implement the demotion logic or remove the dead constants to avoid
+     confusion.
+
+10. leaderboard.js renders only once per page load (leaderboardRendered flag)
+    - If the tab is kept open across a bi-monthly reset, the leaderboard
+      freezes at the old data. Clear the flag (or re-fetch) when the
+      reset countdown reaches zero.
+
+11. No CSRF / replay protection on credit-modifying client writes
+    - Credit increments (upvotes, referral bonuses) are written directly
+      from the client. While Firestore rules cap the delta at +500 per
+      write, nothing prevents a user from hammering the endpoint 500 times
+      to farm credits. Consider moving credit-mutation logic to Cloud
+      Functions with idempotency keys.
+
+12. Low-time warning fires only once per modal open, not across sessions
+    - LOW_TIME_WARNING_MS (5 minutes) triggers inside the current modal
+      session but resets if the user closes and reopens the modal. The
+      remaining time check should be global (using the persisted session
+      data) so the warning is shown regardless of how many times the
+      modal is toggled.
+
+----------------------------------------------------
+NEW FEATURES
+----------------------------------------------------
+
+1. Dark / Light mode toggle
+   - Add a theme toggle button in the navbar. The site is entirely dark;
+     a light mode option improves accessibility and widens the audience.
+     Persist the preference in localStorage.
+
+2. Categories / genre tags for shared links
+   - Allow submitters to choose from a fixed set of categories (e.g.
+     Puzzle, Action, Strategy, Simulation, Math) in addition to free-form
+     hashtags. Show a category filter bar on the main feed so users can
+     browse by genre without typing a hashtag search.
+
+3. Link thumbnails / OG image previews
+   - Fetch Open Graph images for submitted URLs (via a server-side Cloud
+     Function to avoid CORS) and display them as card thumbnails. HTML
+     submissions could show a screenshot taken with Puppeteer/Playwright
+     on first open.
+
+4. Collections / Playlists
+   - Let users save links into named personal collections (e.g.
+     "Favorites", "Math Games for Class 5"). Collections are stored in
+     Firestore under the user document and can optionally be made public
+     and shared with a URL.
+
+5. Weekly / monthly challenge system
+   - Admins post a challenge each week (e.g. "Find the best geometry
+     game"). Users submit entries; community upvotes determine the winner.
+     The winner gets a large credit bonus and a "Challenge Winner" badge
+     on their profile.
+
+6. Direct messaging between users
+   - Extend the existing messages/inbox system to allow users to send
+     private messages to each other (not just system notifications).
+     Add a compose button in the inbox and a "Message" button on profile
+     modals. Rate-limit using the existing messageWindowCount pattern.
+
+7. Link comment threads
+   - Add a comments section inside the iframe modal (or below the link
+     card) where users can leave short text reactions. Limit comments to
+     200 characters and rate-limit to 10 per hour (similar to the review
+     rate limit). Upvote/downvote individual comments.
+
+8. Streak rewards and milestone badges
+   - The user document already tracks streak and lastVisitTimestamp.
+     Add visual milestone badges (e.g. "7-day streak 🔥", "30-day streak
+     🌟") on the account page and leaderboard cards. Award bonus credits
+     at streaks of 7, 14, 30, and 100 days.
+
+9. Referral link analytics dashboard
+   - Show the referring user how many clicks and sign-ups their referral
+     link has generated, broken down by week. Currently the referral
+     array just tracks uid strings with no timestamp.
+
+10. In-app notification bell with real-time badge
+    - Replace the static "Inbox" nav link with a bell icon that shows a
+      live unread-message badge (using Firestore onSnapshot). Clicking
+      the bell opens a dropdown with the 5 most recent messages, with a
+      "See all" link to inbox.html.
+
+11. Avatar image upload
+    - Beyond the 6 gradient colour presets, allow users to upload a
+      small avatar image (stored in Firebase Storage, max 256 KB, JPG/PNG
+      only). Display it on profile cards and in the leaderboard.
+
+12. Admin broadcast / announcement system
+    - Give admins a UI to send a site-wide announcement (stored in a
+      new Firestore "announcements" collection). Show a dismissible
+      banner at the top of index.html for all users until they dismiss
+      it (state stored in localStorage).
+
+13. Report appeal status tracker
+    - Users who appeal a removed link currently have no visibility into
+      the appeal status after submitting. Add an "Appeals" view on the
+      account page that lists all their open and resolved appeals with
+      current vote counts and outcome.
+
+14. Mobile-first PWA support
+    - Add a manifest.json (app name, icons, theme colour) and a minimal
+      service worker to cache the shell (index.html, style.css, key JS)
+      for offline/slow-network resilience. Include "Add to Home Screen"
+      prompting.
+
+15. Keyboard accessibility improvements
+    - Many interactive elements (star rating, tab buttons, report/upvote
+      icons) are not reachable by keyboard. Add tabindex, role, and
+      onkeydown (Enter/Space) handlers. Also add skip-to-content links
+      for screen-reader users.
+
+----------------------------------------------------
+PERFORMANCE / QUALITY IMPROVEMENTS
+----------------------------------------------------
+
+1. Replace CDN Tailwind with a purged production build
+   - The site loads the full Tailwind CSS CDN (~350 KB). Run a build
+     step (Vite / PostCSS) to purge unused utilities and ship a ~10 KB
+     stylesheet instead.
+
+2. Add SRI integrity hashes to GSAP CDN scripts
+   - index.html already has a comment saying to add SRI hashes "in
+     production". Do it: generate sha384 hashes for gsap.min.js and
+     ScrollTrigger.min.js and add integrity="sha384-…" attributes.
+
+3. Lazy-load link cards
+   - All link cards are rendered into the DOM at once. Switch to
+     IntersectionObserver-based virtual rendering or pagination so the
+     initial paint is fast even with hundreds of links.
+
+4. Add Content-Security-Policy header
+   - The site has no CSP. Deploy via Firebase Hosting headers config
+     (firebase.json) to restrict script sources to self + known CDNs
+     and prevent XSS from injected scripts.
+
+5. Error boundaries / offline state handling
+   - If Firestore is unreachable (network drop), the UI silently hangs
+     on loaders. Add a global error handler that shows a user-friendly
+     "You appear to be offline. Retrying…" message with an exponential
+     back-off retry button.
+
+6. Consolidate duplicate tier/admin colour constants
+   - ADMIN_COLOR ("#c084fc") is hard-coded in account.js but not
+     exported from tier.js alongside TIER_CONFIG. Centralise it so any
+     future colour change only needs one edit.
+
+7. Unit tests for tier and credit logic
+   - tier.js (calculateTier, getNextTierInfo, isAdminEligible) and the
+     rate-limit helpers in links.js contain pure logic that is easy to
+     test. Add a Jest (or Vitest) test suite so regressions are caught
+     automatically.
