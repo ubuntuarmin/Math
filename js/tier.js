@@ -96,23 +96,61 @@ export function calculateTier(totalEarned = 0) {
 }
 
 /**
- * Logic to see how close they are to the next level
+ * Logic to see how close they are to the next level.
+ * Pass the full userData object to get accurate Admin-path progress when at VIP.
  */
-export function getNextTierInfo(totalEarned = 0) {
+export function getNextTierInfo(totalEarned = 0, userData = null) {
     const current = calculateTier(totalEarned);
-    
+
     let next = null;
     if (current.name === "Basic") next = TIER_CONFIG.SILVER;
     else if (current.name === "Silver") next = TIER_CONFIG.GOLD;
     else if (current.name === "Gold") next = TIER_CONFIG.VIP;
 
-    if (!next) return { message: "Max Tier Reached!", remaining: 0 };
+    if (!next) {
+        // Already at VIP — check Admin status
+        if (userData && userData.isAdmin) {
+            return { message: "🛡️ Admin — Highest Rank Achieved!", remaining: 0, isAdmin: true };
+        }
+
+        // Show which Admin requirements are still outstanding
+        if (userData) {
+            const referralCount = (userData.referrals || []).length;
+            const playMinutes   = userData.totalMinutes || 0;
+            const credits       = userData.credits || 0;
+            const vipAt         = userData.vipPromotedAt;
+            const vipMs         = vipAt
+                ? (typeof vipAt.toMillis === "function" ? vipAt.toMillis() : Number(vipAt))
+                : null;
+            const daysSinceVip  = vipMs
+                ? (Date.now() - vipMs) / (1000 * 60 * 60 * 24)
+                : 0;
+
+            const missing = [];
+            if (referralCount < ADMIN_REQUIREMENTS.minReferrals)
+                missing.push(`${referralCount}/${ADMIN_REQUIREMENTS.minReferrals} referrals`);
+            if (playMinutes < ADMIN_REQUIREMENTS.minPlayMinutes)
+                missing.push(`${playMinutes}/${ADMIN_REQUIREMENTS.minPlayMinutes}m playtime`);
+            if (credits < ADMIN_REQUIREMENTS.minCredits)
+                missing.push(`${credits}/${ADMIN_REQUIREMENTS.minCredits} credits`);
+            if (daysSinceVip < ADMIN_REQUIREMENTS.vipDaysRequired)
+                missing.push(`${Math.floor(daysSinceVip)}/${ADMIN_REQUIREMENTS.vipDaysRequired} days as VIP`);
+
+            if (missing.length === 0) {
+                return { message: "🛡️ Admin eligible — promotion happens on next login!", remaining: 0, adminEligible: true };
+            }
+            return { message: `🛡️ Admin needs: ${missing.join(" · ")}`, remaining: 0, adminProgress: true };
+        }
+
+        // Fallback when no userData provided (e.g. leaderboard)
+        return { message: "🛡️ VIP — work toward Admin rank!", remaining: 0 };
+    }
 
     const remaining = next.minCredits - totalEarned;
     return {
-        nextName: next.name,
+        nextName:  next.name,
         remaining: remaining,
         nextLimit: next.limitMinutes,
-        message: `${remaining} more credits to unlock ${next.name} (+${next.limitMinutes}m per time purchase)`
+        message:   `${remaining} more credits to unlock ${next.name} (+${next.limitMinutes}m per time purchase)`
     };
 }
