@@ -17,6 +17,11 @@ export const ADMIN_REQUIREMENTS = {
     vipDaysRequired: 5,      // must have been VIP for at least this many days
 };
 
+export const ADMIN_DEMOTION_CRITERIA = {
+    maxMissedResponses: 3,   // downgrade after this many missed 48 h responses
+    maxOfflineDays:     7,   // downgrade if not logged in for this many days
+};
+
 /**
  * Check whether a user meets all Admin promotion criteria.
  * @param {Object} userData  - Firestore user document data

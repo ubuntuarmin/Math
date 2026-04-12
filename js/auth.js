@@ -11,7 +11,7 @@ import { renderLeaderboard } from "./leaderboard.js";
 import { showLogin, hideLogin } from "./login.js";
 import { showWelcome } from "./welcome.js";
 import { showOnboarding } from "./onboarding.js";
-import { calculateTier, isAdminEligible } from "./tier.js";
+import { calculateTier, isAdminEligible, ADMIN_DEMOTION_CRITERIA } from "./tier.js";
 import { initInbox } from "./inbox.js";
 import { renderAdminHub } from "./admin.js";
 
@@ -291,7 +291,7 @@ async function handleDailyData(uid, userData) {
     }
 
     if (userData.isAdmin) {
-        // Check downgrade conditions
+        // Check downgrade conditions using thresholds defined in ADMIN_DEMOTION_CRITERIA
         const missedResponses = userData.adminMissedResponses || 0;
         const currentCredits  = userData.credits || 0;
         const lastOnlineMs =
@@ -303,9 +303,9 @@ async function handleDailyData(uid, userData) {
             : 0;
 
         const shouldDowngrade =
-            missedResponses >= 3
+            missedResponses >= ADMIN_DEMOTION_CRITERIA.maxMissedResponses
             || currentCredits < 0
-            || (lastOnlineMs > 0 && daysSinceLogin > 7);
+            || (lastOnlineMs > 0 && daysSinceLogin > ADMIN_DEMOTION_CRITERIA.maxOfflineDays);
 
         if (shouldDowngrade) {
             updates.isAdmin         = false;

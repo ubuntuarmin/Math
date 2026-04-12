@@ -367,9 +367,20 @@ function buildAdminCard(admin, myMessages, currentUser) {
         return (now - ts) < MS_24H;
     });
 
-    const canSend      = !recent;
-    const statusText   = canSend ? "" : `<p class="text-xs text-yellow-400 mt-2">You already contacted this admin. You can message again in ~${Math.ceil((MS_24H - (now - (typeof recent.timestamp?.toMillis === "function" ? recent.timestamp.toMillis() : 0))) / 3600000)}h.</p>`;
-    const inputHtml    = canSend ? `
+    const canSend = !recent;
+
+    let statusText = "";
+    if (!canSend && recent) {
+        const recentTs = typeof recent.timestamp?.toMillis === "function"
+            ? recent.timestamp.toMillis()
+            : Number(recent.timestamp || 0);
+        const hoursLeft = recentTs
+            ? Math.ceil((MS_24H - (now - recentTs)) / 3600000)
+            : 24;
+        statusText = `<p class="text-xs text-yellow-400 mt-2">You already contacted this admin. You can message again in ~${hoursLeft}h.</p>`;
+    }
+
+    const inputHtml = canSend ? `
       <textarea data-msg-input="${adminUid}"
         class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm
                text-white placeholder-gray-500 resize-none mt-3"
