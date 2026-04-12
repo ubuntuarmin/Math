@@ -284,11 +284,13 @@ async function handleDailyData(uid, userData) {
     // ── Admin promotion & demotion ─────────────────────────────────────────────
     // Build a provisional view of userData with the updates applied so that
     // isAdminEligible() can see the correct credit/minute/referral values.
-    const provisional = { ...userData, ...updates };
-    // serverTimestamp() shims so isAdminEligible can call .toMillis()
-    if (!provisional.vipPromotedAt || typeof provisional.vipPromotedAt !== "object") {
-        provisional.vipPromotedAt = userData.vipPromotedAt || null;
-    }
+    // Use a local-time shim for vipPromotedAt: if it was set this login (via
+    // serverTimestamp sentinel), approximate with Date.now() so isAdminEligible()
+    // can safely call .toMillis() on it.
+    const provisionalVipAt = updates.vipPromotedAt
+        ? { toMillis: () => Date.now() }  // just reached VIP this very login
+        : (userData.vipPromotedAt || null);
+    const provisional = { ...userData, ...updates, vipPromotedAt: provisionalVipAt };
 
     if (userData.isAdmin) {
         // Check downgrade conditions using thresholds defined in ADMIN_DEMOTION_CRITERIA

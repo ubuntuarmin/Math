@@ -138,6 +138,7 @@ async function renderAdminPanel(userData, container) {
             </p>
           </div>
           <button id="adminCheckinBtn"
+            aria-label="Toggle admin availability status"
             class="shrink-0 px-5 py-2.5 rounded-2xl font-bold text-sm transition-all duration-200
                    border border-${checkinColor}-500/40 bg-${checkinColor}-500/15
                    text-${checkinColor}-300 hover:bg-${checkinColor}-500/30">
@@ -313,9 +314,20 @@ async function loadAdminDirectory(userData, container) {
         container.appendChild(dirEl);
     }
 
+    // Build a Map of adminUid → most-recent-message-within-24h for O(1) lookups
+    // in buildAdminCard, avoiding O(n*m) iteration per card.
+    const now = Date.now();
+    const recentMessageByAdmin = new Map();
+    for (const m of myMessages) {
+        const ts = typeof m.timestamp?.toMillis === "function" ? m.timestamp.toMillis() : Number(m.timestamp || 0);
+        if ((now - ts) < MS_24H && !recentMessageByAdmin.has(m.toUid)) {
+            recentMessageByAdmin.set(m.toUid, m);
+        }
+    }
+
     const adminCards = admins.length === 0
         ? `<p class="text-gray-500 text-sm text-center py-6">No admins are currently available. Check back later.</p>`
-        : admins.map(a => buildAdminCard(a, myMessages, userData)).join("");
+        : admins.map(a => buildAdminCard(a, recentMessageByAdmin, now)).join("");
 
     dirEl.innerHTML = `
       <div class="surface rounded-3xl p-6 mb-6">
@@ -355,18 +367,14 @@ async function loadAdminDirectory(userData, container) {
     });
 }
 
-function buildAdminCard(admin, myMessages, currentUser) {
+// recentByAdmin: Map<adminUid, message> — built once before the loop for O(1) lookups.
+// now: current timestamp in ms.
+function buildAdminCard(admin, recentByAdmin, now) {
     const adminUid  = admin.id;
     const adminName = esc(admin.firstName || "Admin");
-    const now       = Date.now();
 
-    // Check if user already sent a message to this admin in the last 24h
-    const recent = myMessages.find(m => {
-        if (m.toUid !== adminUid) return false;
-        const ts = typeof m.timestamp?.toMillis === "function" ? m.timestamp.toMillis() : Number(m.timestamp || 0);
-        return (now - ts) < MS_24H;
-    });
-
+    // O(1) lookup using the pre-built Map
+    const recent = recentByAdmin.get(adminUid);
     const canSend = !recent;
 
     let statusText = "";
