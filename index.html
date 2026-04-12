@@ -21,6 +21,37 @@
     .tab-content   { display: none; }
     .tab-content.active { display: block; }
 
+    /* ── Quick CSS loader (replaces Babylon.js after first run) ── */
+    @keyframes ql-spin { to { transform: rotate(360deg); } }
+    @keyframes ql-pulse { 0%,100%{opacity:0.5;transform:scale(0.9)} 50%{opacity:1;transform:scale(1.05)} }
+    #quickLoader {
+      background: #000;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1.25rem;
+    }
+    #quickLoader .ql-ring {
+      width: 52px; height: 52px;
+      border: 3px solid rgba(56,189,248,0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: ql-spin 0.75s linear infinite;
+    }
+    #quickLoader .ql-text {
+      font-family: system-ui,sans-serif;
+      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.06em;
+      color: rgba(56,189,248,0.7); text-transform: uppercase;
+      animation: ql-pulse 1.6s ease-in-out infinite;
+    }
+
+    /* ── Share reminder banner ───────────────────────────── */
+    #shareReminderBanner {
+      transition: opacity 0.4s ease, max-height 0.4s ease;
+    }
+    #shareReminderBanner.sr-hide {
+      opacity: 0; max-height: 0; overflow: hidden; pointer-events: none;
+      margin: 0 !important; padding: 0 !important;
+    }
+
     /* ── Welcome overlay animations ─────────────────────── */
     #welcomeOverlay {
       position: fixed; inset: 0; z-index: 9999;
@@ -277,6 +308,33 @@
 
     <!-- LINKS TAB -->
     <div id="tab-links" class="tab-content active">
+      <!-- Share reminder banner -->
+      <div id="shareReminderBanner"
+           class="mb-4 flex items-center justify-between gap-3 px-4 py-3
+                  bg-gradient-to-r from-emerald-900/40 to-green-900/30
+                  border border-emerald-500/30 rounded-2xl">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="text-2xl shrink-0">🔗</span>
+          <div class="min-w-0">
+            <p class="text-emerald-300 font-bold text-sm leading-tight">Share a link, earn +50 credits!</p>
+            <p class="text-emerald-200/60 text-xs mt-0.5 hidden sm:block">
+              Help the community grow — share your favourite game site to earn credits instantly.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <a href="share.html"
+             class="px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500
+                    text-white font-bold text-xs transition-colors whitespace-nowrap">
+            + Share Now
+          </a>
+          <button id="dismissShareBanner"
+                  class="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded-lg
+                         hover:bg-white/5 text-base leading-none" title="Dismiss">
+            ✕
+          </button>
+        </div>
+      </div>
       <!-- Search + sort + refresh row -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
         <div>
@@ -861,6 +919,11 @@
             allow="accelerometer; autoplay; fullscreen"
             referrerpolicy="same-origin">
     </iframe>
+    <!-- Lightweight CSS spinner — shown after Babylon.js has already run once -->
+    <div id="quickLoader" class="hidden absolute inset-0">
+      <div class="ql-ring"></div>
+      <span class="ql-text">Loading…</span>
+    </div>
   </div>
 
   <!-- Iframe error (shown when site blocks embedding) -->

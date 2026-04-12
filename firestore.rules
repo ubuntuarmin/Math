@@ -117,8 +117,9 @@ service cloud.firestore {
 
     // ─── Promotions ───────────────────────────────────────────────────────────
     // Anyone (including unauthenticated visitors) may submit a promotion request
-    // via promote.html.  Submissions are write-only for the public; only
-    // authenticated users (admin) may read or update them via 281509.html.
+    // via promote.html.  The hidden admin review page (281509.html) reads
+    // submissions without Firebase Auth, so reads are public (security via URL
+    // obscurity).  Only authenticated users may update status (approve/reject).
     // Fields are validated: htmlCode must be present and under 20 000 chars.
     match /promotions/{promotionId} {
       allow create: if request.resource.data.keys().hasAll(['htmlCode', 'status'])
@@ -126,7 +127,10 @@ service cloud.firestore {
                     && request.resource.data.htmlCode is string
                     && request.resource.data.htmlCode.size() > 0
                     && request.resource.data.htmlCode.size() <= 20000;
-      allow read, update: if isAuthenticated();
+      // Public read so the hidden admin page (281509.html) can display submissions
+      // without requiring Firebase Authentication on that page.
+      allow read: if true;
+      allow update: if isAuthenticated();
       allow delete: if false;
     }
 
