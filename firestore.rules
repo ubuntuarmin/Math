@@ -153,5 +153,29 @@ service cloud.firestore {
                     && reviewRateLimitOk();
       allow update, delete: if false;
     }
+
+    // ─── Admin messages ───────────────────────────────────────────────────────
+    // Any authenticated user may send a message to an admin.
+    // Senders and the addressed admin may read their threads.
+    // Only the addressed admin (toUid) or a sender checking status may update.
+    // Forwarding also runs under the admin's uid since it only fires for admins.
+    match /adminMessages/{msgId} {
+      allow create: if isAuthenticated()
+                    && request.resource.data.fromUid == request.auth.uid
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 500;
+
+      allow read: if isAuthenticated()
+                  && (resource.data.fromUid == request.auth.uid
+                      || resource.data.toUid == request.auth.uid);
+
+      // Only the admin the message is addressed to may respond or forward it.
+      // The sender cannot modify messages once created.
+      allow update: if isAuthenticated()
+                    && resource.data.toUid == request.auth.uid;
+
+      allow delete: if false;
+    }
   }
 }

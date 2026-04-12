@@ -11,8 +11,9 @@ import { renderLeaderboard } from "./leaderboard.js";
 import { showLogin, hideLogin } from "./login.js";
 import { showWelcome } from "./welcome.js";
 import { showOnboarding } from "./onboarding.js";
-import { calculateTier } from "./tier.js";
+import { calculateTier, isAdminEligible, ADMIN_DEMOTION_CRITERIA } from "./tier.js";
 import { initInbox } from "./inbox.js";
+import { renderAdminHub } from "./admin.js";
 
 const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
@@ -47,9 +48,14 @@ export function refreshHeaderUI(userData) {
     if (creditCount) creditCount.textContent = userData.credits || 0;
 
     if (tierLabel) {
-        const tier = calculateTier(userData.totalEarned || 0);
-        tierLabel.textContent = tier.name;
-        tierLabel.style.color = tier.color;
+        if (userData.isAdmin) {
+            tierLabel.textContent = "Admin";
+            tierLabel.style.color = "#c084fc"; // purple-400
+        } else {
+            const tier = calculateTier(userData.totalEarned || 0);
+            tierLabel.textContent = tier.name;
+            tierLabel.style.color = tier.color;
+        }
     }
 }
 
@@ -242,6 +248,7 @@ async function handleDailyData(uid, userData) {
     }
 
     updates.lastVisitTimestamp = serverTimestamp();
+    updates.lastOnlineAt = serverTimestamp();
 
     // Snapshot the current totalEarned so the rapid-credit-gain check can
     // compare against this baseline on the NEXT login.
@@ -262,6 +269,56 @@ async function handleDailyData(uid, userData) {
         } else {
             updates.streak = 1;
         }
+    }
+
+    // ── VIP promotion timestamp ────────────────────────────────────────────────
+    // Record the first time a user reaches VIP, so Admin eligibility (5-day VIP
+    // requirement) can be checked accurately on future logins.
+    if (!userData.vipPromotedAt) {
+        const tier = calculateTier(userData.totalEarned || 0);
+        if (tier.name === "VIP") {
+            updates.vipPromotedAt = serverTimestamp();
+        }
+    }
+
+    // ── Admin promotion & demotion ─────────────────────────────────────────────
+    // Build a provisional view of userData with the updates applied so that
+    // isAdminEligible() can see the correct credit/minute/referral values.
+    // Use a local-time shim for vipPromotedAt: if it was set this login (via
+    // serverTimestamp sentinel), approximate with Date.now() so isAdminEligible()
+    // can safely call .toMillis() on it.
+    const provisionalVipAt = updates.vipPromotedAt
+        ? { toMillis: () => Date.now() }  // just reached VIP this very login
+        : (userData.vipPromotedAt || null);
+    const provisional = { ...userData, ...updates, vipPromotedAt: provisionalVipAt };
+
+    if (userData.isAdmin) {
+        // Check downgrade conditions using thresholds defined in ADMIN_DEMOTION_CRITERIA
+        const missedResponses = userData.adminMissedResponses || 0;
+        const currentCredits  = userData.credits || 0;
+        const lastOnlineMs =
+            lastVisitTimestampVal && typeof lastVisitTimestampVal.toMillis === "function"
+                ? lastVisitTimestampVal.toMillis()
+                : 0;
+        const daysSinceLogin = lastOnlineMs > 0
+            ? (Date.now() - lastOnlineMs) / (1000 * 60 * 60 * 24)
+            : 0;
+
+        const shouldDowngrade =
+            missedResponses >= ADMIN_DEMOTION_CRITERIA.maxMissedResponses
+            || currentCredits < 0
+            || (lastOnlineMs > 0 && daysSinceLogin > ADMIN_DEMOTION_CRITERIA.maxOfflineDays);
+
+        if (shouldDowngrade) {
+            updates.isAdmin         = false;
+            updates.adminCheckedIn  = false;
+            console.info(`[Admin] Downgrading uid ${uid} (missed=${missedResponses}, credits=${currentCredits}, daysOff=${daysSinceLogin.toFixed(1)})`);
+        }
+    } else if (isAdminEligible(provisional)) {
+        updates.isAdmin    = true;
+        updates.adminSince = serverTimestamp();
+        updates.adminMissedResponses = 0;
+        console.info(`[Admin] Promoting uid ${uid} to Admin.`);
     }
 
     if (Object.keys(updates).length > 0) {
@@ -288,6 +345,7 @@ async function handleDailyData(uid, userData) {
         // lastVisitTimestamp uses serverTimestamp() — approximate with a local-time
         // compatible shim. Only toMillis() is used downstream (streak/leaderboard checks).
         merged.lastVisitTimestamp = { toMillis: () => Date.now(), toDate: () => new Date() };
+        merged.lastOnlineAt = { toMillis: () => Date.now(), toDate: () => new Date() };
         return merged;
     }
     return userData;
@@ -529,6 +587,7 @@ function syncAllUI(data) {
     renderDaily(data);
     updateAccount(data);
     renderLeaderboard(data);
+    renderAdminHub(data);
 }
 
 window.addEventListener("userProfileUpdated", (event) => {
@@ -539,6 +598,7 @@ window.addEventListener("userProfileUpdated", (event) => {
     refreshHeaderUI(data);
     renderDaily(data);
     updateAccount(data);
+    renderAdminHub(data);
     // Leaderboard is intentionally NOT re-rendered here — it only refreshes on full page load
     // to reduce Firestore reads and avoid annoying resets of the scroll position.
 });
