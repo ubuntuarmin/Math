@@ -51,7 +51,13 @@ export async function updateAccount(userData) {
 
     const totalEarned = data.totalEarned || 0;
     const tier = calculateTier(totalEarned);
-    const nextTier = getNextTierInfo(totalEarned);
+    const nextTier = getNextTierInfo(totalEarned, data);
+
+    // Admin users get their own colour; otherwise inherit from tier
+    const ADMIN_COLOR = "#c084fc"; // purple-400 — matches header badge
+    const isAdmin = !!data.isAdmin;
+    const displayName  = isAdmin ? "Admin"      : tier.name;
+    const displayColor = isAdmin ? ADMIN_COLOR  : tier.color;
 
     let progressPct = 0;
     if (nextTier.remaining > 0) {
@@ -94,8 +100,8 @@ export async function updateAccount(userData) {
                 </div>
                 <div class="flex items-center gap-2 mt-1 flex-wrap">
                   <span class="text-xs px-2 py-0.5 rounded-full font-bold border"
-                        style="color:${tier.color}; border-color:${tier.color}44">
-                    ${tier.name}
+                        style="color:${displayColor}; border-color:${displayColor}44">
+                    ${displayName}
                   </span>
                   <span class="text-xs text-gray-500">Grade ${data.grade || "—"}</span>
                   <span class="text-xs text-gray-600">· Joined ${joinDate}</span>
@@ -138,7 +144,7 @@ export async function updateAccount(userData) {
               <div class="flex justify-between items-end mb-3">
                 <div>
                   <div class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Current Rank</div>
-                  <div class="text-xl font-black" style="color: ${tier.color}">${tier.name}</div>
+                  <div class="text-xl font-black" style="color: ${displayColor}">${displayName}</div>
                 </div>
                 <div class="text-right">
                   <div class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Session Limit</div>
@@ -147,7 +153,7 @@ export async function updateAccount(userData) {
               </div>
               <div class="w-full bg-gray-800 h-3 rounded-full overflow-hidden border border-gray-700 shadow-inner">
                 <div class="h-full transition-all duration-1000 ease-out" 
-                     style="width: ${progressPct}%; background-color: ${tier.color}; box-shadow: 0 0 15px ${tier.color}88;">
+                     style="width: ${progressPct}%; background-color: ${displayColor}; box-shadow: 0 0 15px ${displayColor}88;">
                 </div>
               </div>
               <div class="mt-3 text-center">
