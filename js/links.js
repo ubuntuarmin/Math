@@ -664,6 +664,11 @@ function getGlobalSession() {
       localStorage.removeItem(GLOBAL_SESSION_KEY);
       return null;
     }
+    // If there is an active session with a future expiry timestamp, derive
+    // remainingMs from it so the timer survives page refreshes mid-session.
+    if (sess.activeExpiresAt && sess.activeExpiresAt > Date.now()) {
+      sess.remainingMs = sess.activeExpiresAt - Date.now();
+    }
     return sess;
   } catch (_) { return null; }
 }
@@ -884,6 +889,11 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
 
   // Compute the effective session expiry from remaining time
   const expiresAt = Date.now() + gs.remainingMs;
+
+  // Persist the active session expiry so the countdown survives page refreshes.
+  // When the modal closes, saveGlobalSession({ remainingMs }) replaces this entry
+  // without activeExpiresAt, clearing the active-session marker.
+  saveGlobalSession({ remainingMs: gs.remainingMs, activeExpiresAt: expiresAt });
 
   // Track this user in the link's activeSessions (enforces the 6-user capacity limit).
   // Uses a transaction so concurrent opens can't exceed the cap.
@@ -2564,8 +2574,8 @@ async function handleExtendSession() {
     const addMs = tier.limitMinutes * 60 * 1000;
     activeSessionExpiry += addMs;
 
-    // Persist the updated remaining time
-    saveGlobalSession({ remainingMs: Math.max(0, activeSessionExpiry - Date.now()) });
+    // Persist the updated remaining time and active expiry timestamp
+    saveGlobalSession({ remainingMs: Math.max(0, activeSessionExpiry - Date.now()), activeExpiresAt: activeSessionExpiry });
 
     if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
     const creditEl = document.getElementById("creditCount");

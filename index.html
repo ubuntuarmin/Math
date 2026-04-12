@@ -173,6 +173,7 @@
         <button class="tab-btn" data-tab="daily">🔥 Daily</button>
         <button class="tab-btn" data-tab="leaderboard">🏆 Top</button>
         <button class="tab-btn" data-tab="appeals">⚖️ Appeals</button>
+        <button class="tab-btn" data-tab="news">📰 News</button>
         <button class="tab-btn" data-tab="account">👤 Account</button>
         <button class="tab-btn" data-tab="admin">🛡️ Admin</button>
       </div>
@@ -563,9 +564,195 @@
       </div>
     </div>
 
+    <!-- NEWS TAB -->
+    <div id="tab-news" class="tab-content">
+      <!-- Header -->
+      <div class="surface mb-6">
+        <div class="flex flex-wrap items-center gap-3 mb-3">
+          <span class="badge bg-violet-500/15 text-violet-300 border-violet-500/30">📰 Coming Soon</span>
+          <span class="text-[10px] text-gray-600 uppercase tracking-widest font-bold">April 2026 Roadmap</span>
+        </div>
+        <h2 class="text-2xl font-black text-white mb-2">What's Coming to Math Katy</h2>
+        <p class="text-gray-400 text-sm max-w-xl leading-relaxed">
+          We're working hard on the next generation of features, bug fixes, and performance upgrades.
+          These are planned updates — stay tuned for announcements when they go live!
+        </p>
+      </div>
+
+      <!-- Bug Fixes -->
+      <div class="surface mb-6">
+        <div class="flex flex-wrap items-center gap-3 mb-5">
+          <span class="text-2xl">🔧</span>
+          <div>
+            <h3 class="text-lg font-black text-white">Bug Fixes</h3>
+            <p class="text-xs text-gray-500">Issues we've identified and will be resolving soon.</p>
+          </div>
+          <span class="ml-auto badge bg-amber-500/15 text-amber-300 border-amber-500/30">In Progress</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-90">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🏷️</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Consistent site name across all pages</p><p class="text-xs text-gray-500">Some pages still show "Katy Math" instead of "Math Katy".</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-90">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">⏱️</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Session timer persists across refreshes</p><p class="text-xs text-gray-500">Timer will survive page reloads using a persisted expiry timestamp.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-90">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🔒</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Tighter Firestore security rules</p><p class="text-xs text-gray-500">Only allowing specific field updates per operation — no more overly-broad write access.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-90">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🧹</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Orphaned session slot cleanup</p><p class="text-xs text-gray-500">Stale session slots will be cleared automatically within 1 hour instead of 4.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-90">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🔄</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Leaderboard auto-refresh after bi-monthly reset</p><p class="text-xs text-gray-500">Leaderboard will refresh automatically when the reset countdown hits zero.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-90">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">⚠️</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Global low-time warning</p><p class="text-xs text-gray-500">The &lt;5 minute warning will persist across modal opens, not reset each time.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Features -->
+      <div class="surface mb-6">
+        <div class="flex flex-wrap items-center gap-3 mb-5">
+          <span class="text-2xl">✨</span>
+          <div>
+            <h3 class="text-lg font-black text-white">New Features</h3>
+            <p class="text-xs text-gray-500">Exciting additions to the platform.</p>
+          </div>
+          <span class="ml-auto badge bg-sky-500/15 text-sky-300 border-sky-500/30">Coming Soon</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">🌙</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Dark / Light mode toggle</p><p class="text-xs text-gray-500">Switch between dark and light themes. Preference saved to your browser.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">🏷️</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Category tags for links</p><p class="text-xs text-gray-500">Browse by genre: Puzzle, Action, Strategy, Simulation, Math, and more.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">🖼️</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Link thumbnail previews</p><p class="text-xs text-gray-500">OG image thumbnails on every link card for a richer browsing experience.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">📚</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Collections &amp; Playlists</p><p class="text-xs text-gray-500">Save links into personal collections and share them with a URL.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">🏆</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Weekly challenge system</p><p class="text-xs text-gray-500">Admins post weekly challenges. Win big credit bonuses and a badge.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">💬</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Link comment threads</p><p class="text-xs text-gray-500">Leave short reactions on links. Upvote/downvote individual comments.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">🔥</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Streak milestone badges</p><p class="text-xs text-gray-500">Earn badges at 7, 14, 30, and 100-day streaks with credit bonuses.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">🔔</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Real-time notification bell</p><p class="text-xs text-gray-500">Live unread badge on the inbox bell with a 5-message dropdown preview.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-xl shrink-0">📱</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Mobile PWA support</p><p class="text-xs text-gray-500">Add to Home Screen, offline shell caching, and faster load times.</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Performance Improvements -->
+      <div class="surface">
+        <div class="flex flex-wrap items-center gap-3 mb-5">
+          <span class="text-2xl">⚡</span>
+          <div>
+            <h3 class="text-lg font-black text-white">Performance &amp; Quality</h3>
+            <p class="text-xs text-gray-500">Under-the-hood improvements for a faster, more reliable app.</p>
+          </div>
+          <span class="ml-auto badge bg-emerald-500/15 text-emerald-300 border-emerald-500/30">Planned</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🎨</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Purged CSS bundle</p><p class="text-xs text-gray-500">Replace full Tailwind CDN (~350 KB) with a purged build (~10 KB).</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🔄</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Lazy-loaded link cards</p><p class="text-xs text-gray-500">IntersectionObserver-based rendering so pages load fast even with hundreds of links.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🛡️</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Content-Security-Policy header</p><p class="text-xs text-gray-500">Restrict script sources to prevent XSS from injected scripts.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">📡</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Offline error handling</p><p class="text-xs text-gray-500">User-friendly "You appear to be offline" banner with retry logic.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">♿</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Keyboard accessibility</p><p class="text-xs text-gray-500">Full tabindex, role, and keyboard handler coverage for all interactive elements.</p></div>
+            </div>
+          </div>
+          <div class="coming-soon-card p-4 rounded-2xl bg-gray-900/50 border border-gray-700/60 opacity-85">
+            <div class="flex items-start gap-3">
+              <span class="text-lg shrink-0">🧪</span>
+              <div><p class="text-sm font-semibold text-white mb-0.5">Unit test suite</p><p class="text-xs text-gray-500">Jest/Vitest tests for tier, credit, and rate-limit logic to catch regressions.</p></div>
+            </div>
+          </div>
+        </div>
+        <p class="mt-5 text-center text-xs text-gray-600">
+          More updates in progress — follow the community for announcements. 🚀
+        </p>
+      </div>
+    </div>
+
     <!-- ADMIN HUB TAB -->
     <div id="tab-admin" class="tab-content">
-      <!-- Eligibility banner — shown only to non-admins -->
       <div id="adminEligibilityBanner" class="mb-6 surface rounded-3xl p-6 border border-purple-500/30 bg-purple-500/5">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>

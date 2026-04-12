@@ -723,7 +723,6 @@ footer.site-footer {
     color: var(--text);
   }
 
-  /* Optional: if you add JS to toggle .nav-open on body */
   body.nav-open .navbar-nav {
     position: absolute;
     inset-inline: 1rem;
@@ -737,6 +736,9 @@ footer.site-footer {
     align-items: stretch;
     gap: 0.4rem;
     display: flex;
+    /* Scrollable if many nav items on small screens */
+    max-height: calc(100dvh - var(--nav-height) - 1.5rem);
+    overflow-y: auto;
   }
 
   body.nav-open .navbar-tabs-group {
@@ -745,20 +747,40 @@ footer.site-footer {
     align-items: stretch;
   }
 
+  body.nav-open .navbar-tabs-group .tab-btn {
+    text-align: left;
+    padding: 0.5rem 0.9rem;
+  }
+
   body.nav-open .navbar-sep {
     width: auto;
     height: 1px;
     margin-block: 0.2rem;
   }
 
+  /* Action row stacks vertically in open mobile nav */
+  body.nav-open .navbar-action-btn,
+  body.nav-open .navbar-credits-pill,
+  body.nav-open .navbar-session-pill,
+  body.nav-open .navbar-signout-btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
   .surface {
-    padding: 1.6rem 1.4rem;
-    border-radius: 20px;
+    padding: 1.4rem 1.1rem;
+    border-radius: 18px;
   }
 
   .site-footer-inner {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  /* Hero section tighter on mobile */
+  .mb-8.text-center h1 {
+    font-size: clamp(1.8rem, 7vw, 2.5rem);
   }
 }
 
@@ -1199,6 +1221,21 @@ body {
   border-color: rgba(99, 102, 241, 0.4);
   transform: translateY(-1px);
 }
+
+/* ========= NEWS TAB BADGE OVERRIDES ========= */
+
+.badge.bg-violet-500\/15 { background-color: rgba(139,92,246,0.15); }
+.badge.text-violet-300   { color: #c4b5fd; }
+.badge.border-violet-500\/30 { border-color: rgba(139,92,246,0.30); }
+.badge.bg-amber-500\/15  { background-color: rgba(245,158,11,0.15); }
+.badge.text-amber-300    { color: #fcd34d; }
+.badge.border-amber-500\/30 { border-color: rgba(245,158,11,0.30); }
+.badge.bg-sky-500\/15    { background-color: rgba(14,165,233,0.15); }
+.badge.text-sky-300      { color: #7dd3fc; }
+.badge.border-sky-500\/30 { border-color: rgba(14,165,233,0.30); }
+.badge.bg-emerald-500\/15 { background-color: rgba(16,185,129,0.15); }
+.badge.text-emerald-300  { color: #6ee7b7; }
+.badge.border-emerald-500\/30 { border-color: rgba(16,185,129,0.30); }
 
 /* ========= UI POLISH: SNAPPIER LINK CARDS ========= */
 
