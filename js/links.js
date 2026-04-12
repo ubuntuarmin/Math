@@ -36,6 +36,7 @@ const RATING_REQUIRED_MS  = 10000; // 10 seconds minimum to unlock rating
 const IFRAME_LOAD_TIMEOUT_MS = 15000; // 15 seconds before showing embed-blocked error
 const FREE_SESSION_MS     = 30 * 60 * 1000; // 30 free minutes per browser session
 const GLOBAL_SESSION_KEY  = "global_session"; // localStorage key for cross-link timer
+const SESSION_TTL_MS      = 24 * 60 * 60 * 1000; // 24-hour TTL for stored session data
 const SLOT_EXPIRY_FALLBACK_MS = 4 * 60 * 60 * 1000; // fallback slot expiry for orphaned sessions
 const LOW_TIME_WARNING_MS = 5 * 60 * 1000;  // warn when < 5 minutes remain in session
 
@@ -659,7 +660,7 @@ function getGlobalSession() {
     if (!raw) return null;
     const sess = JSON.parse(raw);
     // Invalidate stale entries older than 24 hours
-    if (sess.ttlExpiry && Date.now() > sess.ttlExpiry) {
+    if (sess.ttlExpiry && Date.now() >= sess.ttlExpiry) {
       localStorage.removeItem(GLOBAL_SESSION_KEY);
       return null;
     }
@@ -675,7 +676,7 @@ function getGlobalSession() {
 function saveGlobalSession(session) {
   try {
     const existing   = getGlobalSession();
-    const ttlExpiry  = existing?.ttlExpiry || (Date.now() + 24 * 60 * 60 * 1000);
+    const ttlExpiry  = existing?.ttlExpiry || (Date.now() + SESSION_TTL_MS);
     localStorage.setItem(GLOBAL_SESSION_KEY, JSON.stringify({ ...session, ttlExpiry }));
   } catch (_) {}
 }
