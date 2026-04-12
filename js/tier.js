@@ -6,6 +6,45 @@
  */
 export const FREE_SESSION_MINUTES = 30; // free minutes for everyone, regardless of rank
 
+/**
+ * ADMIN PROMOTION REQUIREMENTS
+ * Admin is a separate rank above VIP, verified on each login.
+ */
+export const ADMIN_REQUIREMENTS = {
+    minReferrals:   15,      // successful referrals needed
+    minPlayMinutes: 1000,    // totalMinutes (play time) needed
+    minCredits:     600,     // current credit balance needed
+    vipDaysRequired: 5,      // must have been VIP for at least this many days
+};
+
+/**
+ * Check whether a user meets all Admin promotion criteria.
+ * @param {Object} userData  - Firestore user document data
+ * @returns {boolean}
+ */
+export function isAdminEligible(userData) {
+    if (!userData) return false;
+    const referralCount = (userData.referrals || []).length;
+    const playMinutes   = userData.totalMinutes || 0;
+    const credits       = userData.credits || 0;
+
+    if (referralCount < ADMIN_REQUIREMENTS.minReferrals)   return false;
+    if (playMinutes   < ADMIN_REQUIREMENTS.minPlayMinutes) return false;
+    if (credits       < ADMIN_REQUIREMENTS.minCredits)     return false;
+
+    // Must already be VIP for at least ADMIN_REQUIREMENTS.vipDaysRequired days.
+    // vipPromotedAt is set (once) the first time the user reaches VIP tier.
+    const vipPromotedAt = userData.vipPromotedAt;
+    if (!vipPromotedAt) return false;
+    const vipMs = typeof vipPromotedAt.toMillis === "function"
+        ? vipPromotedAt.toMillis()
+        : Number(vipPromotedAt);
+    const daysSinceVip = (Date.now() - vipMs) / (1000 * 60 * 60 * 24);
+    if (daysSinceVip < ADMIN_REQUIREMENTS.vipDaysRequired) return false;
+
+    return true;
+}
+
 export const TIER_CONFIG = {
     BASIC: {
         name: "Basic",
