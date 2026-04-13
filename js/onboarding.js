@@ -184,7 +184,7 @@ function startGuidedTour(uid) {
         <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">📰 News &amp; Announcements</div>
         <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
           Stay in the loop! Check News for upcoming features and platform announcements —
-          including the upcoming <strong>Social Chat</strong> feature (Gold Rank or 2 referrals gets early access). 💬
+          including the upcoming <strong>Social Chat</strong> feature (Gold Rank or 2 referrals get early access). 💬
         </p>
       </div>`,
       position: "bottom",

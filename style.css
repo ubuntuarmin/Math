@@ -1315,10 +1315,10 @@ body {
   }
 }
 
-/* On extra-large screens give the coming-soon news grid more columns */
+/* On extra-large screens give the news grid more columns */
 @media (min-width: 1400px) {
-  .coming-soon-card-grid-3 {
-    grid-template-columns: repeat(3, 1fr);
+  #tab-news .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
