@@ -76,11 +76,15 @@ function showSuccessAndClose(name, uid) {
 
 /**
  * Build a rich tour step using the .mt-step component system.
+ *
+ * SECURITY NOTE: All parameters are hardcoded author-controlled strings, never
+ * user-supplied data. Do not pass user input to this function.
+ *
  * @param {string} icon - Emoji icon
  * @param {string} title - Step title (may contain <span class="mt-hl"> highlights)
  * @param {string} body - Main description paragraph
- * @param {string[]} [chips] - Optional stat chips [{label, type}]
- * @param {string} [tip] - Optional tip card content
+ * @param {Array<{label:string,type:string}>|null} chips - Optional stat chips
+ * @param {string|null} tip - Optional tip card content
  * @param {number} stepNum - 1-based step number
  * @param {number} totalSteps - Total number of steps
  * @returns {string} HTML string
