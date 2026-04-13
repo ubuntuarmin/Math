@@ -1287,3 +1287,197 @@ body {
   0%, 100% { color: #fbbf24; border-color: rgba(251,191,36,0.4); }
   50%       { color: #ef4444; border-color: rgba(239,68,68,0.5); }
 }
+
+/* ═══════════════════════════════════════════════════════
+   TASK 2 — DESKTOP-CENTRIC RESPONSIVE LAYOUT
+   Optimised for 13" laptops → 32" ultrawide monitors.
+   Fluid containers, wider content areas, multi-column
+   panels at large viewports. Mobile is not a target.
+═══════════════════════════════════════════════════════ */
+
+/* Wider content container on large desktop */
+@media (min-width: 1280px) {
+  main > .container,
+  #appContainer > .container {
+    max-width: 1200px;
+  }
+}
+
+@media (min-width: 1536px) {
+  main > .container,
+  #appContainer > .container {
+    max-width: 1440px;
+  }
+
+  /* Expand the links grid to 4 columns on ultrawide */
+  #linksGrid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* On extra-large screens give the news grid more columns */
+@media (min-width: 1400px) {
+  #tab-news .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Navbar: prevent items wrapping on mid-size desktops */
+@media (min-width: 1024px) {
+  .navbar-tabs-group {
+    flex-wrap: nowrap;
+  }
+  .navbar {
+    gap: 1rem;
+  }
+}
+
+/* Ensure the tab content area has a comfortable reading width on wide monitors */
+@media (min-width: 1280px) {
+  .surface {
+    padding: 2rem 2.25rem;
+  }
+}
+
+/* Leaderboard: two-column layout on wide desktop */
+@media (min-width: 1280px) {
+  #leaderboard {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  /* Reset: entries that span both cols (first-place podium etc.) */
+  #leaderboard .leaderboard-rank-1 {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Ultrawide: side-by-side panels in the account tab */
+@media (min-width: 1536px) {
+  #tab-account .surface + .surface {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+}
+
+/* Prevent dead-space gutters on very wide viewports */
+@media (min-width: 1800px) {
+  body {
+    background-size: 160px 160px, 20px 20px;
+  }
+  #linksGrid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   TASK 1 — GUIDED TOUR CUSTOM STYLES (Intro.js dark theme)
+═══════════════════════════════════════════════════════ */
+
+/* Override Intro.js tooltip to match the dark UI */
+.introjs-tooltip.math-tour-tooltip,
+.introjs-tooltip {
+  background: #0f172a !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 40px rgba(56, 189, 248, 0.12) !important;
+  color: #e5e7eb !important;
+  max-width: 360px !important;
+  padding: 1.25rem 1.5rem !important;
+}
+
+.introjs-tooltip-header {
+  padding: 0 !important;
+}
+
+.introjs-tooltiptext {
+  padding: 0 !important;
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+  color: #e5e7eb !important;
+}
+
+/* Progress bar */
+.introjs-progressbar {
+  background: linear-gradient(90deg, #38bdf8, #a855f7) !important;
+  height: 3px !important;
+  border-radius: 9999px !important;
+}
+.introjs-progress {
+  background: rgba(255,255,255,0.08) !important;
+  border-radius: 9999px !important;
+  margin-bottom: 0.75rem !important;
+}
+
+/* Navigation buttons */
+.introjs-tooltipbuttons {
+  border-top: 1px solid rgba(148, 163, 184, 0.15) !important;
+  padding-top: 0.75rem !important;
+  margin-top: 0.75rem !important;
+}
+
+.introjs-button {
+  border-radius: 9999px !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  padding: 0.45rem 1.1rem !important;
+  transition: filter 120ms ease !important;
+  text-shadow: none !important;
+}
+
+.introjs-nextbutton,
+.introjs-donebutton {
+  background: linear-gradient(135deg, #38bdf8, #a855f7) !important;
+  border: none !important;
+  color: #fff !important;
+}
+.introjs-nextbutton:hover,
+.introjs-donebutton:hover {
+  filter: brightness(1.12) !important;
+  color: #fff !important;
+}
+
+.introjs-prevbutton {
+  background: transparent !important;
+  border: 1px solid rgba(148, 163, 184, 0.35) !important;
+  color: #9ca3af !important;
+}
+.introjs-prevbutton:hover {
+  border-color: #38bdf8 !important;
+  color: #38bdf8 !important;
+}
+.introjs-prevbutton.introjs-disabled {
+  opacity: 0.3 !important;
+}
+
+/* Overlay */
+.introjs-overlay {
+  background: rgba(5, 8, 22, 0.72) !important;
+}
+
+/* Highlight border around targeted element */
+.introjs-helperLayer {
+  border-radius: 12px !important;
+  box-shadow: 0 0 0 2px #38bdf8, 0 0 30px rgba(56, 189, 248, 0.3) !important;
+}
+
+/* Arrow (caret) */
+.introjs-arrow.top,
+.introjs-arrow.top-middle,
+.introjs-arrow.top-right {
+  border-bottom-color: #0f172a !important;
+}
+.introjs-arrow.bottom,
+.introjs-arrow.bottom-middle,
+.introjs-arrow.bottom-right {
+  border-top-color: #0f172a !important;
+}
+.introjs-arrow.left,
+.introjs-arrow.left-bottom {
+  border-right-color: #0f172a !important;
+}
+.introjs-arrow.right,
+.introjs-arrow.right-bottom {
+  border-left-color: #0f172a !important;
+}
