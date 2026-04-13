@@ -1372,112 +1372,306 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   TASK 1 — GUIDED TOUR CUSTOM STYLES (Intro.js dark theme)
+   GUIDED TOUR — Professional Intro.js dark-theme overlay
 ═══════════════════════════════════════════════════════ */
 
-/* Override Intro.js tooltip to match the dark UI */
+/* ── Tooltip entrance animation ────────────────────── */
+@keyframes mt-tooltip-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+
+/* ── Pulsing glow on the highlight border ──────────── */
+@keyframes mt-helper-pulse {
+  0%,100% { box-shadow: 0 0 0 2px #38bdf8, 0 0 24px rgba(56,189,248,0.30); }
+  50%     { box-shadow: 0 0 0 3px #a855f7, 0 0 40px rgba(168, 85,247,0.45); }
+}
+
+/* ── Shimmer sweep on the progress bar ─────────────── */
+@keyframes mt-bar-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+
+/* ── Tooltip container ──────────────────────────────── */
 .introjs-tooltip.math-tour-tooltip,
 .introjs-tooltip {
-  background: #0f172a !important;
-  border: 1px solid rgba(56, 189, 248, 0.35) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 40px rgba(56, 189, 248, 0.12) !important;
+  background: linear-gradient(160deg, #0d1829 0%, #0f172a 100%) !important;
+  border: 1px solid rgba(56, 189, 248, 0.40) !important;
+  border-radius: 20px !important;
+  box-shadow:
+    0 32px 72px rgba(0, 0, 0, 0.80),
+    0  0  50px rgba(56, 189, 248, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
   color: #e5e7eb !important;
-  max-width: 360px !important;
-  padding: 1.25rem 1.5rem !important;
+  max-width: 380px !important;
+  min-width: 300px !important;
+  padding: 1.4rem 1.6rem 1.2rem !important;
+  animation: mt-tooltip-in 0.28s cubic-bezier(0.22,1,0.36,1) both !important;
 }
 
 .introjs-tooltip-header {
   padding: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 .introjs-tooltiptext {
   padding: 0 !important;
   font-size: 0.875rem !important;
-  line-height: 1.6 !important;
+  line-height: 1.65 !important;
   color: #e5e7eb !important;
 }
 
-/* Progress bar */
-.introjs-progressbar {
-  background: linear-gradient(90deg, #38bdf8, #a855f7) !important;
-  height: 3px !important;
-  border-radius: 9999px !important;
-}
+/* ── Progress bar ───────────────────────────────────── */
 .introjs-progress {
-  background: rgba(255,255,255,0.08) !important;
+  background: rgba(255,255,255,0.07) !important;
   border-radius: 9999px !important;
-  margin-bottom: 0.75rem !important;
+  height: 4px !important;
+  margin-bottom: 1rem !important;
+  overflow: hidden !important;
+}
+.introjs-progressbar {
+  background: linear-gradient(
+    90deg,
+    #38bdf8 0%,
+    #a855f7 50%,
+    #38bdf8 100%
+  ) !important;
+  background-size: 200% 100% !important;
+  height: 100% !important;
+  border-radius: 9999px !important;
+  animation: mt-bar-shimmer 2.4s linear infinite !important;
 }
 
-/* Navigation buttons */
+/* ── Navigation buttons ─────────────────────────────── */
 .introjs-tooltipbuttons {
-  border-top: 1px solid rgba(148, 163, 184, 0.15) !important;
-  padding-top: 0.75rem !important;
-  margin-top: 0.75rem !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.12) !important;
+  padding-top: 0.85rem !important;
+  margin-top: 0.85rem !important;
+  display: flex !important;
+  gap: 0.5rem !important;
+  justify-content: flex-end !important;
 }
 
 .introjs-button {
   border-radius: 9999px !important;
-  font-size: 0.8rem !important;
+  font-size: 0.78rem !important;
   font-weight: 700 !important;
-  padding: 0.45rem 1.1rem !important;
-  transition: filter 120ms ease !important;
+  padding: 0.5rem 1.25rem !important;
+  transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease !important;
   text-shadow: none !important;
+  cursor: pointer !important;
 }
 
 .introjs-nextbutton,
 .introjs-donebutton {
-  background: linear-gradient(135deg, #38bdf8, #a855f7) !important;
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a855f7 100%) !important;
   border: none !important;
   color: #fff !important;
+  box-shadow: 0 4px 16px rgba(56,189,248,0.30) !important;
 }
 .introjs-nextbutton:hover,
 .introjs-donebutton:hover {
-  filter: brightness(1.12) !important;
+  filter: brightness(1.15) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(56,189,248,0.45) !important;
   color: #fff !important;
+}
+.introjs-nextbutton:active,
+.introjs-donebutton:active {
+  transform: translateY(0) !important;
 }
 
 .introjs-prevbutton {
-  background: transparent !important;
-  border: 1px solid rgba(148, 163, 184, 0.35) !important;
-  color: #9ca3af !important;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  color: #94a3b8 !important;
 }
 .introjs-prevbutton:hover {
-  border-color: #38bdf8 !important;
+  background: rgba(56,189,248,0.08) !important;
+  border-color: rgba(56,189,248,0.50) !important;
   color: #38bdf8 !important;
 }
 .introjs-prevbutton.introjs-disabled {
-  opacity: 0.3 !important;
+  opacity: 0.25 !important;
+  pointer-events: none !important;
 }
 
-/* Overlay */
+/* ── Overlay ───────────────────────────────────────── */
 .introjs-overlay {
-  background: rgba(5, 8, 22, 0.72) !important;
+  background: rgba(3, 6, 18, 0.78) !important;
+  backdrop-filter: blur(2px) !important;
 }
 
-/* Highlight border around targeted element */
+/* ── Highlight box around the targeted element ─────── */
 .introjs-helperLayer {
-  border-radius: 12px !important;
-  box-shadow: 0 0 0 2px #38bdf8, 0 0 30px rgba(56, 189, 248, 0.3) !important;
+  border-radius: 14px !important;
+  animation: mt-helper-pulse 2s ease-in-out infinite !important;
 }
 
-/* Arrow (caret) */
+/* ── Arrow / caret ─────────────────────────────────── */
 .introjs-arrow.top,
 .introjs-arrow.top-middle,
 .introjs-arrow.top-right {
-  border-bottom-color: #0f172a !important;
+  border-bottom-color: #0d1829 !important;
 }
 .introjs-arrow.bottom,
 .introjs-arrow.bottom-middle,
 .introjs-arrow.bottom-right {
-  border-top-color: #0f172a !important;
+  border-top-color: #0d1829 !important;
 }
 .introjs-arrow.left,
 .introjs-arrow.left-bottom {
-  border-right-color: #0f172a !important;
+  border-right-color: #0d1829 !important;
 }
 .introjs-arrow.right,
 .introjs-arrow.right-bottom {
-  border-left-color: #0f172a !important;
+  border-left-color: #0d1829 !important;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TOUR STEP INNER COMPONENTS
+═══════════════════════════════════════════════════════ */
+
+/* Step card wrapper */
+.mt-step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* Step-number badge (top-right) */
+.mt-step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.1rem;
+}
+.mt-step-badge span {
+  color: #38bdf8;
+}
+
+/* Icon circle */
+.mt-step-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(168,85,247,0.18));
+  border: 1px solid rgba(56,189,248,0.30);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  margin-bottom: 0.25rem;
+  box-shadow: 0 0 18px rgba(56,189,248,0.15);
+  flex-shrink: 0;
+}
+
+/* Title */
+.mt-step-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #f1f5f9;
+  line-height: 1.25;
+  margin: 0;
+}
+
+/* Gradient highlight word inside title */
+.mt-hl {
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Body text */
+.mt-step-body {
+  font-size: 0.845rem;
+  color: #94a3b8;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* Credit/stat chips */
+.mt-chip {
+  display: inline-block;
+  background: rgba(56,189,248,0.12);
+  border: 1px solid rgba(56,189,248,0.28);
+  color: #38bdf8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+.mt-chip.purple {
+  background: rgba(168,85,247,0.12);
+  border-color: rgba(168,85,247,0.28);
+  color: #a855f7;
+}
+.mt-chip.green {
+  background: rgba(52,211,153,0.12);
+  border-color: rgba(52,211,153,0.28);
+  color: #34d399;
+}
+
+/* Chips row */
+.mt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+/* Tip card */
+.mt-tip {
+  background: rgba(56,189,248,0.06);
+  border: 1px solid rgba(56,189,248,0.18);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.775rem;
+  color: #7dd3fc;
+  line-height: 1.55;
+  margin-top: 0.2rem;
+}
+.mt-tip strong {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+/* Final step celebration */
+.mt-finale {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+.mt-finale-emoji {
+  font-size: 2.8rem;
+  display: block;
+  margin-bottom: 0.6rem;
+  animation: logo-idle 2.4s ease-in-out infinite;
+}
+.mt-finale-title {
+  font-size: 1.3rem;
+  font-weight: 900;
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem;
+}
+.mt-finale-body {
+  font-size: 0.845rem;
+  color: #94a3b8;
+  line-height: 1.65;
+  max-width: 280px;
+  margin: 0 auto 0.6rem;
+}
+.mt-finale-sub {
+  font-size: 0.75rem;
+  color: #4b5563;
 }

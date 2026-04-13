@@ -75,8 +75,37 @@ function showSuccessAndClose(name, uid) {
 }
 
 /**
- * Launch the mandatory Intro.js guided tour for new users.
- * The tour is non-bypassable (no skip button, no ESC, no overlay-click-to-close).
+ * Build a rich tour step using the .mt-step component system.
+ * @param {string} icon - Emoji icon
+ * @param {string} title - Step title (may contain <span class="mt-hl"> highlights)
+ * @param {string} body - Main description paragraph
+ * @param {string[]} [chips] - Optional stat chips [{label, type}]
+ * @param {string} [tip] - Optional tip card content
+ * @param {number} stepNum - 1-based step number
+ * @param {number} totalSteps - Total number of steps
+ * @returns {string} HTML string
+ */
+function buildStep(icon, title, body, chips, tip, stepNum, totalSteps) {
+  const chipsHtml = chips && chips.length
+    ? `<div class="mt-chips">${chips.map(c => `<span class="mt-chip${c.type ? " " + c.type : ""}">${c.label}</span>`).join("")}</div>`
+    : "";
+  const tipHtml = tip
+    ? `<div class="mt-tip"><strong>💡 Tip:</strong> ${tip}</div>`
+    : "";
+  return `
+    <div class="mt-step">
+      <div class="mt-step-badge">Step <span>${stepNum}</span> of ${totalSteps}</div>
+      <div class="mt-step-icon">${icon}</div>
+      <div class="mt-step-title">${title}</div>
+      <p class="mt-step-body">${body}</p>
+      ${chipsHtml}
+      ${tipHtml}
+    </div>`;
+}
+
+/**
+ * Launch the professional Intro.js guided tour for new users.
+ * The tour is non-bypassable (no skip, no ESC, no overlay-click-to-close).
  */
 function startGuidedTour(uid) {
   if (typeof introJs === "undefined") {
@@ -84,159 +113,235 @@ function startGuidedTour(uid) {
     return;
   }
 
-  const steps = [
+  const TOTAL = 13;
+
+  const rawSteps = [
+    /* 1 — Welcome (no element highlight) */
     {
-      element: document.querySelector(".navbar-brand"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.4rem;font-weight:800;margin-bottom:8px">🎮 Welcome to <strong>Math Katy</strong>!</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          Your all-in-one hub for discovering and sharing the best game &amp; study sites.
-          Let's take a quick tour — it'll only take a minute! 🚀
-        </p>
-      </div>`,
-      position: "bottom",
+      intro: buildStep(
+        "🎮",
+        `Welcome to <span class="mt-hl">Math Katy</span>!`,
+        `Your community hub for discovering and sharing the best game &amp; study sites. This quick tour walks you through every feature — it'll only take about 90 seconds. Let's go! 🚀`,
+        null,
+        `You can revisit this tour anytime from the <strong>Account</strong> tab.`,
+        1, TOTAL
+      ),
     },
+
+    /* 2 — Navigation tabs */
     {
       element: document.getElementById("tourNavTabs"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">🗺️ Navigation Tabs</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          These tabs are your main compass. Switch between <strong>Links</strong>,
-          <strong>Daily</strong>, <strong>Leaderboard</strong>, <strong>News</strong>,
-          and your <strong>Account</strong> — all without leaving the page.
-        </p>
-      </div>`,
+      intro: buildStep(
+        "🗺️",
+        `Your <span class="mt-hl">Navigation</span> Hub`,
+        `These tabs are your main compass. Every section of the platform lives here — switch instantly between <strong>Links</strong>, <strong>Daily</strong>, <strong>Leaderboard</strong>, <strong>News</strong>, and your <strong>Account</strong> without reloading the page.`,
+        null,
+        `The active tab is always highlighted. Your progress and credits update in real-time across all tabs.`,
+        2, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 3 — Links tab */
     {
       element: document.getElementById("tourTabLinks"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">🔗 Community Links</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          Browse, search, and rate links submitted by your peers. Click any card to open
-          the site <strong>inside</strong> the platform. Report broken ones to keep the
-          library clean! 🧹
-        </p>
-      </div>`,
+      intro: buildStep(
+        "🔗",
+        `The <span class="mt-hl">Community Links</span> Feed`,
+        `This is where the magic happens. Browse game and study sites submitted by your peers, open any card to view the site <em>inside</em> the platform, and rate links to help others find the best ones. Bad link? Report it — 3 reports removes it automatically! 🧹`,
+        [
+          { label: "Upvote +10 🪙", type: "green" },
+          { label: "Review = visibility boost", type: "" },
+        ],
+        `Upvoting a link rewards <strong>+10 credits</strong> to you <em>and</em> encourages the sharer. Quality wins!`,
+        3, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 4 — Search & filter */
+    {
+      element: document.getElementById("linksSearch"),
+      intro: buildStep(
+        "🔍",
+        `<span class="mt-hl">Search</span> &amp; Filter`,
+        `Use the search bar to instantly filter links by name or tag. The <strong>Sort</strong> dropdown lets you reorder by <em>Newest</em>, <em>Most Upvoted</em>, or <em>Highest Rated</em> — so you always find exactly what you're looking for.`,
+        null,
+        `Sort by <strong>Highest Rated</strong> to surface the most loved community picks instantly.`,
+        4, TOTAL
+      ),
+      position: "bottom",
+    },
+
+    /* 5 — Share button */
     {
       element: document.getElementById("tourShareBtn"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">➕ Share &amp; Earn!</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          Found something awesome? Hit <strong>+ Share</strong> and pocket
-          <strong>+50 credits</strong> instantly. The more quality links you contribute,
-          the more the community loves you. 🤩
-        </p>
-      </div>`,
+      intro: buildStep(
+        "➕",
+        `Share Links &amp; <span class="mt-hl">Earn Credits</span>`,
+        `Found something awesome? Hit <strong>+ Share</strong> to contribute it to the community. You'll earn <strong>+50 credits</strong> immediately, and every upvote your link collects adds another <strong>+10 credits</strong> to your balance. You can also upload custom HTML pages!`,
+        [
+          { label: "Share = +50 🪙", type: "green" },
+          { label: "Per upvote = +10 🪙", type: "green" },
+          { label: "Quality bonus = +50 🪙/mo", type: "" },
+        ],
+        `Links with an average rating above 4.7 and 10+ reviews earn a monthly quality bonus!`,
+        5, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 6 — Credits & tier pill */
     {
       element: document.getElementById("tourCreditsPill"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">🪙 Credits &amp; Rank</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          Credits are your platform currency. Earn them by sharing links, receiving upvotes,
-          referring friends (<strong>+150 each!</strong>), and daily streaks.
-          Accumulate enough to climb <strong>Basic → Silver → Gold → VIP</strong>! 🏅
-        </p>
-      </div>`,
+      intro: buildStep(
+        "🪙",
+        `Credits &amp; <span class="mt-hl">Rank System</span>`,
+        `Credits are your platform currency and reputation score. Earn them multiple ways and spend them to unlock more session time. Your rank rises as you accumulate credits, unlocking longer sessions and exclusive perks.`,
+        [
+          { label: "Basic", type: "" },
+          { label: "Silver", type: "" },
+          { label: "Gold", type: "purple" },
+          { label: "VIP", type: "purple" },
+        ],
+        `Refer a friend with your personal referral code and earn <strong>+150 credits</strong> — the fastest way to rank up!`,
+        6, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 7 — Session timer */
     {
       element: document.getElementById("navSessionTime"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">⏱️ Session Timer</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          You get <strong>30 free minutes</strong> per session to explore links.
-          Running low? Spend <strong>50 credits</strong> to top up. Higher ranks unlock
-          more time per purchase — Gold gets 2 hrs, VIP gets 6 hrs! ⚡
-        </p>
-      </div>`,
+      intro: buildStep(
+        "⏱️",
+        `Your <span class="mt-hl">Session Timer</span>`,
+        `Every new browser session starts with <strong>30 free minutes</strong> shared across all links you open. When time runs low, click this button to top up for <strong>50 credits</strong>. Higher ranks get more minutes per top-up — VIP gets a whopping 6 hours per purchase! ⚡`,
+        [
+          { label: "Basic = 45 min/top-up", type: "" },
+          { label: "Silver = 60 min", type: "" },
+          { label: "Gold = 2 hrs", type: "purple" },
+          { label: "VIP = 6 hrs", type: "purple" },
+        ],
+        `The timer only counts down while you have a link open inside the platform, so browse the feed for free!`,
+        7, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 8 — Inbox / notifications bell */
+    {
+      element: document.getElementById("notifBtn"),
+      intro: buildStep(
+        "🔔",
+        `<span class="mt-hl">Notifications</span> &amp; Inbox`,
+        `The bell icon shows your notification count. Receive alerts when someone upvotes your links, when your appeal vote is counted, or when the platform has an important announcement. Click the bell or visit your full <strong>Inbox</strong> to stay in the loop.`,
+        null,
+        `Red badge = unread messages. Keep it at zero to never miss credit rewards or community updates!`,
+        8, TOTAL
+      ),
+      position: "bottom",
+    },
+
+    /* 9 — Daily streak */
     {
       element: document.getElementById("tourTabDaily"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">🔥 Daily Streak</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          Claim your daily reward every day to build a streak. Miss a day and it resets —
-          stay consistent for bonus credits and milestone badges! 🏆
-        </p>
-      </div>`,
+      intro: buildStep(
+        "🔥",
+        `Daily <span class="mt-hl">Streak</span> Rewards`,
+        `Log in every day and claim your daily reward to build a streak. The longer your streak, the bigger your daily payout. Miss a day and the streak resets to zero — consistency is rewarded! Hit milestone streaks for special bonus credits and badges. 🏆`,
+        null,
+        `Even a 2-day streak gives a bonus multiplier. Set a daily reminder and never miss a claim!`,
+        9, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 10 — Leaderboard */
     {
       element: document.getElementById("tourTabLeaderboard"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">🏆 Leaderboard</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          See who's logging the most time bi-monthly. The <strong>top 10</strong> earn
-          credit prizes when the season resets — higher rank means bigger reward! 💰
-        </p>
-      </div>`,
+      intro: buildStep(
+        "🏆",
+        `<span class="mt-hl">Leaderboard</span> &amp; Prizes`,
+        `The leaderboard ranks users by time spent on the platform each bi-monthly season. The <strong>top 10</strong> players earn credit prizes when the season resets — and the higher your rank, the bigger the payout. Can you claim the #1 spot? 💰`,
+        [
+          { label: "Top 10 earn prizes", type: "green" },
+          { label: "Season resets bi-monthly", type: "" },
+        ],
+        `Stack your session time and keep your daily streak active to dominate the leaderboard!`,
+        10, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 11 — News */
     {
       element: document.getElementById("tourTabNews"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">📰 News &amp; Announcements</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          Stay in the loop! Check News for upcoming features and platform announcements —
-          including the upcoming <strong>Social Chat</strong> feature (Gold Rank or 2 referrals get early access). 💬
-        </p>
-      </div>`,
+      intro: buildStep(
+        "📰",
+        `News &amp; <span class="mt-hl">Announcements</span>`,
+        `Stay in the loop with platform updates, new feature rollouts, and community announcements. The upcoming <strong>Social Chat</strong> feature is almost here — Gold Rank members and users with 2+ referrals get early access. 💬`,
+        null,
+        `Check News regularly — limited-time credit events and bonus promotions are announced here first!`,
+        11, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 12 — Account */
     {
       element: document.getElementById("tourTabAccount"),
-      intro: `<div style="max-width:280px">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">👤 Your Account</div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5">
-          Manage your profile, track stats, view your referral code, and monitor rank progress —
-          all from the Account tab. Share your code to earn <strong>+150 credits</strong> per friend! 🤝
-        </p>
-      </div>`,
+      intro: buildStep(
+        "👤",
+        `Your <span class="mt-hl">Account</span> &amp; Profile`,
+        `The Account tab is your personal dashboard. View your credit balance, rank progress, submission history, and your unique <strong>referral code</strong>. Share that code with friends — each person who signs up through it earns you <strong>+150 credits</strong>! You can also customise your avatar, bio, and display name here. 🤝`,
+        [
+          { label: "Referral = +150 🪙 each", type: "green" },
+        ],
+        `Your referral code is permanent. Post it on social media or share it in class for passive credit income!`,
+        12, TOTAL
+      ),
       position: "bottom",
     },
+
+    /* 13 — Finale (no element) */
     {
-      intro: `<div style="max-width:300px;text-align:center">
-        <div style="font-size:2rem;margin-bottom:12px">🎉</div>
-        <div style="font-size:1.25rem;font-weight:800;margin-bottom:8px;color:#38bdf8">
-          Tour Complete!
-        </div>
-        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.5;margin-bottom:12px">
-          You now know your way around Math Katy. Start exploring, earn credits, climb the ranks,
-          and share your favourite sites with the community. Good luck! 🚀
+      intro: `<div class="mt-finale">
+        <span class="mt-finale-emoji">🎉</span>
+        <div class="mt-finale-title">Tour Complete!</div>
+        <p class="mt-finale-body">
+          You now know everything there is to know about <strong style="color:#f1f5f9">Math Katy</strong>.
+          Start exploring, earn credits, climb the ranks, and share your favourite sites with the community.
+          Good luck out there! 🚀
         </p>
-        <p style="font-size:0.75rem;color:#4b5563">
-          Hit "Let's Go!" to dive in.
-        </p>
+        <p class="mt-finale-sub">Hit <em>Let's Go!</em> to dive in.</p>
       </div>`,
     },
   ].filter(s => !s.element || document.body.contains(s.element));
 
   const tour = introJs().setOptions({
-    steps,
+    steps: rawSteps,
     showProgress: true,
     showBullets: false,
+    showStepNumbers: false,
     exitOnOverlayClick: false,
     exitOnEsc: false,
     showSkipButton: false,
-    nextLabel: "Next →",
-    prevLabel: "← Back",
-    doneLabel: "Let's Go! 🚀",
+    nextLabel: "Next &rarr;",
+    prevLabel: "&larr; Back",
+    doneLabel: "Let&rsquo;s Go! 🚀",
     tooltipClass: "math-tour-tooltip",
-    overlayOpacity: 0.65,
+    overlayOpacity: 0.72,
     scrollToElement: true,
+    scrollPadding: 80,
     disableInteraction: false,
+    helperElementPadding: 10,
   });
 
   tour.oncomplete(() => markTourComplete(uid));
   tour.onexit(() => markTourComplete(uid));
 
-  setTimeout(() => tour.start(), 100);
+  setTimeout(() => tour.start(), 150);
 }
 
 async function markTourComplete(uid) {
