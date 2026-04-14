@@ -1808,10 +1808,59 @@ body {
     0 0 20px rgba(56, 189, 248, 0.45) !important;
   animation: mt-hl-pulse 1.8s ease-in-out infinite !important;
   outline: none !important;
+  /* Ensure clicks reach the real element */
+  pointer-events: auto !important;
 }
 @keyframes mt-hl-pulse {
   0%,100% { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(56,189,248,0.85), 0 0 20px rgba(56,189,248,0.45); }
   50%     { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(56,189,248,1),    0 0 34px rgba(56,189,248,0.65); }
+}
+
+/* Self-healing: warning highlight (amber) when user strays to the wrong tab */
+.mt-tour-hl-warn {
+  position: relative !important;
+  z-index: 10001 !important;
+  border-radius: 10px !important;
+  box-shadow:
+    0 0 0 9999px rgba(3, 7, 18, 0.80),
+    0 0 0 3px rgba(251, 191, 36, 0.90),
+    0 0 20px rgba(251, 191, 36, 0.50) !important;
+  animation: mt-hl-warn-pulse 1.4s ease-in-out infinite !important;
+  outline: none !important;
+  pointer-events: auto !important;
+}
+@keyframes mt-hl-warn-pulse {
+  0%,100% { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(251,191,36,0.90), 0 0 20px rgba(251,191,36,0.50); }
+  50%     { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(251,191,36,1),    0 0 36px rgba(251,191,36,0.75); }
+}
+
+/* Self-healing reroute pill */
+.mt-tour-reroute {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(-80px);
+  z-index: 10015;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #78350f, #92400e);
+  border: 1px solid rgba(251, 191, 36, 0.50);
+  color: #fde68a;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.6rem 1.25rem;
+  border-radius: 9999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.60);
+  white-space: nowrap;
+  animation: mt-reroute-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes mt-reroute-in {
+  from { transform: translateX(-50%) translateY(-80px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0);     opacity: 1; }
+}
+.mt-tour-reroute-icon {
+  font-size: 1rem;
 }
 
 /* Credits toast */
