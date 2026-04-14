@@ -406,7 +406,7 @@ async function _completeTour() {
       if (snap.exists()) {
         window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: snap.data() }));
       }
-    } else {
+    } else if (_tourUid) {
       await updateDoc(doc(db, "users", _tourUid), { tourComplete: true });
     }
   } catch (e) {
