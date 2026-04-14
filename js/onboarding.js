@@ -366,6 +366,11 @@ function _showClickStep(step, el, idx) {
 
   const tooltip = _buildTooltip(step, idx, true);
   document.body.appendChild(tooltip);
+  // Let clicks pass through the tooltip to the highlighted target element.
+  // Re-enable pointer events only on the Back button so it remains usable.
+  tooltip.style.pointerEvents = "none";
+  const btnRow = tooltip.querySelector(".mt-tour-btn-row");
+  if (btnRow) btnRow.style.pointerEvents = "auto";
   _positionTooltip(tooltip, el);
   _wireButtons(tooltip, idx);   // wires Back only (no Next on click steps)
 
