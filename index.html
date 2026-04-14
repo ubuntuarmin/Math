@@ -28,26 +28,9 @@
     .tab-content   { display: none; }
     .tab-content.active { display: block; }
 
-    /* ── Quick CSS loader (replaces Babylon.js after first run) ── */
-    @keyframes ql-spin { to { transform: rotate(360deg); } }
-    @keyframes ql-pulse { 0%,100%{opacity:0.5;transform:scale(0.9)} 50%{opacity:1;transform:scale(1.05)} }
+    /* ── Spot-file ad loader (replaces Babylon.js after first run) ── */
     #quickLoader {
       background: #000;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 1.25rem;
-    }
-    #quickLoader .ql-ring {
-      width: 52px; height: 52px;
-      border: 3px solid rgba(56,189,248,0.2);
-      border-top-color: #38bdf8;
-      border-radius: 50%;
-      animation: ql-spin 0.75s linear infinite;
-    }
-    #quickLoader .ql-text {
-      font-family: system-ui,sans-serif;
-      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.06em;
-      color: rgba(56,189,248,0.7); text-transform: uppercase;
-      animation: ql-pulse 1.6s ease-in-out infinite;
     }
 
     /* ── Share reminder banner ───────────────────────────── */
@@ -569,6 +552,7 @@
         </div>
 
         <div id="referralArea"></div>
+        <div id="tutorialArea"></div>
       </div>
     </div>
 
@@ -1146,10 +1130,14 @@
             allow="accelerometer; autoplay; fullscreen"
             referrerpolicy="same-origin">
     </iframe>
-    <!-- Lightweight CSS spinner — shown after Babylon.js has already run once -->
-    <div id="quickLoader" class="hidden absolute inset-0">
-      <div class="ql-ring"></div>
-      <span class="ql-text">Loading…</span>
+    <!-- Spot-file ad loader — shown after Babylon.js has already run once -->
+    <div id="quickLoader" class="hidden absolute inset-0 bg-black">
+      <iframe id="quickLoaderFrame"
+              src=""
+              class="w-full h-full border-0"
+              title="Advertise here for free"
+              referrerpolicy="same-origin">
+      </iframe>
     </div>
   </div>
 

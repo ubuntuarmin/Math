@@ -1,19 +1,19 @@
 import { auth, db } from "./firebase.js";
-import { doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, updateDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 
 const onboardModal = document.getElementById("onboardModal");
-const firstInput = document.getElementById("onboardFirst");
-const lastInput = document.getElementById("onboardLast");
-const gradeSelect = document.getElementById("onboardGrade");
-const saveBtn = document.getElementById("onboardSave");
-const errorEl = document.getElementById("onboardError");
+const firstInput   = document.getElementById("onboardFirst");
+const lastInput    = document.getElementById("onboardLast");
+const gradeSelect  = document.getElementById("onboardGrade");
+const saveBtn      = document.getElementById("onboardSave");
+const errorEl      = document.getElementById("onboardError");
 
 let _isSaving = false;
 
 function setSavingState(on) {
   _isSaving = !!on;
   if (saveBtn) {
-    saveBtn.disabled = _isSaving;
+    saveBtn.disabled  = _isSaving;
     saveBtn.textContent = _isSaving ? "Saving…" : "Save & Continue";
   }
 }
@@ -32,19 +32,12 @@ export function hideOnboarding() {
   onboardModal.setAttribute("aria-hidden", "true");
 }
 
-/**
- * Fetch fresh user data and notify rest of app.
- */
 async function finalizeOnboarding(uid, firstName) {
   try {
-    const snap = await getDoc(doc(db, "users", uid));
+    const snap      = await getDoc(doc(db, "users", uid));
     const freshData = snap.data() || {};
-
     sessionStorage.removeItem("justSignedUp");
-
-    const updateEvent = new CustomEvent("userProfileUpdated", { detail: freshData });
-    window.dispatchEvent(updateEvent);
-
+    window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: freshData }));
     showSuccessAndClose(firstName, uid);
   } catch (e) {
     console.error("Finalize error:", e);
@@ -58,321 +51,379 @@ function showSuccessAndClose(name, uid) {
 
   panel.innerHTML = `
     <div class="flex flex-col items-center gap-4 py-6">
-      <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white text-3xl shadow-lg animate-bounce">
-        ✓
-      </div>
+      <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center
+                  text-white text-3xl shadow-lg animate-bounce">✓</div>
       <div class="text-xl font-bold">Welcome, ${name || "Student"}!</div>
       <p class="text-gray-400 text-sm text-center max-w-sm">
-        Your profile is set. Let's take a quick tour of the platform! 🚀
+        Your profile is set. Let's take a quick <strong>interactive tour</strong>! 🚀
       </p>
-    </div>
-  `;
+    </div>`;
 
   setTimeout(() => {
     hideOnboarding();
-    startGuidedTour(uid);
+    _startTour(uid, false);   // new users do NOT earn credits
   }, 1500);
 }
 
-/**
- * Build a rich tour step using the .mt-step component system.
- *
- * SECURITY NOTE: All parameters are hardcoded author-controlled strings, never
- * user-supplied data. Do not pass user input to this function.
- *
- * @param {string} icon - Emoji icon
- * @param {string} title - Step title (may contain <span class="mt-hl"> highlights)
- * @param {string} body - Main description paragraph
- * @param {Array<{label:string,type:string}>|null} chips - Optional stat chips
- * @param {string|null} tip - Optional tip card content
- * @param {number} stepNum - 1-based step number
- * @param {number} totalSteps - Total number of steps
- * @returns {string} HTML string
- */
-function buildStep(icon, title, body, chips, tip, stepNum, totalSteps) {
-  const chipsHtml = chips && chips.length
-    ? `<div class="mt-chips">${chips.map(c => `<span class="mt-chip${c.type ? " " + c.type : ""}">${c.label}</span>`).join("")}</div>`
-    : "";
-  const tipHtml = tip
-    ? `<div class="mt-tip"><strong>💡 Tip:</strong> ${tip}</div>`
-    : "";
-  return `
-    <div class="mt-step">
-      <div class="mt-step-badge">Step <span>${stepNum}</span> of ${totalSteps}</div>
-      <div class="mt-step-icon">${icon}</div>
-      <div class="mt-step-title">${title}</div>
-      <p class="mt-step-body">${body}</p>
-      ${chipsHtml}
-      ${tipHtml}
-    </div>`;
+// ══════════════════════════════════════════════════════════
+//  INTERACTIVE TOUR — step definitions
+//
+//  type "info"  → plain panel with a Next button
+//  type "click" → highlight element, wait for user to click it
+// ══════════════════════════════════════════════════════════
+
+const TOUR_STEPS = [
+  /* 1 – Welcome */
+  {
+    type: "info",
+    icon: "🎮",
+    title: `Welcome to <span class="mt-hl">Math Katy</span>!`,
+    body: `Your community hub for discovering and sharing game &amp; study sites.
+           This quick <strong>interactive tour</strong> has you click the highlighted
+           elements to move on — so you learn by doing! 🚀`,
+    btnLabel: "Start Tour →",
+    tip: "Existing users can retake the tutorial from their Account tab to earn 30 credits!",
+  },
+
+  /* 2 – Links tab (click to switch) */
+  {
+    type: "click",
+    elementId: "tourTabLinks",
+    icon: "🔗",
+    title: `The <span class="mt-hl">Links</span> Tab`,
+    body: `Browse game and study sites shared by your peers, open any card to view it inside
+           the platform, and rate links to help the community find the best ones.`,
+    instruction: "👆 Click the <strong>Links</strong> tab above to continue",
+    chips: [
+      { label: "Upvote = +10 🪙", type: "green" },
+      { label: "3 reports = auto-remove", type: "" },
+    ],
+  },
+
+  /* 3 – Search bar (click to focus) */
+  {
+    type: "click",
+    elementId: "linksSearch",
+    icon: "🔍",
+    title: `<span class="mt-hl">Search</span> &amp; Filter`,
+    body: `Instantly filter links by name or tag. The Sort dropdown lets you order by
+           Newest, Most Upvoted, or Highest Rated so you always find what you need.`,
+    instruction: "👆 Click the <strong>search bar</strong> to continue",
+    tip: "Sort by <strong>Highest Rated</strong> to find the community's top picks!",
+  },
+
+  /* 4 – Share button (click — nav prevented) */
+  {
+    type: "click",
+    elementId: "tourShareBtn",
+    preventNav: true,
+    icon: "➕",
+    title: `Share Links &amp; <span class="mt-hl">Earn Credits</span>`,
+    body: `Found something awesome? Hit <strong>+ Share</strong> to contribute it.
+           You earn <strong>+50 credits</strong> immediately, plus <strong>+10</strong>
+           for every upvote your link receives!`,
+    instruction: "👆 Click the <strong>Share</strong> button to continue",
+    chips: [
+      { label: "Share = +50 🪙", type: "green" },
+      { label: "Per upvote = +10 🪙", type: "green" },
+      { label: "Quality bonus = +50 🪙/mo", type: "" },
+    ],
+  },
+
+  /* 5 – Credits pill (info) */
+  {
+    type: "info",
+    elementId: "tourCreditsPill",
+    icon: "🪙",
+    title: `Credits &amp; <span class="mt-hl">Rank System</span>`,
+    body: `Credits are your platform currency and reputation. Earn them in multiple ways
+           and spend them to unlock more session time. Your rank rises as you accumulate.`,
+    btnLabel: "Got it! →",
+    chips: [
+      { label: "Basic", type: "" },
+      { label: "Silver", type: "" },
+      { label: "Gold", type: "purple" },
+      { label: "VIP", type: "purple" },
+    ],
+    tip: "Refer a friend and earn <strong>+150 credits</strong> — the fastest way to rank up!",
+  },
+
+  /* 6 – Session timer (info) */
+  {
+    type: "info",
+    elementId: "navSessionTime",
+    icon: "⏱️",
+    title: `Your <span class="mt-hl">Session Timer</span>`,
+    body: `Every new browser session starts with <strong>30 free minutes</strong> shared
+           across all links you open. When time runs low, top up for <strong>50 credits</strong>.
+           Higher ranks get more minutes per top-up — VIP gets 6 hours! ⚡`,
+    btnLabel: "Next →",
+    chips: [
+      { label: "Basic = 45 min/top-up", type: "" },
+      { label: "Silver = 60 min", type: "" },
+      { label: "Gold = 2 hrs", type: "purple" },
+      { label: "VIP = 6 hrs", type: "purple" },
+    ],
+    tip: "The timer only ticks while a link is open — browse the feed for free!",
+  },
+
+  /* 7 – Daily tab (click to switch) */
+  {
+    type: "click",
+    elementId: "tourTabDaily",
+    icon: "🔥",
+    title: `Daily <span class="mt-hl">Streak</span> Rewards`,
+    body: `Log in every day and claim your daily reward to build a streak. The longer
+           your streak, the bigger your daily payout. Miss a day and it resets to zero!`,
+    instruction: "👆 Click the <strong>Daily</strong> tab to continue",
+    tip: "Even a 2-day streak gives a bonus multiplier. Never miss a claim!",
+  },
+
+  /* 8 – Leaderboard tab (click to switch) */
+  {
+    type: "click",
+    elementId: "tourTabLeaderboard",
+    icon: "🏆",
+    title: `<span class="mt-hl">Leaderboard</span> &amp; Prizes`,
+    body: `The leaderboard ranks users by platform time each bi-monthly season.
+           The <strong>top 10</strong> players earn credit prizes when the season resets!`,
+    instruction: "👆 Click the <strong>Leaderboard</strong> tab to continue",
+    chips: [
+      { label: "Top 10 earn prizes", type: "green" },
+      { label: "Season resets bi-monthly", type: "" },
+    ],
+  },
+
+  /* 9 – Account tab (click to switch) */
+  {
+    type: "click",
+    elementId: "tourTabAccount",
+    icon: "👤",
+    title: `Your <span class="mt-hl">Account</span> &amp; Profile`,
+    body: `Your personal dashboard: credit balance, rank progress, and your unique
+           <strong>referral code</strong>. Share it with friends and earn
+           <strong>+150 credits</strong> for each sign-up! 🤝`,
+    instruction: "👆 Click the <strong>Account</strong> tab to continue",
+    chips: [
+      { label: "Referral = +150 🪙 each", type: "green" },
+    ],
+  },
+
+  /* 10 – Finale */
+  {
+    type: "info",
+    icon: "🎉",
+    title: "Tour Complete!",
+    body: `You now know everything about <strong style="color:#f1f5f9">Math Katy</strong>.
+           Start exploring, earn credits, climb the ranks, and share your favourite sites
+           with the community. Good luck! 🚀`,
+    btnLabel: "Let's Go! 🚀",
+    isFinale: true,
+  },
+];
+
+// ── Tour state ──────────────────────────────────────────
+let _tourUid          = null;
+let _tourAwardCredits = false;
+let _tourStep         = 0;
+let _activeClickEl    = null;
+let _activeClickFn    = null;
+
+/** Called after profile setup (new users – no credit award). */
+function _startTour(uid, awardCredits) {
+  _tourUid          = uid;
+  _tourAwardCredits = !!awardCredits;
+  _tourStep         = 0;
+  _showStep(0);
 }
 
-/**
- * Launch the professional Intro.js guided tour for new users.
- * The tour is non-bypassable (no skip, no ESC, no overlay-click-to-close).
- */
-function startGuidedTour(uid) {
-  if (typeof introJs === "undefined") {
-    markTourComplete(uid);
-    return;
+/** Public: start tutorial for existing users (awards +30 credits). */
+export function startTourForExistingUser(uid) {
+  _startTour(uid, true);
+}
+
+// ── Rendering helpers ───────────────────────────────────
+
+function _clearUI() {
+  document.getElementById("mtTourBackdrop")?.remove();
+  document.getElementById("mtTourTooltip")?.remove();
+  document.querySelector(".mt-tour-hl")?.classList.remove("mt-tour-hl");
+  if (_activeClickEl && _activeClickFn) {
+    _activeClickEl.removeEventListener("click", _activeClickFn, true);
+    _activeClickEl = null;
+    _activeClickFn = null;
   }
+}
 
-  const TOTAL = 14;
+function _showStep(idx) {
+  _clearUI();
 
-  const rawSteps = [
-    /* 1 — Welcome (no element highlight) */
-    {
-      intro: buildStep(
-        "🎮",
-        `Welcome to <span class="mt-hl">Math Katy</span>!`,
-        `Your community hub for discovering and sharing the best game &amp; study sites. This quick tour walks you through every feature — it'll only take about 90 seconds. Let's go! 🚀`,
-        null,
-        `You can revisit this tour anytime from the <strong>Account</strong> tab.`,
-        1, TOTAL
-      ),
-    },
+  if (idx >= TOUR_STEPS.length) { _completeTour(); return; }
+  _tourStep = idx;
 
-    /* 2 — Navigation tabs */
-    {
-      element: document.getElementById("tourNavTabs"),
-      intro: buildStep(
-        "🗺️",
-        `Your <span class="mt-hl">Navigation</span> Hub`,
-        `These tabs are your main compass. Every section of the platform lives here — switch instantly between <strong>Links</strong>, <strong>Daily</strong>, <strong>Leaderboard</strong>, <strong>News</strong>, and your <strong>Account</strong> without reloading the page.`,
-        null,
-        `The active tab is always highlighted. Your progress and credits update in real-time across all tabs.`,
-        2, TOTAL
-      ),
-      position: "bottom",
-    },
+  const step = TOUR_STEPS[idx];
+  const el   = step.elementId ? document.getElementById(step.elementId) : null;
 
-    /* 3 — Links tab */
-    {
-      element: document.getElementById("tourTabLinks"),
-      intro: buildStep(
-        "🔗",
-        `The <span class="mt-hl">Community Links</span> Feed`,
-        `This is where the magic happens. Browse game and study sites submitted by your peers, open any card to view the site <em>inside</em> the platform, and rate links to help others find the best ones. Bad link? Report it — 3 reports removes it automatically! 🧹`,
-        [
-          { label: "Upvote +10 🪙", type: "green" },
-          { label: "Review = visibility boost", type: "" },
-        ],
-        `Upvoting a link rewards <strong>+10 credits</strong> to you <em>and</em> encourages the sharer. Quality wins!`,
-        3, TOTAL
-      ),
-      position: "bottom",
-    },
+  if (step.type === "click") {
+    if (!el) { _showStep(idx + 1); return; }  // skip missing elements
+    _showClickStep(step, el, idx);
+  } else {
+    _showInfoStep(step, el, idx);
+  }
+}
 
-    /* 4 — Search & filter */
-    {
-      element: document.getElementById("linksSearch"),
-      intro: buildStep(
-        "🔍",
-        `<span class="mt-hl">Search</span> &amp; Filter`,
-        `Use the search bar to instantly filter links by name or tag. The <strong>Sort</strong> dropdown lets you reorder by <em>Newest</em>, <em>Most Upvoted</em>, or <em>Highest Rated</em> — so you always find exactly what you're looking for.`,
-        null,
-        `Sort by <strong>Highest Rated</strong> to surface the most loved community picks instantly.`,
-        4, TOTAL
-      ),
-      position: "bottom",
-    },
+function _chipsHtml(chips) {
+  if (!chips?.length) return "";
+  return `<div class="mt-chips">${chips.map(c =>
+    `<span class="mt-chip${c.type ? " " + c.type : ""}">${c.label}</span>`).join("")}</div>`;
+}
 
-    /* 5 — Share button */
-    {
-      element: document.getElementById("tourShareBtn"),
-      intro: buildStep(
-        "➕",
-        `Share Links &amp; <span class="mt-hl">Earn Credits</span>`,
-        `Found something awesome? Hit <strong>+ Share</strong> to contribute it to the community. You'll earn <strong>+50 credits</strong> immediately, and every upvote your link collects adds another <strong>+10 credits</strong> to your balance. You can also upload custom HTML pages!`,
-        [
-          { label: "Share = +50 🪙", type: "green" },
-          { label: "Per upvote = +10 🪙", type: "green" },
-          { label: "Quality bonus = +50 🪙/mo", type: "" },
-        ],
-        `Links with an average rating above 4.7 and 10+ reviews earn a monthly quality bonus!`,
-        5, TOTAL
-      ),
-      position: "bottom",
-    },
+function _tipHtml(tip) {
+  return tip ? `<div class="mt-tip"><strong>💡 Tip:</strong> ${tip}</div>` : "";
+}
 
-    /* 6 — Credits & tier pill */
-    {
-      element: document.getElementById("tourCreditsPill"),
-      intro: buildStep(
-        "🪙",
-        `Credits &amp; <span class="mt-hl">Rank System</span>`,
-        `Credits are your platform currency and reputation score. Earn them multiple ways and spend them to unlock more session time. Your rank rises as you accumulate credits, unlocking longer sessions and exclusive perks.`,
-        [
-          { label: "Basic", type: "" },
-          { label: "Silver", type: "" },
-          { label: "Gold", type: "purple" },
-          { label: "VIP", type: "purple" },
-        ],
-        `Refer a friend with your personal referral code and earn <strong>+150 credits</strong> — the fastest way to rank up!`,
-        6, TOTAL
-      ),
-      position: "bottom",
-    },
+function _buildTooltip(step, idx, isClick) {
+  const total       = TOUR_STEPS.length;
+  const pct         = Math.round(((idx + 1) / total) * 100);
+  const backBtn     = idx > 0
+    ? `<button id="mtTourBack" class="mt-tour-btn-back">← Back</button>` : "";
+  const nextBtn     = !isClick
+    ? `<button id="mtTourNext" class="mt-tour-btn-next">${step.btnLabel || "Next →"}</button>` : "";
+  const instrHtml   = isClick && step.instruction
+    ? `<div class="mt-tour-instr">${step.instruction}</div>` : "";
 
-    /* 7 — Session timer */
-    {
-      element: document.getElementById("navSessionTime"),
-      intro: buildStep(
-        "⏱️",
-        `Your <span class="mt-hl">Session Timer</span>`,
-        `Every new browser session starts with <strong>30 free minutes</strong> shared across all links you open. When time runs low, click this button to top up for <strong>50 credits</strong>. Higher ranks get more minutes per top-up — VIP gets a whopping 6 hours per purchase! ⚡`,
-        [
-          { label: "Basic = 45 min/top-up", type: "" },
-          { label: "Silver = 60 min", type: "" },
-          { label: "Gold = 2 hrs", type: "purple" },
-          { label: "VIP = 6 hrs", type: "purple" },
-        ],
-        `The timer only counts down while you have a link open inside the platform, so browse the feed for free!`,
-        7, TOTAL
-      ),
-      position: "bottom",
-    },
+  const div = document.createElement("div");
+  div.id        = "mtTourTooltip";
+  div.className = "mt-tour-tooltip" + (step.isFinale ? " mt-tour-finale" : "");
+  div.innerHTML = `
+    <div class="mt-tour-prog-wrap"><div class="mt-tour-prog" style="width:${pct}%"></div></div>
+    <div class="mt-step-badge">Step <span>${idx + 1}</span> of ${total}</div>
+    <div class="mt-step-icon">${step.icon}</div>
+    <div class="mt-step-title">${step.title}</div>
+    <p class="mt-step-body">${step.body}</p>
+    ${_chipsHtml(step.chips)}
+    ${_tipHtml(step.tip)}
+    ${instrHtml}
+    ${(backBtn || nextBtn)
+      ? `<div class="mt-tour-btn-row">${backBtn}${nextBtn}</div>`
+      : ""}
+  `;
+  return div;
+}
 
-    /* 8 — Inbox / notifications bell */
-    {
-      element: document.getElementById("notifBtn"),
-      intro: buildStep(
-        "🔔",
-        `<span class="mt-hl">Notifications</span> &amp; Inbox`,
-        `The bell icon shows your notification count. Receive alerts when someone upvotes your links, when your appeal vote is counted, or when the platform has an important announcement. Click the bell or visit your full <strong>Inbox</strong> to stay in the loop.`,
-        null,
-        `Red badge = unread messages. Keep it at zero to never miss credit rewards or community updates!`,
-        8, TOTAL
-      ),
-      position: "bottom",
-    },
+function _positionTooltip(tooltip, target) {
+  requestAnimationFrame(() => {
+    const r   = target.getBoundingClientRect();
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    const th  = tooltip.offsetHeight || 320;
+    const tw  = tooltip.offsetWidth  || 340;
 
-    /* 9 — Daily streak */
-    {
-      element: document.getElementById("tourTabDaily"),
-      intro: buildStep(
-        "🔥",
-        `Daily <span class="mt-hl">Streak</span> Rewards`,
-        `Log in every day and claim your daily reward to build a streak. The longer your streak, the bigger your daily payout. Miss a day and the streak resets to zero — consistency is rewarded! Hit milestone streaks for special bonus credits and badges. 🏆`,
-        null,
-        `Even a 2-day streak gives a bonus multiplier. Set a daily reminder and never miss a claim!`,
-        9, TOTAL
-      ),
-      position: "bottom",
-    },
+    let top  = r.bottom + 12;
+    let left = r.left;
 
-    /* 10 — Leaderboard */
-    {
-      element: document.getElementById("tourTabLeaderboard"),
-      intro: buildStep(
-        "🏆",
-        `<span class="mt-hl">Leaderboard</span> &amp; Prizes`,
-        `The leaderboard ranks users by time spent on the platform each bi-monthly season. The <strong>top 10</strong> players earn credit prizes when the season resets — and the higher your rank, the bigger the payout. Can you claim the #1 spot? 💰`,
-        [
-          { label: "Top 10 earn prizes", type: "green" },
-          { label: "Season resets bi-monthly", type: "" },
-        ],
-        `Stack your session time and keep your daily streak active to dominate the leaderboard!`,
-        10, TOTAL
-      ),
-      position: "bottom",
-    },
+    if (top + th > vpH - 8) {
+      top = r.top - th - 12;
+      if (top < 8) top = 8;
+    }
+    if (left + tw > vpW - 8) left = vpW - tw - 8;
+    if (left < 8)             left = 8;
 
-    /* 11 — Chat */
-    {
-      element: document.getElementById("tourTabChat"),
-      intro: buildStep(
-        "💬",
-        `Private <span class="mt-hl">Chat</span> — Now Live!`,
-        `Send private, 1-on-1 messages to any Math Katy user using their <strong>Chat ID</strong>. Messages auto-delete after 6 hours for privacy. Your Chat ID is visible on your <strong>Account</strong> tab and in the Chat panel. To access it, you need <strong>Gold rank</strong> (300+ credits) or at least <strong>1 referral</strong>.`,
-        [
-          { label: "Gold rank OR 1 referral", type: "purple" },
-          { label: "Auto-deletes after 6h", type: "" },
-        ],
-        `Find your Chat ID on your Account tab and share it with friends to start a private conversation!`,
-        11, TOTAL
-      ),
-      position: "bottom",
-    },
-
-    /* 12 — News */
-    {
-      element: document.getElementById("tourTabNews"),
-      intro: buildStep(
-        "📰",
-        `News &amp; <span class="mt-hl">Announcements</span>`,
-        `Stay in the loop with platform updates, new feature rollouts, and community announcements. Check the News tab regularly for limited-time credit events, bonus promotions, and new features.`,
-        null,
-        `New features are announced in the News tab first — check it often!`,
-        12, TOTAL
-      ),
-      position: "bottom",
-    },
-
-    /* 13 — Account */
-    {
-      element: document.getElementById("tourTabAccount"),
-      intro: buildStep(
-        "👤",
-        `Your <span class="mt-hl">Account</span> &amp; Profile`,
-        `The Account tab is your personal dashboard. View your credit balance, rank progress, submission history, and your unique <strong>referral code</strong>. Share that code with friends — each person who signs up through it earns you <strong>+150 credits</strong>! You can also customise your avatar, bio, and display name here. 🤝`,
-        [
-          { label: "Referral = +150 🪙 each", type: "green" },
-        ],
-        `Your referral code is permanent. Post it on social media or share it in class for passive credit income!`,
-        13, TOTAL
-      ),
-      position: "bottom",
-    },
-
-    /* 14 — Finale (no element) */
-    {
-      intro: `<div class="mt-finale">
-        <span class="mt-finale-emoji">🎉</span>
-        <div class="mt-finale-title">Tour Complete!</div>
-        <p class="mt-finale-body">
-          You now know everything there is to know about <strong style="color:#f1f5f9">Math Katy</strong>.
-          Start exploring, earn credits, climb the ranks, and share your favourite sites with the community.
-          Good luck out there! 🚀
-        </p>
-        <p class="mt-finale-sub">Hit <em>Let's Go!</em> to dive in.</p>
-      </div>`,
-    },
-  ].filter(s => !s.element || document.body.contains(s.element));
-
-  const tour = introJs().setOptions({
-    steps: rawSteps,
-    showProgress: true,
-    showBullets: false,
-    showStepNumbers: false,
-    exitOnOverlayClick: false,
-    exitOnEsc: false,
-    showSkipButton: false,
-    nextLabel: "Next &rarr;",
-    prevLabel: "&larr; Back",
-    doneLabel: "Let&rsquo;s Go! 🚀",
-    tooltipClass: "math-tour-tooltip",
-    overlayOpacity: 0.72,
-    scrollToElement: true,
-    scrollPadding: 80,
-    disableInteraction: false,
-    helperElementPadding: 10,
+    tooltip.style.top       = top  + "px";
+    tooltip.style.left      = left + "px";
+    tooltip.style.transform = "none";
   });
-
-  tour.oncomplete(() => markTourComplete(uid));
-  tour.onexit(() => markTourComplete(uid));
-
-  setTimeout(() => tour.start(), 150);
 }
 
-async function markTourComplete(uid) {
-  if (!uid) return;
+function _wireButtons(tooltip, idx) {
+  tooltip.querySelector("#mtTourNext")?.addEventListener("click", () => {
+    TOUR_STEPS[idx].isFinale ? _completeTour() : _showStep(idx + 1);
+  });
+  tooltip.querySelector("#mtTourBack")?.addEventListener("click", () => _showStep(idx - 1));
+}
+
+function _showInfoStep(step, el, idx) {
+  if (el) {
+    el.classList.add("mt-tour-hl");
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } else {
+    // Full-screen dim backdrop for floating centred panels
+    const bd  = document.createElement("div");
+    bd.id     = "mtTourBackdrop";
+    bd.className = "mt-tour-backdrop";
+    document.body.appendChild(bd);
+  }
+
+  const tooltip = _buildTooltip(step, idx, false);
+  document.body.appendChild(tooltip);
+  if (el) _positionTooltip(tooltip, el);
+  _wireButtons(tooltip, idx);
+}
+
+function _showClickStep(step, el, idx) {
+  el.classList.add("mt-tour-hl");
+  el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  const tooltip = _buildTooltip(step, idx, true);
+  document.body.appendChild(tooltip);
+  _positionTooltip(tooltip, el);
+  _wireButtons(tooltip, idx);   // wires Back only (no Next on click steps)
+
+  const fn = (e) => {
+    if (step.preventNav) { e.preventDefault(); e.stopPropagation(); }
+    el.removeEventListener("click", fn, true);
+    _activeClickEl = null;
+    _activeClickFn = null;
+    _clearUI();
+    setTimeout(() => _showStep(idx + 1), 280);
+  };
+  el.addEventListener("click", fn, true);
+  _activeClickEl = el;
+  _activeClickFn = fn;
+}
+
+// ── Tour completion ─────────────────────────────────────
+
+async function _completeTour() {
+  _clearUI();
+
   try {
-    await updateDoc(doc(db, "users", uid), { tourComplete: true });
+    if (_tourAwardCredits && _tourUid) {
+      await updateDoc(doc(db, "users", _tourUid), {
+        credits:               increment(30),
+        totalEarned:           increment(30),
+        tutorialCreditClaimed: true,
+        tourComplete:          true,
+      });
+      _showToast("🎉 +30 credits earned for completing the tutorial!");
+      // Refresh UI across the app
+      const snap = await getDoc(doc(db, "users", _tourUid));
+      if (snap.exists()) {
+        window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: snap.data() }));
+      }
+    } else {
+      await updateDoc(doc(db, "users", _tourUid), { tourComplete: true });
+    }
   } catch (e) {
-    console.warn("Could not mark tour complete:", e);
+    console.warn("Tour complete write failed:", e);
   }
 }
+
+function _showToast(msg) {
+  const t = document.createElement("div");
+  t.className = "mt-tour-toast";
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("mt-tour-toast-show"));
+  setTimeout(() => {
+    t.classList.remove("mt-tour-toast-show");
+    setTimeout(() => t.remove(), 420);
+  }, 4500);
+}
+
+// ══════════════════════════════════════════════════════════
+//  PROFILE SETUP FORM
+// ══════════════════════════════════════════════════════════
 
 async function handleSave() {
   if (_isSaving) return;
@@ -381,39 +432,29 @@ async function handleSave() {
   if (!uid) return;
 
   const first = (firstInput?.value || "").trim();
-  const last = (lastInput?.value || "").trim();
-  const grade = gradeSelect?.value || "";
+  const last  = (lastInput?.value  || "").trim();
+  const grade = gradeSelect?.value  || "";
 
   if (errorEl) errorEl.textContent = "";
 
   if (!first || first.length < 2) {
     if (errorEl) errorEl.textContent = "Please enter your first name (at least 2 characters).";
-    firstInput?.focus();
-    return;
+    firstInput?.focus(); return;
   }
-
   if (first.length > 20) {
     if (errorEl) errorEl.textContent = "First name is too long (max 20 characters).";
-    firstInput?.focus();
-    return;
+    firstInput?.focus(); return;
   }
-
   if (!grade) {
     if (errorEl) errorEl.textContent = "Please select your grade.";
-    gradeSelect?.focus();
-    return;
+    gradeSelect?.focus(); return;
   }
 
   setSavingState(true);
-
   try {
     await updateDoc(doc(db, "users", uid), {
-      firstName: first,
-      lastName: last,
-      grade: grade,
-      onboardingComplete: true,
+      firstName: first, lastName: last, grade, onboardingComplete: true,
     });
-
     await finalizeOnboarding(uid, first);
   } catch (err) {
     console.error("Onboarding save error:", err);
@@ -422,16 +463,7 @@ async function handleSave() {
   }
 }
 
-saveBtn?.addEventListener("click", (e) => {
-  e.preventDefault();
-  handleSave();
-});
-
-[firstInput, lastInput].forEach((el) => {
-  el?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSave();
-    }
-  });
+saveBtn?.addEventListener("click", (e) => { e.preventDefault(); handleSave(); });
+[firstInput, lastInput].forEach(el => {
+  el?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); handleSave(); } });
 });

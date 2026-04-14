@@ -2,9 +2,11 @@ import { auth, db } from "./firebase.js";
 import { doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier, getNextTierInfo } from "./tier.js"; 
 import { handleDeleteAccount } from "./deleteAccount.js";
+import { startTourForExistingUser } from "./onboarding.js";
 
-const accountInfo = document.getElementById("accountInfo");
+const accountInfo  = document.getElementById("accountInfo");
 const referralArea = document.getElementById("referralArea");
+const tutorialArea = document.getElementById("tutorialArea");
 
 // Form Elements
 const editForm = document.getElementById("editProfileForm");
@@ -197,6 +199,7 @@ export async function updateAccount(userData) {
     });
 
     renderReferralUI(data.referralCode);
+    renderTutorialCard(data);
 }
 
 /** Minimal HTML escape */
@@ -272,6 +275,56 @@ function renderReferralUI(code) {
             };
         }
     }
+}
+
+/**
+ * Renders the "Take Tutorial & Earn 30 Credits" card for existing users
+ * who have not yet claimed the tutorial credit reward.
+ */
+function renderTutorialCard(data) {
+    if (!tutorialArea) return;
+    if (data.tutorialCreditClaimed) {
+        // Already claimed — show a subtle "completed" badge
+        tutorialArea.innerHTML = `
+            <div class="mt-4 p-4 bg-gray-900/40 border border-gray-700/50 rounded-2xl flex items-center gap-3">
+                <div class="text-green-400 text-xl">✅</div>
+                <div>
+                    <div class="text-xs font-bold text-green-400">Tutorial Completed</div>
+                    <div class="text-[11px] text-gray-500 mt-0.5">You've already earned your +30 credits reward!</div>
+                </div>
+            </div>`;
+        return;
+    }
+
+    tutorialArea.innerHTML = `
+        <div class="mt-4 p-4 bg-gradient-to-br from-blue-950/60 to-purple-950/60
+                    border border-blue-500/30 rounded-2xl shadow-lg">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600
+                            flex items-center justify-center text-xl shrink-0">🎓</div>
+                <div>
+                    <div class="text-sm font-bold text-white">Take the Interactive Tutorial</div>
+                    <div class="text-[11px] text-blue-300 mt-0.5">Learn all the features and earn <strong>+30 credits</strong>!</div>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mb-3 leading-relaxed">
+                The tutorial walks you through every feature of Math Katy — and this time
+                you'll need to click and interact with things to move on.
+                Complete it to earn <strong class="text-yellow-300">+30 🪙 credits</strong>!
+            </p>
+            <button id="startTutorialBtn"
+                    class="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600
+                           hover:from-blue-500 hover:to-purple-500 text-white text-sm font-bold
+                           transition-all shadow active:scale-95">
+                🚀 Start Tutorial (+30 🪙)
+            </button>
+        </div>`;
+
+    document.getElementById("startTutorialBtn")?.addEventListener("click", () => {
+        const uid = auth.currentUser?.uid;
+        if (!uid) return;
+        startTourForExistingUser(uid);
+    });
 }
 
 // --- Interaction Logic ---

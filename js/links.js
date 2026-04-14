@@ -956,14 +956,22 @@ function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpi
   frame.src = "";
   loader.classList.remove("hidden");
   // Re-use the loading animation if it has already completed (avoids a costly
-  // Babylon.js reload). After the first run, switch to a lightweight CSS spinner
+  // Babylon.js reload). After the first run, show a random spot-file ad page
   // so Babylon.js does not consume GPU/CPU on every subsequent open.
   if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
   if (loadingAnimCompleted) {
-    // Animation already played — skip Babylon.js, use CSS spinner instead.
+    // Animation already played — skip Babylon.js, show spot-file ad loader instead.
     animationDone = true;
     if (loadingFrame) loadingFrame.style.display = "none";
-    if (quickLoader)  quickLoader.classList.remove("hidden");
+    if (quickLoader) {
+      // Pick a fresh random spot file on each open
+      const _qf = document.getElementById("quickLoaderFrame");
+      if (_qf) {
+        const _n = Math.floor(Math.random() * 20) + 1;
+        _qf.src = "spot_" + (_n < 10 ? "0" + _n : "" + _n) + ".html";
+      }
+      quickLoader.classList.remove("hidden");
+    }
   } else {
     // First open: (re)load the animation so Babylon.js initialises.
     if (loadingFrame) { loadingFrame.style.display = ""; loadingFrame.src = "loading.html"; }
