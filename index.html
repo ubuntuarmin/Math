@@ -181,6 +181,7 @@
         <button class="tab-btn" data-tab="leaderboard" id="tourTabLeaderboard">🏆 Top</button>
         <button class="tab-btn" data-tab="appeals">⚖️ Appeals</button>
         <button class="tab-btn" data-tab="news" id="tourTabNews">📰 News</button>
+        <button class="tab-btn" data-tab="chat" id="tourTabChat">💬 Chat</button>
         <button class="tab-btn" data-tab="account" id="tourTabAccount">👤 Account</button>
         <button class="tab-btn" data-tab="admin">🛡️ Admin</button>
       </div>
@@ -573,52 +574,52 @@
 
     <!-- NEWS TAB -->
     <div id="tab-news" class="tab-content">
-      <!-- ══ FEATURED ANNOUNCEMENT: Social Chat ══ -->
-      <div class="mb-6 rounded-3xl overflow-hidden border border-indigo-500/40
-                  bg-gradient-to-br from-indigo-950/80 via-purple-950/70 to-slate-900/80
-                  shadow-[0_0_60px_rgba(99,102,241,0.18)]">
-        <!-- Pulsing accent bar -->
-        <div class="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+      <!-- ══ FEATURED ANNOUNCEMENT: Private Chat LIVE ══ -->
+      <div class="mb-6 rounded-3xl overflow-hidden border border-emerald-500/40
+                  bg-gradient-to-br from-emerald-950/80 via-teal-950/70 to-slate-900/80
+                  shadow-[0_0_60px_rgba(16,185,129,0.15)]">
+        <!-- Accent bar -->
+        <div class="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-500"></div>
         <div class="p-6 sm:p-8">
           <div class="flex flex-wrap items-center gap-3 mb-4">
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold
-                         bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 animate-pulse">
-              🔔 New Announcement
+                         bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              🎉 Now Live
             </span>
             <span class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">April 2026</span>
           </div>
 
           <div class="flex flex-col lg:flex-row lg:items-center gap-6">
             <!-- Icon -->
-            <div class="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600
+            <div class="shrink-0 w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600
                         flex items-center justify-center text-3xl shadow-lg
-                        shadow-indigo-500/30">
+                        shadow-emerald-500/30">
               💬
             </div>
 
             <!-- Copy -->
             <div class="flex-1 min-w-0">
               <h2 class="text-2xl sm:text-3xl font-black text-white mb-1 leading-tight">
-                Social Chat — <span class="text-transparent bg-clip-text
-                  bg-gradient-to-r from-indigo-400 to-purple-400">Coming Soon</span>
+                Private Chat — <span class="text-transparent bg-clip-text
+                  bg-gradient-to-r from-emerald-400 to-teal-400">Now Live!</span>
               </h2>
               <p class="text-gray-300 text-sm leading-relaxed max-w-2xl">
-                Real-time group chat is on its way to Math Katy! Connect with other students,
-                discuss resources, and coordinate study sessions — all without leaving the platform.
+                Real-time private messaging is here! Chat 1-on-1 with any other Math Katy user using their
+                Chat ID. Messages auto-delete after 6 hours for privacy. Use the <strong>💬 Chat</strong> tab to get started.
               </p>
 
               <!-- Access requirements -->
               <div class="mt-4 p-4 rounded-2xl bg-black/30 border border-white/10">
                 <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">
-                  🔒 Early Access Requirements — meet <em>one</em> of the following:
+                  🔒 Access Requirements — meet <em>one</em> of the following:
                 </p>
                 <div class="flex flex-wrap gap-3">
                   <div class="flex items-center gap-2 px-3 py-2 rounded-xl
                               bg-emerald-500/10 border border-emerald-500/30">
                     <span class="text-lg">🤝</span>
                     <div>
-                      <p class="text-xs font-bold text-emerald-300">2 Successful Referrals</p>
-                      <p class="text-[11px] text-gray-500">Invite 2 friends who join &amp; verify.</p>
+                      <p class="text-xs font-bold text-emerald-300">1 Successful Referral</p>
+                      <p class="text-[11px] text-gray-500">Invite 1 friend who signs up.</p>
                     </div>
                   </div>
                   <div class="flex items-center gap-2 px-3 py-2 rounded-xl
@@ -635,7 +636,7 @@
           </div>
 
           <p class="mt-5 text-xs text-gray-600 text-right">
-            Chat functionality is UI-planned only — backend release date TBA.
+            Messages are moderated and auto-purged after 6 hours. End-to-end privacy by design.
           </p>
         </div>
       </div>
@@ -643,8 +644,8 @@
       <!-- Header -->
       <div class="surface mb-6">
         <div class="flex flex-wrap items-center gap-3 mb-3">
-          <span class="badge bg-violet-500/15 text-violet-300 border-violet-500/30">📰 Coming Soon</span>
-          <span class="text-[10px] text-gray-600 uppercase tracking-widest font-bold">April 2026 Roadmap</span>
+          <span class="badge bg-violet-500/15 text-violet-300 border-violet-500/30">📰 April 2026 Updates</span>
+          <span class="text-[10px] text-gray-600 uppercase tracking-widest font-bold">Roadmap</span>
         </div>
         <h2 class="text-2xl font-black text-white mb-2">What's Coming to Math Katy</h2>
         <p class="text-gray-400 text-sm max-w-xl leading-relaxed">
@@ -822,6 +823,16 @@
         <p class="mt-5 text-center text-xs text-gray-600">
           More updates in progress — follow the community for announcements. 🚀
         </p>
+      </div>
+    </div>
+
+    <!-- CHAT TAB -->
+    <div id="tab-chat" class="tab-content">
+      <div id="chatTabContent">
+        <!-- Loading (replaced by JS) -->
+        <div class="flex justify-center py-12">
+          <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
       </div>
     </div>
 
@@ -1392,6 +1403,7 @@
 <script type="module" src="./js/leaderboard.js"></script>
 <script type="module" src="./js/account.js"></script>
 <script type="module" src="./js/admin.js"></script>
+<script type="module" src="./js/chatTab.js"></script>
 
 <script>
   // ── Tab switcher ──────────────────────────────────────────

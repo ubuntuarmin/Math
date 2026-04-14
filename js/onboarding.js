@@ -117,7 +117,7 @@ function startGuidedTour(uid) {
     return;
   }
 
-  const TOTAL = 13;
+  const TOTAL = 14;
 
   const rawSteps = [
     /* 1 — Welcome (no element highlight) */
@@ -278,21 +278,38 @@ function startGuidedTour(uid) {
       position: "bottom",
     },
 
-    /* 11 — News */
+    /* 11 — Chat */
     {
-      element: document.getElementById("tourTabNews"),
+      element: document.getElementById("tourTabChat"),
       intro: buildStep(
-        "📰",
-        `News &amp; <span class="mt-hl">Announcements</span>`,
-        `Stay in the loop with platform updates, new feature rollouts, and community announcements. The upcoming <strong>Social Chat</strong> feature is almost here — Gold Rank members and users with 2+ referrals get early access. 💬`,
-        null,
-        `Check News regularly — limited-time credit events and bonus promotions are announced here first!`,
+        "💬",
+        `Private <span class="mt-hl">Chat</span> — Now Live!`,
+        `Send private, 1-on-1 messages to any Math Katy user using their <strong>Chat ID</strong>. Messages auto-delete after 6 hours for privacy. Your Chat ID is visible on your <strong>Account</strong> tab and in the Chat panel. To access it, you need <strong>Gold rank</strong> (300+ credits) or at least <strong>1 referral</strong>.`,
+        [
+          { label: "Gold rank OR 1 referral", type: "purple" },
+          { label: "Auto-deletes after 6h", type: "" },
+        ],
+        `Find your Chat ID on your Account tab and share it with friends to start a private conversation!`,
         11, TOTAL
       ),
       position: "bottom",
     },
 
-    /* 12 — Account */
+    /* 12 — News */
+    {
+      element: document.getElementById("tourTabNews"),
+      intro: buildStep(
+        "📰",
+        `News &amp; <span class="mt-hl">Announcements</span>`,
+        `Stay in the loop with platform updates, new feature rollouts, and community announcements. Check the News tab regularly for limited-time credit events, bonus promotions, and new features.`,
+        null,
+        `New features are announced in the News tab first — check it often!`,
+        12, TOTAL
+      ),
+      position: "bottom",
+    },
+
+    /* 13 — Account */
     {
       element: document.getElementById("tourTabAccount"),
       intro: buildStep(
@@ -303,12 +320,12 @@ function startGuidedTour(uid) {
           { label: "Referral = +150 🪙 each", type: "green" },
         ],
         `Your referral code is permanent. Post it on social media or share it in class for passive credit income!`,
-        12, TOTAL
+        13, TOTAL
       ),
       position: "bottom",
     },
 
-    /* 13 — Finale (no element) */
+    /* 14 — Finale (no element) */
     {
       intro: `<div class="mt-finale">
         <span class="mt-finale-emoji">🎉</span>
