@@ -3,6 +3,9 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "database": {
+    "rules": "database.rules.json"
+  },
   "hosting": {
     "public": ".",
     "ignore": [
@@ -12,7 +15,8 @@
       "node_modules/**",
       "package.json",
       "package-lock.json",
-      "firestore.rules"
+      "firestore.rules",
+      "database.rules.json"
     ]
   }
 }

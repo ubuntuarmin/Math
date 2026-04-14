@@ -1,0 +1,334 @@
+import { auth, db, rtdb } from "./firebase.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  ref,
+  push,
+  onChildAdded,
+  onValue,
+  remove,
+  query as rtdbQuery,
+  orderByChild,
+  endAt,
+  get,
+  serverTimestamp,
+  off,
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const SIX_HOURS_MS   = 6 * 60 * 60 * 1000;
+const MAX_MSG_LEN    = 500;
+const MSG_DISPLAY_LIMIT = 50; // only load last 50 messages via client-side slice
+
+// Gold tier requires 300+ lifetime credits
+const GOLD_MIN_EARNED = 300;
+
+// ── Bad-word list (basic moderation) ─────────────────────────────────────────
+// Uses word-boundary matching so partial matches don't trigger false positives.
+const BAD_WORDS = [
+  "fuck", "shit", "bitch", "asshole", "bastard", "cunt", "dick", "cock",
+  "pussy", "nigger", "nigga", "faggot", "retard", "whore", "slut",
+  "motherfucker", "motherfucking",
+];
+const BAD_WORD_RE = new RegExp(
+  `\\b(${BAD_WORDS.join("|")})\\b`,
+  "i"
+);
+
+function containsBadWord(text) {
+  return BAD_WORD_RE.test(text);
+}
+
+// ── Private room ID ───────────────────────────────────────────────────────────
+// Deterministic: sort both UIDs alphabetically so both users always land in the
+// same room regardless of who initiates the conversation.
+function buildRoomId(uid1, uid2) {
+  return [uid1, uid2].sort().join("_");
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _currentUser   = null;
+let _userData      = null;
+let _activeRoomId  = null;
+let _activeListener = null; // Firebase RTDB off() handle
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const chatLoading    = document.getElementById("chatLoading");
+const accessGate     = document.getElementById("accessGate");
+const chatApp        = document.getElementById("chatApp");
+const myChatIdEl     = document.getElementById("myChatId");
+const copyIdBtn      = document.getElementById("copyIdBtn");
+const partnerInput   = document.getElementById("partnerIdInput");
+const startChatBtn   = document.getElementById("startChatBtn");
+const startChatError = document.getElementById("startChatError");
+const chatRoom       = document.getElementById("chatRoom");
+const partnerLabel   = document.getElementById("partnerLabel");
+const chatMessages   = document.getElementById("chatMessages");
+const noMessages     = document.getElementById("noMessages");
+const chatInput      = document.getElementById("chatInput");
+const sendBtn        = document.getElementById("sendBtn");
+const closeChatBtn   = document.getElementById("closeChatBtn");
+
+// ── Check access ──────────────────────────────────────────────────────────────
+function hasAccess(userData) {
+  const totalEarned  = userData.totalEarned || 0;
+  const referralCount = (userData.referrals || []).length;
+  return totalEarned >= GOLD_MIN_EARNED || referralCount >= 1;
+}
+
+// ── Auth flow ─────────────────────────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    window.location.href = "index.html";
+    return;
+  }
+  _currentUser = user;
+
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    _userData = snap.exists() ? snap.data() : {};
+  } catch (_) {
+    _userData = {};
+  }
+
+  chatLoading?.classList.add("hidden");
+
+  if (!hasAccess(_userData)) {
+    accessGate?.classList.remove("hidden");
+    return;
+  }
+
+  // Show chat UI
+  chatApp?.classList.remove("hidden");
+  if (myChatIdEl) myChatIdEl.textContent = user.uid;
+
+  // Pre-fill partner from URL param (e.g. chat.html?partner=UID)
+  const urlPartner = new URLSearchParams(window.location.search).get("partner");
+  if (urlPartner && partnerInput) {
+    partnerInput.value = urlPartner;
+    openRoom(urlPartner);
+  }
+});
+
+// ── Copy Chat ID ──────────────────────────────────────────────────────────────
+copyIdBtn?.addEventListener("click", () => {
+  if (!_currentUser) return;
+  navigator.clipboard.writeText(_currentUser.uid).then(() => {
+    copyIdBtn.textContent = "✓ Copied!";
+    setTimeout(() => { copyIdBtn.textContent = "📋 Copy"; }, 2000);
+  });
+});
+
+// ── Start / open chat room ────────────────────────────────────────────────────
+startChatBtn?.addEventListener("click", openChat);
+partnerInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); openChat(); }
+});
+
+function openChat() {
+  if (!_currentUser) return;
+  const partnerId = (partnerInput?.value || "").trim();
+
+  if (startChatError) startChatError.classList.add("hidden");
+
+  if (!partnerId) {
+    showError("Please enter a Chat ID.");
+    return;
+  }
+  if (partnerId === _currentUser.uid) {
+    showError("You can't chat with yourself.");
+    return;
+  }
+  // Basic UID format sanity check (Firebase UIDs are 28 chars, alphanumeric + hyphens)
+  if (!/^[a-zA-Z0-9_\-]{20,128}$/.test(partnerId)) {
+    showError("That doesn't look like a valid Chat ID.");
+    return;
+  }
+
+  openRoom(partnerId);
+}
+
+function showError(msg) {
+  if (!startChatError) return;
+  startChatError.textContent = msg;
+  startChatError.classList.remove("hidden");
+}
+
+// ── Open a specific chat room ──────────────────────────────────────────────────
+function openRoom(partnerId) {
+  // Detach any previous listener
+  detachListener();
+
+  _activeRoomId = buildRoomId(_currentUser.uid, partnerId);
+
+  if (partnerLabel) partnerLabel.textContent = partnerId;
+  if (chatMessages) {
+    chatMessages.innerHTML = "";
+    if (noMessages) {
+      noMessages.textContent = "No messages yet — say hello! 👋";
+      chatMessages.appendChild(noMessages);
+    }
+  }
+
+  chatRoom?.classList.remove("hidden");
+
+  // Subscribe to new messages
+  const messagesRef = ref(rtdb, `chats/${_activeRoomId}/messages`);
+  const renderedIds = new Set();
+
+  _activeListener = messagesRef;
+  onChildAdded(messagesRef, (snapshot) => {
+    const msgId = snapshot.key;
+    if (renderedIds.has(msgId)) return;
+    renderedIds.add(msgId);
+
+    const data = snapshot.val();
+    if (!data || !data.text) return;
+
+    // Hide "no messages" placeholder
+    if (noMessages && chatMessages.contains(noMessages)) {
+      chatMessages.removeChild(noMessages);
+    }
+
+    appendMessage(data);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  });
+}
+
+function detachListener() {
+  if (_activeListener) {
+    off(_activeListener);
+    _activeListener = null;
+  }
+  _activeRoomId = null;
+}
+
+// ── Render a message bubble ───────────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function appendMessage(data) {
+  if (!chatMessages) return;
+  const isMe = data.senderId === _currentUser?.uid;
+  const timeStr = data.timestamp
+    ? new Date(data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "";
+
+  const wrapper = document.createElement("div");
+  wrapper.className = `flex ${isMe ? "justify-end" : "justify-start"}`;
+  wrapper.innerHTML = `
+    <div class="max-w-[75%]">
+      <div class="${isMe ? "msg-bubble-me text-white" : "msg-bubble-them text-gray-100"} px-4 py-2.5 text-sm leading-relaxed">
+        ${escapeHtml(data.text)}
+      </div>
+      <div class="text-[10px] text-gray-600 mt-1 ${isMe ? "text-right" : "text-left"} px-1">${timeStr}</div>
+    </div>`;
+  chatMessages.appendChild(wrapper);
+}
+
+// ── Send a message ────────────────────────────────────────────────────────────
+sendBtn?.addEventListener("click", sendMessage);
+chatInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// Simple client-side rate limit: max 20 messages per minute
+const _sendLog = [];
+function isRateLimited() {
+  const now = Date.now();
+  // Remove entries older than 60 seconds
+  while (_sendLog.length && now - _sendLog[0] > 60000) _sendLog.shift();
+  if (_sendLog.length >= 20) return true;
+  _sendLog.push(now);
+  return false;
+}
+
+async function sendMessage() {
+  if (!_currentUser || !_activeRoomId) return;
+
+  const text = (chatInput?.value || "").trim();
+  if (!text) return;
+
+  if (text.length > MAX_MSG_LEN) {
+    alert(`Message too long (max ${MAX_MSG_LEN} characters).`);
+    return;
+  }
+
+  if (containsBadWord(text)) {
+    alert("Your message contains inappropriate language. Please keep the conversation respectful. 🤝");
+    return;
+  }
+
+  if (isRateLimited()) {
+    alert("You're sending messages too fast. Please wait a moment.");
+    return;
+  }
+
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const messagesRef = ref(rtdb, `chats/${_activeRoomId}/messages`);
+    await push(messagesRef, {
+      text,
+      senderId: _currentUser.uid,
+      timestamp: Date.now(), // client-time used for ordering; server timestamp isn't available as a value in RTDB push
+    });
+
+    if (chatInput) chatInput.value = "";
+
+    // Immediately prune messages older than 6 hours
+    pruneOldMessages(_activeRoomId);
+  } catch (err) {
+    console.error("Send error:", err);
+    alert("Failed to send message. Please try again.");
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+    chatInput?.focus();
+  }
+}
+
+// ── Prune messages older than 6 hours ────────────────────────────────────────
+async function pruneOldMessages(roomId) {
+  if (!roomId) return;
+  const cutoff = Date.now() - SIX_HOURS_MS;
+  try {
+    const oldRef = rtdbQuery(
+      ref(rtdb, `chats/${roomId}/messages`),
+      orderByChild("timestamp"),
+      endAt(cutoff)
+    );
+    const snapshot = await get(oldRef);
+    if (!snapshot.exists()) return;
+
+    const deletions = [];
+    snapshot.forEach((child) => {
+      deletions.push(remove(child.ref));
+    });
+    await Promise.all(deletions);
+  } catch (err) {
+    // Non-critical — log and continue
+    console.warn("Prune error:", err);
+  }
+}
+
+// ── Close chat room ───────────────────────────────────────────────────────────
+closeChatBtn?.addEventListener("click", () => {
+  detachListener();
+  chatRoom?.classList.add("hidden");
+  if (chatMessages) chatMessages.innerHTML = "";
+  if (partnerInput) partnerInput.value = "";
+});
+
+// ── Auto-resize textarea ──────────────────────────────────────────────────────
+chatInput?.addEventListener("input", () => {
+  chatInput.style.height = "auto";
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + "px";
+});

@@ -160,6 +160,19 @@ export async function updateAccount(userData) {
                 <span class="text-xs text-blue-400 italic font-medium">${nextTier.message}</span>
               </div>
             </div>
+
+            <!-- Chat ID -->
+            <div class="mt-4 p-4 bg-gray-900/60 border border-gray-700 rounded-2xl">
+              <div class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2">💬 Your Chat ID</div>
+              <div class="flex items-center gap-2">
+                <code id="accountChatId" class="flex-1 text-xs font-mono text-blue-300 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/30 select-all truncate">${escapeHtml(auth.currentUser?.uid || "")}</code>
+                <button id="accountCopyIdBtn"
+                        class="text-xs text-gray-400 hover:text-white px-2.5 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors shrink-0 whitespace-nowrap">
+                  📋 Copy
+                </button>
+              </div>
+              <p class="text-[11px] text-gray-600 mt-1.5">Share this ID with friends so they can start a private chat with you.</p>
+            </div>
         `;
     }
 
@@ -169,6 +182,19 @@ export async function updateAccount(userData) {
     if (editGrade) editGrade.value = data.grade || "";
     if (editBio) editBio.value = data.bio || "";
     if (editAvatarColor) editAvatarColor.value = data.avatarColor || "ocean";
+
+    // Wire up the Chat ID copy button
+    document.getElementById("accountCopyIdBtn")?.addEventListener("click", () => {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      navigator.clipboard.writeText(uid).then(() => {
+        const btn = document.getElementById("accountCopyIdBtn");
+        if (btn) {
+          btn.textContent = "✓ Copied!";
+          setTimeout(() => { btn.textContent = "📋 Copy"; }, 2000);
+        }
+      });
+    });
 
     renderReferralUI(data.referralCode);
 }
