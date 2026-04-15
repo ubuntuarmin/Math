@@ -34,6 +34,7 @@ export function buildChatHandleFromUid(uid) {
   const h = hashString(String(uid || ""));
   const verb = VERBS[h % VERBS.length];
   const adjective = ADJECTIVES[(h >>> 7) % ADJECTIVES.length];
+  // 6-digit suffix keeps handles short but gives a large namespace.
   const number = String((h >>> 12) % 1000000).padStart(6, "0");
   return `${verb}-${adjective}-${number}`;
 }

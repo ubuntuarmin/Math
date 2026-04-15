@@ -51,9 +51,6 @@ document.addEventListener("click", (e) => {
   const msgWrapper = target.closest("[data-msg-id]");
   if (msgWrapper && inboxDropdown.contains(msgWrapper)) {
     const msgId = msgWrapper.getAttribute("data-msg-id");
-    const joinUrl = safeJoinUrl(decodeURIComponent(
-      msgWrapper.getAttribute("data-msg-join-url") || ""
-    ));
 
     // If the click was on the delete button, handle delete instead
     const deleteBtn = target.closest("[data-msg-delete]");
@@ -65,6 +62,7 @@ document.addEventListener("click", (e) => {
 
     // If click was on join button, mark read and open chat
     const joinBtn = target.closest("[data-msg-join]");
+    const joinUrl = safeJoinUrl(_messageById.get(msgId)?.joinUrl || "");
     if (joinBtn && joinUrl) {
       e.stopPropagation();
       markRead(msgId).finally(() => {
@@ -88,6 +86,7 @@ document.addEventListener("click", (e) => {
 let _inboxInitialized = false;
 let _inboxUnsubscribe = null;
 const _seenMessageIds = new Set();
+const _messageById = new Map();
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -174,10 +173,14 @@ function renderInbox(messages) {
   if (!inboxList) return;
 
   if (messages.length === 0) {
+    _messageById.clear();
     inboxList.innerHTML =
       '<div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>';
     return;
   }
+
+  _messageById.clear();
+  messages.forEach((msg) => _messageById.set(msg.id, msg));
 
   inboxList.innerHTML = messages
     .map(
@@ -189,7 +192,6 @@ function renderInbox(messages) {
             : "bg-gray-800/40"
         } hover:bg-gray-800 flex justify-between gap-3 items-start"
         data-msg-id="${msg.id}"
-        data-msg-join-url="${encodeURIComponent(msg.joinUrl || "")}"
         style="cursor: pointer;"
       >
         <div class="flex-1">

@@ -16,7 +16,7 @@ import {
   addDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { buildChatHandleFromUid } from "./chatHandle.js";
+import { buildChatHandleFromUid, normalizeChatHandle } from "./chatHandle.js";
 
 // --- 1. URL TRACKING ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -194,7 +194,7 @@ const initLogin = () => {
         lastVisitDate: new Date().toDateString(),
         createdAt: new Date(),
         chatHandle,
-        chatHandleLower: chatHandle,
+        chatHandleLower: normalizeChatHandle(chatHandle),
       });
 
       // 5. Cleanup and Refresh

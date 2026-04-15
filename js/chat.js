@@ -37,6 +37,7 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SIX_HOURS_MS   = 6 * 60 * 60 * 1000;
 const MAX_MSG_LEN    = 500;
+const NOTIFICATION_TEXT_MAX_LEN = 140;
 // Gold tier requires 300+ lifetime credits
 const GOLD_MIN_EARNED = 300;
 
@@ -389,7 +390,9 @@ async function sendMessage() {
         to: _activePartnerUid,
         fromName: _myHandle || "Chat",
         title: "New chat message",
-        text: text.length > 140 ? `${text.slice(0, 140)}…` : text,
+        text: text.length > NOTIFICATION_TEXT_MAX_LEN
+          ? `${text.slice(0, NOTIFICATION_TEXT_MAX_LEN)}…`
+          : text,
         type: "chat_message",
         joinUrl: `chat.html?partner=${encodeURIComponent(_currentUser.uid)}`,
         read: false,
@@ -463,9 +466,4 @@ chatInput?.addEventListener("input", () => {
 
 chatInput?.addEventListener("blur", () => {
   if (_myTypingRef) set(_myTypingRef, false).catch(() => {});
-});
-
-window.addEventListener("beforeunload", () => {
-  if (_myTypingRef) set(_myTypingRef, false);
-  if (_myPresenceRef) set(_myPresenceRef, { online: false, lastSeen: Date.now() });
 });
