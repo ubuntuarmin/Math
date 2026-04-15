@@ -11,8 +11,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
 import { openProfileModal } from "./links.js";
+import React from "https://esm.sh/react@18.3.1";
+import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 
 const leaderboardContainer = document.getElementById("leaderboard");
+const leaderboardRoot = leaderboardContainer ? createRoot(leaderboardContainer) : null;
 let timerInterval = null;
 let leaderboardRendered = false; // render only once per page load
 
@@ -134,11 +137,140 @@ function getPotentialReward(rank) {
   return 110 - rank * 10;
 }
 
+const h = React.createElement;
+
+function LeaderboardView({ countdown, status, entries }) {
+  return h(
+    React.Fragment,
+    null,
+    h(
+      "div",
+      {
+        id: "leaderboardHeader",
+        className:
+          "mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-2xl text-center",
+      },
+      h(
+        "div",
+        {
+          className:
+            "text-[10px] uppercase tracking-[0.2em] text-blue-400 font-black mb-1",
+        },
+        "Season Ends In"
+      ),
+      h(
+        "div",
+        {
+          id: "leaderboardCountdown",
+          className: "text-2xl font-mono font-black text-white",
+        },
+        countdown
+      ),
+      h(
+        "div",
+        { className: "text-[9px] text-gray-500 mt-1 italic" },
+        "Resets on the 15th & 29th · Top 10 win bonus credits!"
+      )
+    ),
+    h(
+      "div",
+      { id: "leaderboardList", className: "space-y-3" },
+      status === "loading" &&
+        h(
+          "div",
+          { className: "flex justify-center py-8" },
+          h("div", { className: "loader" })
+        ),
+      status === "empty" &&
+        h(
+          "p",
+          { className: "text-center py-10 text-gray-500" },
+          "No activity yet. Be the first!"
+        ),
+      status === "error" &&
+        h(
+          "p",
+          { className: "text-red-500 text-xs text-center" },
+          "Failed to load rankings."
+        ),
+      status === "ready" &&
+        entries.map((entry) =>
+          h(
+            "div",
+            {
+              key: entry.uid,
+              className: `relative flex justify-between items-center p-4 rounded-xl border cursor-pointer ${
+                entry.rank === 1
+                  ? "bg-yellow-900/20 border-yellow-500/40 shadow-lg shadow-yellow-900/20"
+                  : entry.rank === 2
+                  ? "bg-gray-700/30 border-gray-400/30"
+                  : entry.rank === 3
+                  ? "bg-amber-900/20 border-amber-700/40"
+                  : "bg-gray-900/40 border-gray-800"
+              } hover:border-blue-400/50 transition-colors`,
+              onClick: () => openProfileModal(entry.uid, entry.name),
+            },
+            h(
+              "div",
+              { className: "flex items-center gap-4" },
+              h("div", { className: "text-xl w-8 flex justify-center" }, entry.rankBadge),
+              h(
+                "div",
+                null,
+                h(
+                  "div",
+                  { className: "flex items-center gap-2" },
+                  h("span", { className: "font-bold text-white capitalize" }, entry.name),
+                  h(
+                    "span",
+                    {
+                      className: "text-[8px] px-1 py-0.5 rounded font-bold uppercase",
+                      style: {
+                        color: entry.tierColor,
+                        border: `1px solid ${entry.tierColor}44`,
+                      },
+                    },
+                    entry.tierName
+                  )
+                ),
+                h(
+                  "div",
+                  { className: "text-[10px] text-emerald-400 font-bold" },
+                  `Estimated Reward: +${entry.reward} 🪙`
+                )
+              )
+            ),
+            h(
+              "div",
+              { className: "text-right" },
+              h(
+                "div",
+                { className: "text-blue-400 font-black text-lg" },
+                `${entry.weekMinutes}`,
+                h("span", { className: "text-[10px] ml-0.5" }, "m")
+              ),
+              h(
+                "div",
+                { className: "text-[9px] text-gray-600 uppercase font-bold" },
+                "This Week"
+              ),
+              h(
+                "div",
+                { className: "text-[10px] text-gray-600 mt-0.5" },
+                "View Profile →"
+              )
+            )
+          )
+        )
+    )
+  );
+}
+
 /**
  * Render header + list, and keep header timer live‑updating.
  */
 export async function renderLeaderboard() {
-  if (!leaderboardContainer) return;
+  if (!leaderboardRoot) return;
   // Only render once per page load to avoid unnecessary Firestore reads/writes
   // and prevent the leaderboard from flickering on profile updates.
   if (leaderboardRendered) return;
@@ -150,26 +282,12 @@ export async function renderLeaderboard() {
     timerInterval = null;
   }
 
-  // Build the shell
-  leaderboardContainer.innerHTML = `
-    <div id="leaderboardHeader" class="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-2xl text-center">
-      <div class="text-[10px] uppercase tracking-[0.2em] text-blue-400 font-black mb-1">
-        Season Ends In
-      </div>
-      <div id="leaderboardCountdown" class="text-2xl font-mono font-black text-white">
-        --
-      </div>
-      <div class="text-[9px] text-gray-500 mt-1 italic">
-        Resets on the 15th &amp; 29th · Top 10 win bonus credits!
-      </div>
-    </div>
-    <div id="leaderboardList" class="space-y-3">
-      <div class="flex justify-center py-8"><div class="loader"></div></div>
-    </div>
-  `;
-
-  const countdownEl = document.getElementById("leaderboardCountdown");
-  const listContainer = document.getElementById("leaderboardList");
+  let uiState = { countdown: "--", status: "loading", entries: [] };
+  const renderState = (patch = {}) => {
+    uiState = { ...uiState, ...patch };
+    leaderboardRoot.render(h(LeaderboardView, uiState));
+  };
+  renderState();
 
   // 1) Figure out target reset date
   const nextResetDate = await getNextResetDate();
@@ -178,9 +296,8 @@ export async function renderLeaderboard() {
   let resetFired = false;
   const updateCountdown = () => {
     const time = getTimeRemainingTo(nextResetDate);
-    if (!countdownEl) return;
     if (time.total <= 0) {
-      countdownEl.textContent = "Resetting…";
+      renderState({ countdown: "Resetting…" });
       if (!resetFired) {
         resetFired = true;
         // Clear the cache so the next render fetches the new reset date
@@ -196,9 +313,9 @@ export async function renderLeaderboard() {
       return;
     }
     if (time.days === 0 && time.hours === 0 && time.mins === 0) {
-      countdownEl.textContent = `${time.secs}s`;
+      renderState({ countdown: `${time.secs}s` });
     } else {
-      countdownEl.textContent = `${time.days}d ${time.hours}h ${time.mins}m`;
+      renderState({ countdown: `${time.days}d ${time.hours}h ${time.mins}m` });
     }
   };
   updateCountdown();
@@ -217,72 +334,42 @@ export async function renderLeaderboard() {
     const snap = await getDocs(leaderboardQuery);
     // Client-side guard: exclude any doc that somehow exceeds the cap
     const validDocs = snap.docs.filter(d => (d.data().weekMinutes || 0) <= MAX_WEEKLY_MINUTES).slice(0, 10);
-    listContainer.innerHTML = "";
 
     if (validDocs.length === 0) {
-      listContainer.innerHTML = `<p class="text-center py-10 text-gray-500">No activity yet. Be the first!</p>`;
+      renderState({ status: "empty", entries: [] });
       return;
     }
 
     let rank = 1;
-    validDocs.forEach((docSnap) => {
+    const entries = validDocs.map((docSnap) => {
       const data = docSnap.data();
       const tier = calculateTier(data.totalEarned || 0);
       const reward = getPotentialReward(rank);
 
-      let rankBadge = `<span class="text-gray-500 font-mono w-6 text-center">${rank}</span>`;
+      let rankBadge = `${rank}`;
       if (rank === 1) rankBadge = `🥇`;
       if (rank === 2) rankBadge = `🥈`;
       if (rank === 3) rankBadge = `🥉`;
 
-      const entry = document.createElement("div");
-      entry.className = `relative flex justify-between items-center p-4 rounded-xl border cursor-pointer ${
-        rank === 1 ? "bg-yellow-900/20 border-yellow-500/40 shadow-lg shadow-yellow-900/20" :
-        rank === 2 ? "bg-gray-700/30 border-gray-400/30" :
-        rank === 3 ? "bg-amber-900/20 border-amber-700/40" :
-        "bg-gray-900/40 border-gray-800"
-      } hover:border-blue-400/50 transition-colors`;
-
       const entryUid  = docSnap.id;
       const entryName = data.firstName || "Student";
-
-      entry.innerHTML = `
-        <div class="flex items-center gap-4">
-          <div class="text-xl w-8 flex justify-center">${rankBadge}</div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-white capitalize">${
-                data.firstName || "Student"
-              }</span>
-              <span class="text-[8px] px-1 py-0.5 rounded font-bold uppercase"
-                    style="color: ${tier.color}; border: 1px solid ${tier.color}44">
-                ${tier.name}
-              </span>
-            </div>
-            <div class="text-[10px] text-emerald-400 font-bold">
-              Estimated Reward: +${reward} 🪙
-            </div>
-          </div>
-        </div>
-        <div class="text-right">
-          <div class="text-blue-400 font-black text-lg">
-            ${data.weekMinutes || 0}<span class="text-[10px] ml-0.5">m</span>
-          </div>
-          <div class="text-[9px] text-gray-600 uppercase font-bold">This Week</div>
-          <div class="text-[10px] text-gray-600 mt-0.5">View Profile →</div>
-        </div>
-      `;
-
-      listContainer.appendChild(entry);
-
-      // Open profile modal on click
-      entry.addEventListener("click", () => openProfileModal(entryUid, entryName));
-
+      const entry = {
+        uid: entryUid,
+        name: entryName,
+        tierName: tier.name,
+        tierColor: tier.color,
+        reward,
+        rank,
+        rankBadge,
+        weekMinutes: data.weekMinutes || 0,
+      };
       rank++;
+      return entry;
     });
+    renderState({ status: "ready", entries });
   } catch (err) {
     console.error("Leaderboard Error:", err);
-    listContainer.innerHTML = `<p class="text-red-500 text-xs text-center">Failed to load rankings.</p>`;
+    renderState({ status: "error", entries: [] });
   }
 }
 
