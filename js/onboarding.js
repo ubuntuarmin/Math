@@ -53,18 +53,25 @@ function showSuccessAndClose(name, uid) {
   const panel = onboardModal?.querySelector(".panel");
   if (!panel) return;
 
+  // Safely escape the user-supplied name to prevent XSS
+  const safeName = document.createTextNode(name || "Student").textContent;
+
   panel.innerHTML = `
     <div class="flex flex-col items-center gap-4 py-6">
       <div id="onboardSuccessCheck"
            class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center
                   text-white text-3xl shadow-lg" style="opacity:0;transform:scale(0.4)">\u2713</div>
       <div class="text-xl font-bold" style="opacity:0;transform:translateY(10px)" id="onboardSuccessTitle">
-        Welcome, ${name || "Student"}!
+        Welcome, <span id="onboardSuccessName"></span>!
       </div>
       <p class="text-gray-400 text-sm text-center max-w-sm" style="opacity:0" id="onboardSuccessBody">
         Your profile is set. Let's take a quick <strong>interactive tour</strong>! \uD83D\uDE80
       </p>
     </div>`;
+
+  // Set name text node to avoid XSS
+  const nameEl = document.getElementById("onboardSuccessName");
+  if (nameEl) nameEl.textContent = safeName;
 
   if (typeof gsap !== "undefined") {
     gsap.to("#onboardSuccessCheck", { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)" });
@@ -607,18 +614,6 @@ async function _handleTourEnd() {
   } catch (e) {
     console.warn("Tour end write failed:", e);
   }
-}
-
-function _showToast(msg) {
-  const t = document.createElement("div");
-  t.className = "mt-tour-toast";
-  t.textContent = msg;
-  document.body.appendChild(t);
-  requestAnimationFrame(() => t.classList.add("mt-tour-toast-show"));
-  setTimeout(() => {
-    t.classList.remove("mt-tour-toast-show");
-    setTimeout(() => t.remove(), 420);
-  }, 4500);
 }
 
 /** Public: start guided tour for existing users — awards +30 credits on completion. */
