@@ -135,6 +135,16 @@ saveBtn?.addEventListener("click", (e) => { e.preventDefault(); handleSave(); })
 let _tourUid          = null;
 let _tourAwardCredits = false;
 let _onboardTour      = null;
+let _tourLibLoadPromise = null;
+
+const SHEPHERD_VERSION = "13.0.0";
+const TOUR_LIB_SOURCE_TIMEOUT_MS = 3000;
+
+const _tourScriptSources = [
+  `https://cdn.jsdelivr.net/npm/shepherd.js@${SHEPHERD_VERSION}/dist/js/shepherd.min.js`,
+  `https://unpkg.com/shepherd.js@${SHEPHERD_VERSION}/dist/js/shepherd.min.js`,
+  `https://cdnjs.cloudflare.com/ajax/libs/shepherd.js/${SHEPHERD_VERSION}/js/shepherd.min.js`,
+];
 
 // Helper: programmatically switch the app to a named tab
 function _switchTab(tabName) {
@@ -231,14 +241,108 @@ function _getOnboardLib() {
   return null;
 }
 
-async function _waitForOnboardLib(timeoutMs = 5000, pollMs = 120) {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const lib = _getOnboardLib();
-    if (lib) return lib;
-    await new Promise((resolve) => setTimeout(resolve, pollMs));
+function _loadScript(src, timeoutMs = TOUR_LIB_SOURCE_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (_getOnboardLib()) return resolve();
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        existing.removeEventListener("load", onLoad);
+        existing.removeEventListener("error", onError);
+      };
+      const onLoad = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        reject(new Error(`Failed to load ${src}`));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Timed out loading ${src}`));
+      }, timeoutMs);
+
+      existing.addEventListener("load", onLoad);
+      existing.addEventListener("error", onError);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.crossOrigin = "anonymous";
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      script.onload = null;
+      script.onerror = null;
+    };
+
+    const timer = setTimeout(() => {
+      cleanup();
+      script.remove();
+      reject(new Error(`Timed out loading ${src}`));
+    }, timeoutMs);
+
+    script.onload = () => {
+      cleanup();
+      resolve();
+    };
+    script.onerror = () => {
+      cleanup();
+      script.remove();
+      reject(new Error(`Failed to load ${src}`));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+async function _ensureOnboardLib(maxDurationMs = 8000) {
+  let lib = _getOnboardLib();
+  if (lib) return lib;
+
+  const deadline = Date.now() + Math.max(0, maxDurationMs);
+
+  for (const src of _tourScriptSources) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+
+    try {
+      await _loadScript(src, Math.min(TOUR_LIB_SOURCE_TIMEOUT_MS, remaining));
+      lib = _getOnboardLib();
+      if (lib) return lib;
+    } catch (err) {
+      console.warn("[Onboarding] Tour library source failed:", src, err);
+    }
   }
+
   return null;
+}
+
+function _getTourLibLoadPromise(timeoutMs) {
+  if (_tourLibLoadPromise) return _tourLibLoadPromise;
+
+  _tourLibLoadPromise = (async () => {
+    try {
+      return await _ensureOnboardLib(timeoutMs);
+    } finally {
+      _tourLibLoadPromise = null;
+    }
+  })();
+
+  return _tourLibLoadPromise;
+}
+
+async function _waitForOnboardLib(timeoutMs = 8000) {
+  const lib = _getOnboardLib();
+  if (lib) return lib;
+
+  const loadPromise = _getTourLibLoadPromise(timeoutMs);
+  await loadPromise;
+  return _getOnboardLib();
 }
 
 // ── Build and start the Onboard.js-compatible tour ──────────────────
