@@ -16,6 +16,7 @@ import {
   addDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { buildChatHandleFromUid, normalizeChatHandle } from "./chatHandle.js";
 
 // --- 1. URL TRACKING ---
 const urlParams = new URLSearchParams(window.location.search);
@@ -134,6 +135,7 @@ const initLogin = () => {
       // 2. Create Auth Account
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = cred.user.uid;
+      const chatHandle = buildChatHandleFromUid(uid);
 
       let baseCredits = 20;
       let referrerUid = null;
@@ -191,6 +193,8 @@ const initLogin = () => {
         referredBy: referrerUid,
         lastVisitDate: new Date().toDateString(),
         createdAt: new Date(),
+        chatHandle,
+        chatHandleLower: normalizeChatHandle(chatHandle),
       });
 
       // 5. Cleanup and Refresh

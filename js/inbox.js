@@ -29,6 +29,7 @@ document.addEventListener("click", (e) => {
   if (!notifBtn || !inboxDropdown) return;
 
   const target = e.target;
+  if (!(target instanceof Element)) return;
 
   // 1. Bell icon toggle — prevent navigation, show dropdown instead
   if (notifBtn.contains(target)) {
@@ -59,6 +60,17 @@ document.addEventListener("click", (e) => {
       return;
     }
 
+    // If click was on join button, mark read and open chat
+    const joinBtn = target.closest("[data-msg-join]");
+    const joinUrl = safeJoinUrl(_messageById.get(msgId)?.joinUrl || "");
+    if (joinBtn && joinUrl) {
+      e.stopPropagation();
+      markRead(msgId).finally(() => {
+        window.location.href = joinUrl;
+      });
+      return;
+    }
+
     // Otherwise, mark as read
     e.stopPropagation();
     markRead(msgId);
@@ -73,6 +85,8 @@ document.addEventListener("click", (e) => {
 
 let _inboxInitialized = false;
 let _inboxUnsubscribe = null;
+const _seenMessageIds = new Set();
+const _messageById = new Map();
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -120,6 +134,7 @@ export function initInbox() {
       snapshot.forEach((docSnap) => {
         messages.push({ id: docSnap.id, ...docSnap.data() });
       });
+      maybeShowBrowserNotifications(messages);
       renderInbox(messages);
       updateBadge(messages);
     });
@@ -158,10 +173,14 @@ function renderInbox(messages) {
   if (!inboxList) return;
 
   if (messages.length === 0) {
+    _messageById.clear();
     inboxList.innerHTML =
       '<div class="text-center py-8 text-gray-500 text-sm italic">No new messages</div>';
     return;
   }
+
+  _messageById.clear();
+  messages.forEach((msg) => _messageById.set(msg.id, msg));
 
   inboxList.innerHTML = messages
     .map(
@@ -178,7 +197,7 @@ function renderInbox(messages) {
         <div class="flex-1">
           <div class="flex justify-between items-start mb-1">
             <span class="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">
-              ${msg.fromName || "System"}
+              ${escapeHtml(msg.fromName || "System")}
             </span>
             ${
               !msg.read
@@ -186,21 +205,42 @@ function renderInbox(messages) {
                 : ""
             }
           </div>
+          ${
+            msg.title
+              ? `<p class="text-[11px] text-gray-300 mb-1">${escapeHtml(msg.title)}</p>`
+              : ""
+          }
           <p class="text-xs text-gray-200 leading-tight">
-            ${msg.text || ""}
+            ${escapeHtml(msg.text || "")}
           </p>
         </div>
-        <button 
-          class="text-xs text-gray-500 hover:text-red-400 ml-2" 
-          title="Delete"
-          data-msg-delete="true"
-        >
-          ✕
-        </button>
+        <div class="flex items-center gap-2 ml-2">
+          ${
+            msg.type === "chat_message" && safeJoinUrl(msg.joinUrl)
+              ? `<button class="text-[10px] px-2 py-1 rounded bg-blue-600/80 hover:bg-blue-500 text-white" data-msg-join="true">Join</button>`
+              : ""
+          }
+          <button 
+            class="text-xs text-gray-500 hover:text-red-400" 
+            title="Delete"
+            data-msg-delete="true"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     `
     )
     .join("");
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
@@ -256,6 +296,40 @@ async function deleteMessage(msgId) {
   } catch (err) {
     console.error("Error deleting message:", err);
   }
+}
+
+function maybeShowBrowserNotifications(messages) {
+  if (!("Notification" in window)) return;
+  const canNotify = Notification.permission === "granted";
+  if (!canNotify && Notification.permission === "default") {
+    Notification.requestPermission().catch(() => {});
+  }
+
+  for (const msg of messages) {
+    if (_seenMessageIds.has(msg.id)) continue;
+    _seenMessageIds.add(msg.id);
+    if (!canNotify) continue;
+    if (msg.read) continue;
+    if (!document.hidden) continue;
+    const title = msg.title || "New message";
+    const body = msg.text || "";
+    const safeUrl = safeJoinUrl(msg.joinUrl);
+    try {
+      const n = new Notification(title, { body });
+      if (safeUrl) {
+        n.onclick = () => {
+          window.location.href = safeUrl;
+        };
+      }
+    } catch (_) {}
+  }
+}
+
+function safeJoinUrl(urlValue) {
+  const url = String(urlValue || "").trim();
+  if (!url) return "";
+  if (!url.startsWith("chat.html?partner=")) return "";
+  return url;
 }
 
 // Keep this for inbox.html (full page) which imports this file directly

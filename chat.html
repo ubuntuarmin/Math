@@ -82,19 +82,20 @@
     <!-- Main Chat UI -->
     <div id="chatApp" class="hidden space-y-4">
 
-      <!-- Your Chat ID Card -->
+      <!-- Your Chat Handle Card -->
       <div class="surface">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div class="text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">Your Chat ID</div>
+            <div class="text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">Your Chat Handle</div>
             <div class="flex items-center gap-2">
               <code id="myChatId" class="text-sm font-mono text-blue-300 bg-blue-500/10 px-3 py-1 rounded-lg border border-blue-500/30 select-all"></code>
-              <button id="copyIdBtn" title="Copy Chat ID"
+              <button id="copyIdBtn" title="Copy Chat Handle"
                       class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors">
                 📋 Copy
               </button>
             </div>
-            <p class="text-xs text-gray-600 mt-1">Share this ID with someone to let them chat with you.</p>
+            <p class="text-xs text-gray-600 mt-1">Share this handle so people can find you fast (example: verb-adjective-123456).</p>
+            <p class="text-[11px] text-gray-600 mt-1">Fallback UID: <code id="myUidValue" class="font-mono"></code></p>
           </div>
           <div class="text-2xl">💬</div>
         </div>
@@ -104,7 +105,7 @@
       <div class="surface" id="startChatPanel">
         <h3 class="text-sm font-bold text-white mb-3">Start a Private Chat</h3>
         <div class="flex gap-2">
-          <input id="partnerIdInput" type="text" placeholder="Enter partner's Chat ID…"
+          <input id="partnerIdInput" type="text" placeholder="Enter partner handle or UID…"
                  class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5
                         text-sm text-white outline-none focus:border-blue-500 transition font-mono" />
           <button id="startChatBtn"
@@ -123,6 +124,7 @@
           <div>
             <div class="text-xs text-gray-500 uppercase tracking-widest font-bold mb-0.5">Chatting with</div>
             <div id="partnerLabel" class="text-sm font-bold text-white font-mono truncate max-w-[200px]"></div>
+            <div id="partnerStatus" class="text-[11px] text-gray-500 mt-1">Offline</div>
           </div>
           <button id="closeChatBtn" class="text-gray-500 hover:text-red-400 text-xs transition-colors px-2 py-1">
             ✕ Close
@@ -135,6 +137,7 @@
             No messages yet — say hello! 👋
           </div>
         </div>
+        <div id="typingStatus" class="px-4 py-1 text-[11px] text-gray-500 h-6"></div>
 
         <!-- Moderation notice -->
         <div class="px-4 py-1.5 bg-gray-900/50 border-t border-gray-800/50">
