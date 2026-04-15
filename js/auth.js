@@ -500,6 +500,14 @@ onAuthStateChanged(auth, async user => {
             snap = await getDoc(userRef);
         }
 
+        // Extra retries for brand-new signups so onboarding reliably appears.
+        if (!snap.exists() && sessionStorage.getItem("justSignedUp")) {
+            for (let i = 0; i < 5 && !snap.exists(); i++) {
+                await new Promise(res => setTimeout(res, 800));
+                snap = await getDoc(userRef);
+            }
+        }
+
         if (!snap.exists()) {
             if (sessionStorage.getItem("justSignedUp")) {
                 return;
