@@ -319,6 +319,8 @@ header.site-header::before {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.875rem;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .navbar-nav a {
@@ -965,6 +967,13 @@ footer.site-footer {
   }
 }
 
+/* ── Extra-compact: hide brand text on small laptops to prevent overflow ── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .navbar-brand-text {
+    display: none;
+  }
+}
+
 
 @keyframes banner-slide {
   0% {
@@ -1502,13 +1511,10 @@ body {
   }
 }
 
-/* Navbar: prevent items wrapping on mid-size desktops */
+/* Navbar: prevent tab group items wrapping on mid-size desktops */
 @media (min-width: 1024px) {
   .navbar-tabs-group {
     flex-wrap: nowrap;
-  }
-  .navbar {
-    gap: 1rem;
   }
 }
 
