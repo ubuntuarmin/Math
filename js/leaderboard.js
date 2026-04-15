@@ -139,6 +139,100 @@ function getPotentialReward(rank) {
 
 const h = React.createElement;
 
+const LeaderboardEntries = React.memo(function LeaderboardEntries({ status, entries }) {
+  return h(
+    React.Fragment,
+    null,
+    status === "loading" &&
+      h(
+        "div",
+        { className: "flex justify-center py-8" },
+        h("div", { className: "loader" })
+      ),
+    status === "empty" &&
+      h(
+        "p",
+        { className: "text-center py-10 text-gray-500" },
+        "No activity yet. Be the first!"
+      ),
+    status === "error" &&
+      h(
+        "p",
+        { className: "text-red-500 text-xs text-center" },
+        "Failed to load rankings."
+      ),
+    status === "ready" &&
+      entries.map((entry) =>
+        h(
+          "div",
+          {
+            key: entry.uid,
+            className: `relative flex justify-between items-center p-4 rounded-xl border cursor-pointer ${
+              entry.rank === 1
+                ? "bg-yellow-900/20 border-yellow-500/40 shadow-lg shadow-yellow-900/20"
+                : entry.rank === 2
+                ? "bg-gray-700/30 border-gray-400/30"
+                : entry.rank === 3
+                ? "bg-amber-900/20 border-amber-700/40"
+                : "bg-gray-900/40 border-gray-800"
+            } hover:border-blue-400/50 transition-colors`,
+            onClick: () => openProfileModal(entry.uid, entry.name),
+          },
+          h(
+            "div",
+            { className: "flex items-center gap-4" },
+            h("div", { className: "text-xl w-8 flex justify-center" }, entry.rankBadge),
+            h(
+              "div",
+              null,
+              h(
+                "div",
+                { className: "flex items-center gap-2" },
+                h("span", { className: "font-bold text-white capitalize" }, entry.name),
+                h(
+                  "span",
+                  {
+                    className: "text-[8px] px-1 py-0.5 rounded font-bold uppercase",
+                    style: {
+                      color: entry.tierColor,
+                      border: `1px solid ${entry.tierColor}44`,
+                    },
+                  },
+                  entry.tierName
+                )
+              ),
+              h(
+                "div",
+                { className: "text-[10px] text-emerald-400 font-bold" },
+                `Estimated Reward: +${entry.reward} 🪙`
+              )
+            )
+          ),
+          h(
+            "div",
+            { className: "text-right" },
+            h(
+              "div",
+              { className: "text-blue-400 font-black text-lg" },
+              `${entry.weekMinutes}`,
+              h("span", { className: "text-[10px] ml-0.5" }, "m")
+            ),
+            h(
+              "div",
+              { className: "text-[9px] text-gray-600 uppercase font-bold" },
+              "This Week"
+            ),
+            h(
+              "div",
+              { className: "text-[10px] text-gray-600 mt-0.5" },
+              "View Profile →"
+            )
+          )
+        )
+      )
+  );
+});
+
 function LeaderboardView({ countdown, status, entries }) {
   return h(
     React.Fragment,
@@ -175,93 +269,7 @@ function LeaderboardView({ countdown, status, entries }) {
     h(
       "div",
       { id: "leaderboardList", className: "space-y-3" },
-      status === "loading" &&
-        h(
-          "div",
-          { className: "flex justify-center py-8" },
-          h("div", { className: "loader" })
-        ),
-      status === "empty" &&
-        h(
-          "p",
-          { className: "text-center py-10 text-gray-500" },
-          "No activity yet. Be the first!"
-        ),
-      status === "error" &&
-        h(
-          "p",
-          { className: "text-red-500 text-xs text-center" },
-          "Failed to load rankings."
-        ),
-      status === "ready" &&
-        entries.map((entry) =>
-          h(
-            "div",
-            {
-              key: entry.uid,
-              className: `relative flex justify-between items-center p-4 rounded-xl border cursor-pointer ${
-                entry.rank === 1
-                  ? "bg-yellow-900/20 border-yellow-500/40 shadow-lg shadow-yellow-900/20"
-                  : entry.rank === 2
-                  ? "bg-gray-700/30 border-gray-400/30"
-                  : entry.rank === 3
-                  ? "bg-amber-900/20 border-amber-700/40"
-                  : "bg-gray-900/40 border-gray-800"
-              } hover:border-blue-400/50 transition-colors`,
-              onClick: () => openProfileModal(entry.uid, entry.name),
-            },
-            h(
-              "div",
-              { className: "flex items-center gap-4" },
-              h("div", { className: "text-xl w-8 flex justify-center" }, entry.rankBadge),
-              h(
-                "div",
-                null,
-                h(
-                  "div",
-                  { className: "flex items-center gap-2" },
-                  h("span", { className: "font-bold text-white capitalize" }, entry.name),
-                  h(
-                    "span",
-                    {
-                      className: "text-[8px] px-1 py-0.5 rounded font-bold uppercase",
-                      style: {
-                        color: entry.tierColor,
-                        border: `1px solid ${entry.tierColor}44`,
-                      },
-                    },
-                    entry.tierName
-                  )
-                ),
-                h(
-                  "div",
-                  { className: "text-[10px] text-emerald-400 font-bold" },
-                  `Estimated Reward: +${entry.reward} 🪙`
-                )
-              )
-            ),
-            h(
-              "div",
-              { className: "text-right" },
-              h(
-                "div",
-                { className: "text-blue-400 font-black text-lg" },
-                `${entry.weekMinutes}`,
-                h("span", { className: "text-[10px] ml-0.5" }, "m")
-              ),
-              h(
-                "div",
-                { className: "text-[9px] text-gray-600 uppercase font-bold" },
-                "This Week"
-              ),
-              h(
-                "div",
-                { className: "text-[10px] text-gray-600 mt-0.5" },
-                "View Profile →"
-              )
-            )
-          )
-        )
+      h(LeaderboardEntries, { status, entries })
     )
   );
 }
@@ -346,10 +354,14 @@ export async function renderLeaderboard() {
       const tier = calculateTier(data.totalEarned || 0);
       const reward = getPotentialReward(rank);
 
-      let rankBadge = `${rank}`;
-      if (rank === 1) rankBadge = `🥇`;
-      if (rank === 2) rankBadge = `🥈`;
-      if (rank === 3) rankBadge = `🥉`;
+      let rankBadge = h(
+        "span",
+        { className: "text-gray-500 font-mono w-6 text-center" },
+        `${rank}`
+      );
+      if (rank === 1) rankBadge = h("span", null, "🥇");
+      if (rank === 2) rankBadge = h("span", null, "🥈");
+      if (rank === 3) rankBadge = h("span", null, "🥉");
 
       const entryUid  = docSnap.id;
       const entryName = data.firstName || "Student";
