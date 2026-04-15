@@ -50,12 +50,25 @@ document.addEventListener("click", (e) => {
   const msgWrapper = target.closest("[data-msg-id]");
   if (msgWrapper && inboxDropdown.contains(msgWrapper)) {
     const msgId = msgWrapper.getAttribute("data-msg-id");
+    const joinUrl = decodeURIComponent(
+      msgWrapper.getAttribute("data-msg-join-url") || ""
+    );
 
     // If the click was on the delete button, handle delete instead
     const deleteBtn = target.closest("[data-msg-delete]");
     if (deleteBtn) {
       e.stopPropagation();
       deleteMessage(msgId);
+      return;
+    }
+
+    // If click was on join button, mark read and open chat
+    const joinBtn = target.closest("[data-msg-join]");
+    if (joinBtn && joinUrl) {
+      e.stopPropagation();
+      markRead(msgId).finally(() => {
+        window.location.href = joinUrl;
+      });
       return;
     }
 
@@ -73,6 +86,7 @@ document.addEventListener("click", (e) => {
 
 let _inboxInitialized = false;
 let _inboxUnsubscribe = null;
+const _seenMessageIds = new Set();
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -120,6 +134,7 @@ export function initInbox() {
       snapshot.forEach((docSnap) => {
         messages.push({ id: docSnap.id, ...docSnap.data() });
       });
+      maybeShowBrowserNotifications(messages);
       renderInbox(messages);
       updateBadge(messages);
     });
@@ -173,12 +188,13 @@ function renderInbox(messages) {
             : "bg-gray-800/40"
         } hover:bg-gray-800 flex justify-between gap-3 items-start"
         data-msg-id="${msg.id}"
+        data-msg-join-url="${encodeURIComponent(msg.joinUrl || "")}"
         style="cursor: pointer;"
       >
         <div class="flex-1">
           <div class="flex justify-between items-start mb-1">
             <span class="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">
-              ${msg.fromName || "System"}
+              ${escapeHtml(msg.fromName || "System")}
             </span>
             ${
               !msg.read
@@ -186,21 +202,42 @@ function renderInbox(messages) {
                 : ""
             }
           </div>
+          ${
+            msg.title
+              ? `<p class="text-[11px] text-gray-300 mb-1">${escapeHtml(msg.title)}</p>`
+              : ""
+          }
           <p class="text-xs text-gray-200 leading-tight">
-            ${msg.text || ""}
+            ${escapeHtml(msg.text || "")}
           </p>
         </div>
-        <button 
-          class="text-xs text-gray-500 hover:text-red-400 ml-2" 
-          title="Delete"
-          data-msg-delete="true"
-        >
-          ✕
-        </button>
+        <div class="flex items-center gap-2 ml-2">
+          ${
+            msg.type === "chat_message" && msg.joinUrl
+              ? `<button class="text-[10px] px-2 py-1 rounded bg-blue-600/80 hover:bg-blue-500 text-white" data-msg-join="true">Join</button>`
+              : ""
+          }
+          <button 
+            class="text-xs text-gray-500 hover:text-red-400" 
+            title="Delete"
+            data-msg-delete="true"
+          >
+            ✕
+          </button>
+        </div>
       </div>
     `
     )
     .join("");
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
@@ -255,6 +292,32 @@ async function deleteMessage(msgId) {
     // onSnapshot will automatically re-render list
   } catch (err) {
     console.error("Error deleting message:", err);
+  }
+}
+
+function maybeShowBrowserNotifications(messages) {
+  if (!("Notification" in window)) return;
+  const canNotify = Notification.permission === "granted";
+  if (!canNotify && Notification.permission === "default") {
+    Notification.requestPermission().catch(() => {});
+  }
+
+  for (const msg of messages) {
+    if (_seenMessageIds.has(msg.id)) continue;
+    _seenMessageIds.add(msg.id);
+    if (!canNotify) continue;
+    if (msg.read) continue;
+    if (!document.hidden) continue;
+    const title = msg.title || "New message";
+    const body = msg.text || "";
+    try {
+      const n = new Notification(title, { body });
+      if (msg.joinUrl) {
+        n.onclick = () => {
+          window.location.href = msg.joinUrl;
+        };
+      }
+    } catch (_) {}
   }
 }
 

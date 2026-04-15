@@ -7,6 +7,7 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { CHAT_HANDLE_RE, ensureUserChatHandle, getPreferredChatHandle, looksLikeUid, normalizeChatHandle } from "./chatHandle.js";
 
 const GOLD_MIN_EARNED = 300;
 
@@ -39,6 +40,7 @@ function renderChatTab(user, userData) {
   }
 
   const myUid = user.uid;
+  const myHandle = getPreferredChatHandle(userData, myUid);
   container.innerHTML = `
     <div class="surface max-w-lg mx-auto">
       <div class="flex items-center gap-3 mb-6">
@@ -49,24 +51,25 @@ function renderChatTab(user, userData) {
         </div>
       </div>
 
-      <!-- Your Chat ID -->
+      <!-- Your Chat Handle -->
       <div class="mb-5 p-4 bg-gray-900/60 border border-gray-700 rounded-2xl">
-        <div class="text-xs text-gray-500 uppercase font-bold tracking-widest mb-2">Your Chat ID</div>
+        <div class="text-xs text-gray-500 uppercase font-bold tracking-widest mb-2">Your Chat Handle</div>
         <div class="flex items-center gap-2">
-          <code id="tabMyChatId" class="flex-1 text-sm font-mono text-blue-300 bg-blue-500/10 px-3 py-2 rounded-lg border border-blue-500/30 select-all truncate">${myUid}</code>
+          <code id="tabMyChatId" class="flex-1 text-sm font-mono text-blue-300 bg-blue-500/10 px-3 py-2 rounded-lg border border-blue-500/30 select-all truncate">${myHandle}</code>
           <button id="tabCopyIdBtn"
                   class="text-xs text-gray-400 hover:text-white px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors whitespace-nowrap shrink-0">
             📋 Copy
           </button>
         </div>
-        <p class="text-[11px] text-gray-600 mt-2">Share this ID with someone so they can chat with you.</p>
+        <p class="text-[11px] text-gray-600 mt-2">Share this handle so people can add you without typing a long UID.</p>
+        <p class="text-[11px] text-gray-600 mt-1">Fallback UID: <code class="font-mono">${myUid}</code></p>
       </div>
 
       <!-- Start a chat -->
       <div>
         <label class="block text-xs text-gray-400 mb-2 font-semibold uppercase tracking-widest">Start a Conversation</label>
         <div class="flex gap-2">
-          <input id="tabPartnerInput" type="text" placeholder="Enter partner's Chat ID…"
+          <input id="tabPartnerInput" type="text" placeholder="Enter partner handle or UID…"
                  class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5
                         text-sm text-white outline-none focus:border-blue-500 transition font-mono" />
           <button id="tabOpenChatBtn"
@@ -80,7 +83,7 @@ function renderChatTab(user, userData) {
 
   // Wire up copy button
   document.getElementById("tabCopyIdBtn")?.addEventListener("click", () => {
-    navigator.clipboard.writeText(myUid).then(() => {
+    navigator.clipboard.writeText(myHandle).then(() => {
       const btn = document.getElementById("tabCopyIdBtn");
       if (btn) {
         btn.textContent = "✓ Copied!";
@@ -103,12 +106,13 @@ function renderChatTab(user, userData) {
       if (errorEl) { errorEl.textContent = "Please enter a Chat ID."; errorEl.classList.remove("hidden"); }
       return;
     }
-    if (partnerId === myUid) {
+    const normalized = normalizeChatHandle(partnerId);
+    if (partnerId === myUid || normalized === myHandle) {
       if (errorEl) { errorEl.textContent = "You can't chat with yourself."; errorEl.classList.remove("hidden"); }
       return;
     }
-    if (!/^[a-zA-Z0-9_\-]{20,128}$/.test(partnerId)) {
-      if (errorEl) { errorEl.textContent = "That doesn't look like a valid Chat ID."; errorEl.classList.remove("hidden"); }
+    if (!looksLikeUid(partnerId) && !CHAT_HANDLE_RE.test(normalized)) {
+      if (errorEl) { errorEl.textContent = "Use a handle like verb-adjective-123456 or a UID."; errorEl.classList.remove("hidden"); }
       return;
     }
     window.location.href = `chat.html?partner=${encodeURIComponent(partnerId)}`;
@@ -129,6 +133,9 @@ onAuthStateChanged(auth, async (user) => {
     const snap = await getDoc(doc(db, "users", user.uid));
     if (snap.exists()) userData = snap.data();
   } catch (_) {}
+  await ensureUserChatHandle(user.uid, userData);
+  userData.chatHandle = getPreferredChatHandle(userData, user.uid);
+  userData.chatHandleLower = userData.chatHandle;
 
   // Initial render
   renderChatTab(user, userData);

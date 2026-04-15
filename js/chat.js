@@ -1,7 +1,18 @@
 import { auth, db, rtdb } from "./firebase.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  serverTimestamp,
+  where,
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+  set,
   ref,
   push,
   onChildAdded,
@@ -11,15 +22,21 @@ import {
   orderByChild,
   endAt,
   get,
-  serverTimestamp,
+  serverTimestamp as rtdbServerTimestamp,
   off,
+  onDisconnect,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-database.js";
+import {
+  CHAT_HANDLE_RE,
+  ensureUserChatHandle,
+  getPreferredChatHandle,
+  looksLikeUid,
+  normalizeChatHandle,
+} from "./chatHandle.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SIX_HOURS_MS   = 6 * 60 * 60 * 1000;
 const MAX_MSG_LEN    = 500;
-const MSG_DISPLAY_LIMIT = 50; // only load last 50 messages via client-side slice
-
 // Gold tier requires 300+ lifetime credits
 const GOLD_MIN_EARNED = 300;
 
@@ -49,14 +66,21 @@ function buildRoomId(uid1, uid2) {
 // ── State ─────────────────────────────────────────────────────────────────────
 let _currentUser   = null;
 let _userData      = null;
+let _myHandle      = null;
 let _activeRoomId  = null;
-let _activeListener = null; // Firebase RTDB off() handle
+let _activePartnerUid = null;
+let _activeRefs = [];
+let _myTypingRef = null;
+let _myPresenceRef = null;
+let _partnerOnline = false;
+let _typingStopTimer = null;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const chatLoading    = document.getElementById("chatLoading");
 const accessGate     = document.getElementById("accessGate");
 const chatApp        = document.getElementById("chatApp");
 const myChatIdEl     = document.getElementById("myChatId");
+const myUidValueEl   = document.getElementById("myUidValue");
 const copyIdBtn      = document.getElementById("copyIdBtn");
 const partnerInput   = document.getElementById("partnerIdInput");
 const startChatBtn   = document.getElementById("startChatBtn");
@@ -68,6 +92,8 @@ const noMessages     = document.getElementById("noMessages");
 const chatInput      = document.getElementById("chatInput");
 const sendBtn        = document.getElementById("sendBtn");
 const closeChatBtn   = document.getElementById("closeChatBtn");
+const partnerStatus  = document.getElementById("partnerStatus");
+const typingStatus   = document.getElementById("typingStatus");
 
 // ── Check access ──────────────────────────────────────────────────────────────
 function hasAccess(userData) {
@@ -90,6 +116,9 @@ onAuthStateChanged(auth, async (user) => {
   } catch (_) {
     _userData = {};
   }
+  _myHandle = await ensureUserChatHandle(user.uid, _userData);
+  _userData.chatHandle = _myHandle || getPreferredChatHandle(_userData, user.uid);
+  _userData.chatHandleLower = _userData.chatHandle;
 
   chatLoading?.classList.add("hidden");
 
@@ -100,20 +129,21 @@ onAuthStateChanged(auth, async (user) => {
 
   // Show chat UI
   chatApp?.classList.remove("hidden");
-  if (myChatIdEl) myChatIdEl.textContent = user.uid;
+  if (myChatIdEl) myChatIdEl.textContent = _userData.chatHandle || user.uid;
+  if (myUidValueEl) myUidValueEl.textContent = user.uid;
 
   // Pre-fill partner from URL param (e.g. chat.html?partner=UID)
   const urlPartner = new URLSearchParams(window.location.search).get("partner");
   if (urlPartner && partnerInput) {
     partnerInput.value = urlPartner;
-    openRoom(urlPartner);
+    openChat();
   }
 });
 
 // ── Copy Chat ID ──────────────────────────────────────────────────────────────
 copyIdBtn?.addEventListener("click", () => {
   if (!_currentUser) return;
-  navigator.clipboard.writeText(_currentUser.uid).then(() => {
+  navigator.clipboard.writeText(_myHandle || _currentUser.uid).then(() => {
     copyIdBtn.textContent = "✓ Copied!";
     setTimeout(() => { copyIdBtn.textContent = "📋 Copy"; }, 2000);
   });
@@ -125,27 +155,32 @@ partnerInput?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); openChat(); }
 });
 
-function openChat() {
+async function openChat() {
   if (!_currentUser) return;
-  const partnerId = (partnerInput?.value || "").trim();
+  const partnerInputValue = (partnerInput?.value || "").trim();
 
   if (startChatError) startChatError.classList.add("hidden");
 
-  if (!partnerId) {
-    showError("Please enter a Chat ID.");
+  if (!partnerInputValue) {
+    showError("Please enter a chat handle or UID.");
     return;
   }
-  if (partnerId === _currentUser.uid) {
+  if (partnerInputValue === _currentUser.uid || normalizeChatHandle(partnerInputValue) === _myHandle) {
     showError("You can't chat with yourself.");
     return;
   }
-  // Basic UID format sanity check (Firebase UIDs are 28 chars, alphanumeric + hyphens)
-  if (!/^[a-zA-Z0-9_\-]{20,128}$/.test(partnerId)) {
-    showError("That doesn't look like a valid Chat ID.");
+  if (!looksLikeUid(partnerInputValue) && !CHAT_HANDLE_RE.test(normalizeChatHandle(partnerInputValue))) {
+    showError("Use a handle like verb-adjective-123456 or paste a UID.");
     return;
   }
 
-  openRoom(partnerId);
+  const resolved = await resolvePartner(partnerInputValue);
+  if (!resolved?.uid) {
+    showError("User not found. Check the handle and try again.");
+    return;
+  }
+
+  await openRoom(resolved.uid, resolved.label);
 }
 
 function showError(msg) {
@@ -155,13 +190,39 @@ function showError(msg) {
 }
 
 // ── Open a specific chat room ──────────────────────────────────────────────────
-function openRoom(partnerId) {
+async function resolvePartner(input) {
+  const raw = String(input || "").trim();
+  if (looksLikeUid(raw)) {
+    return { uid: raw, label: raw };
+  }
+
+  const normalized = normalizeChatHandle(raw);
+  const byLower = query(
+    collection(db, "users"),
+    where("chatHandleLower", "==", normalized),
+    limit(1)
+  );
+  const lowerSnap = await getDocs(byLower);
+  if (!lowerSnap.empty) {
+    const hit = lowerSnap.docs[0];
+    const data = hit.data() || {};
+    return { uid: hit.id, label: data.chatHandle || normalized };
+  }
+
+  return null;
+}
+
+async function openRoom(partnerId, partnerDisplayLabel = null) {
   // Detach any previous listener
   detachListener();
 
   _activeRoomId = buildRoomId(_currentUser.uid, partnerId);
+  _activePartnerUid = partnerId;
+  _partnerOnline = false;
 
-  if (partnerLabel) partnerLabel.textContent = partnerId;
+  if (partnerLabel) partnerLabel.textContent = partnerDisplayLabel || partnerId;
+  if (partnerStatus) partnerStatus.textContent = "Offline";
+  if (typingStatus) typingStatus.textContent = "";
   if (chatMessages) {
     chatMessages.innerHTML = "";
     if (noMessages) {
@@ -176,7 +237,7 @@ function openRoom(partnerId) {
   const messagesRef = ref(rtdb, `chats/${_activeRoomId}/messages`);
   const renderedIds = new Set();
 
-  _activeListener = messagesRef;
+  _activeRefs.push(messagesRef);
   onChildAdded(messagesRef, (snapshot) => {
     const msgId = snapshot.key;
     if (renderedIds.has(msgId)) return;
@@ -193,14 +254,55 @@ function openRoom(partnerId) {
     appendMessage(data);
     chatMessages.scrollTop = chatMessages.scrollHeight;
   });
+
+  // Partner presence listener
+  const partnerPresenceRef = ref(rtdb, `chats/${_activeRoomId}/presence/${_activePartnerUid}`);
+  _activeRefs.push(partnerPresenceRef);
+  onValue(partnerPresenceRef, (snap) => {
+    const state = snap.val();
+    _partnerOnline = !!state?.online;
+    if (!partnerStatus) return;
+    partnerStatus.textContent = _partnerOnline ? "Online now" : "Offline";
+    partnerStatus.className = `text-[11px] mt-1 ${_partnerOnline ? "text-emerald-400" : "text-gray-500"}`;
+  });
+
+  // Partner typing listener
+  const partnerTypingRef = ref(rtdb, `chats/${_activeRoomId}/typing/${_activePartnerUid}`);
+  _activeRefs.push(partnerTypingRef);
+  onValue(partnerTypingRef, (snap) => {
+    if (!typingStatus) return;
+    typingStatus.textContent = snap.val() ? "Typing…" : "";
+  });
+
+  // Mark me online for this room while open
+  _myPresenceRef = ref(rtdb, `chats/${_activeRoomId}/presence/${_currentUser.uid}`);
+  _myTypingRef = ref(rtdb, `chats/${_activeRoomId}/typing/${_currentUser.uid}`);
+  set(_myPresenceRef, { online: true, lastSeen: Date.now() }).catch(() => {});
+  set(_myTypingRef, false).catch(() => {});
+  onDisconnect(_myPresenceRef).set({ online: false, lastSeen: rtdbServerTimestamp() });
+  onDisconnect(_myTypingRef).remove();
 }
 
 function detachListener() {
-  if (_activeListener) {
-    off(_activeListener);
-    _activeListener = null;
+  if (_typingStopTimer) {
+    clearTimeout(_typingStopTimer);
+    _typingStopTimer = null;
   }
+  if (_myTypingRef) {
+    set(_myTypingRef, false).catch(() => {});
+  }
+  if (_myPresenceRef) {
+    set(_myPresenceRef, { online: false, lastSeen: Date.now() }).catch(() => {});
+  }
+  for (const roomRef of _activeRefs) {
+    off(roomRef);
+  }
+  _activeRefs = [];
   _activeRoomId = null;
+  _activePartnerUid = null;
+  _myTypingRef = null;
+  _myPresenceRef = null;
+  _partnerOnline = false;
 }
 
 // ── Render a message bubble ───────────────────────────────────────────────────
@@ -252,7 +354,7 @@ function isRateLimited() {
 }
 
 async function sendMessage() {
-  if (!_currentUser || !_activeRoomId) return;
+  if (!_currentUser || !_activeRoomId || !_activePartnerUid) return;
 
   const text = (chatInput?.value || "").trim();
   if (!text) return;
@@ -282,7 +384,22 @@ async function sendMessage() {
       timestamp: Date.now(), // client-time used for ordering; server timestamp isn't available as a value in RTDB push
     });
 
+    if (!_partnerOnline) {
+      await addDoc(collection(db, "messages"), {
+        to: _activePartnerUid,
+        fromName: _myHandle || "Chat",
+        title: "New chat message",
+        text: text.length > 140 ? `${text.slice(0, 140)}…` : text,
+        type: "chat_message",
+        joinUrl: `chat.html?partner=${encodeURIComponent(_currentUser.uid)}`,
+        read: false,
+        timestamp: serverTimestamp(),
+      });
+    }
+
     if (chatInput) chatInput.value = "";
+    if (typingStatus) typingStatus.textContent = "";
+    if (_myTypingRef) set(_myTypingRef, false).catch(() => {});
 
     // Immediately prune messages older than 6 hours
     pruneOldMessages(_activeRoomId);
@@ -325,10 +442,30 @@ closeChatBtn?.addEventListener("click", () => {
   chatRoom?.classList.add("hidden");
   if (chatMessages) chatMessages.innerHTML = "";
   if (partnerInput) partnerInput.value = "";
+  if (partnerStatus) partnerStatus.textContent = "Offline";
+  if (typingStatus) typingStatus.textContent = "";
 });
 
 // ── Auto-resize textarea ──────────────────────────────────────────────────────
 chatInput?.addEventListener("input", () => {
   chatInput.style.height = "auto";
   chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + "px";
+  if (!_activeRoomId || !_myTypingRef) return;
+  const hasText = !!chatInput.value.trim();
+  set(_myTypingRef, hasText).catch(() => {});
+  if (_typingStopTimer) clearTimeout(_typingStopTimer);
+  if (hasText) {
+    _typingStopTimer = setTimeout(() => {
+      if (_myTypingRef) set(_myTypingRef, false).catch(() => {});
+    }, 1200);
+  }
+});
+
+chatInput?.addEventListener("blur", () => {
+  if (_myTypingRef) set(_myTypingRef, false).catch(() => {});
+});
+
+window.addEventListener("beforeunload", () => {
+  if (_myTypingRef) set(_myTypingRef, false);
+  if (_myPresenceRef) set(_myPresenceRef, { online: false, lastSeen: Date.now() });
 });
