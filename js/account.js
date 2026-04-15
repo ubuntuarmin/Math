@@ -321,7 +321,7 @@ export async function updateAccount(userData) {
     const tier = calculateTier(totalEarned);
     const nextTier = getNextTierInfo(totalEarned, data);
 
-    const ADMIN_COLOR = "#c084fc";
+    const ADMIN_COLOR = "#c084fc"; // purple-400 — matches header badge
     const isAdmin = !!data.isAdmin;
     const displayName  = isAdmin ? "Admin"      : tier.name;
     const displayColor = isAdmin ? ADMIN_COLOR  : tier.color;

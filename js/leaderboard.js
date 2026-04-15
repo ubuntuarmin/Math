@@ -354,14 +354,11 @@ export async function renderLeaderboard() {
       const tier = calculateTier(data.totalEarned || 0);
       const reward = getPotentialReward(rank);
 
-      let rankBadge = h(
-        "span",
-        { className: "text-gray-500 font-mono w-6 text-center" },
-        `${rank}`
-      );
-      if (rank === 1) rankBadge = h("span", null, "🥇");
-      if (rank === 2) rankBadge = h("span", null, "🥈");
-      if (rank === 3) rankBadge = h("span", null, "🥉");
+      const rankBadge =
+        rank === 1 ? h("span", null, "🥇") :
+        rank === 2 ? h("span", null, "🥈") :
+        rank === 3 ? h("span", null, "🥉") :
+        h("span", { className: "text-gray-500 font-mono w-6 text-center" }, `${rank}`);
 
       const entryUid  = docSnap.id;
       const entryName = data.firstName || "Student";
