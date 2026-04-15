@@ -1185,7 +1185,9 @@ function closeIframeModal() {
     const userRef = doc(db, "users", uid);
     runTransaction(db, async (tx) => {
       const snap = await tx.get(userRef);
-      if (!snap.exists()) return { didReset: false, currentResetMs: 0 };
+      if (!snap.exists()) {
+        throw new Error("User profile not found while updating session minutes.");
+      }
 
       const data = snap.data() || {};
       const currentResetMs = getCurrentBimonthlyResetMillis();
@@ -1193,7 +1195,11 @@ function closeIframeModal() {
 
       if (resetMarker <= 0) {
         const lastVisitMs = toMillisSafe(data.lastVisitTimestamp);
-        resetMarker = lastVisitMs > 0 && lastVisitMs < currentResetMs ? 0 : currentResetMs;
+        const shouldResetLegacyCarryOver =
+          lastVisitMs > 0 && lastVisitMs < currentResetMs;
+        resetMarker = shouldResetLegacyCarryOver
+          ? currentResetMs - 1
+          : currentResetMs;
       }
 
       const didReset = resetMarker < currentResetMs;
