@@ -129,12 +129,12 @@ saveBtn?.addEventListener("click", (e) => { e.preventDefault(); handleSave(); })
 });
 
 // ══════════════════════════════════════════════════════════
-//  SHEPHERD.JS TOUR  (OnboardJS-powered guided onboarding)
+//  ONBOARD.JS TOUR  (Onboard-compatible guided onboarding)
 // ══════════════════════════════════════════════════════════
 
 let _tourUid          = null;
 let _tourAwardCredits = false;
-let _shepherdTour     = null;
+let _onboardTour      = null;
 
 // Helper: programmatically switch the app to a named tab
 function _switchTab(tabName) {
@@ -225,23 +225,41 @@ function _showToast(msg) {
   }, 4500);
 }
 
-// ── Build and start the Shepherd.js tour ──────────────────
-function _startTour(uid, awardCredits) {
+function _getOnboardLib() {
+  if (typeof Onboard !== "undefined" && Onboard?.Tour) return Onboard;
+  if (typeof Shepherd !== "undefined" && Shepherd?.Tour) return Shepherd;
+  return null;
+}
+
+async function _waitForOnboardLib(timeoutMs = 5000, pollMs = 120) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const lib = _getOnboardLib();
+    if (lib) return lib;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  return null;
+}
+
+// ── Build and start the Onboard.js-compatible tour ──────────────────
+async function _startTour(uid, awardCredits) {
   _tourUid          = uid;
   _tourAwardCredits = !!awardCredits;
 
-  if (typeof Shepherd === "undefined") {
-    console.warn("[Onboarding] Shepherd.js not loaded — tour skipped.");
+  const OnboardLib = await _waitForOnboardLib();
+  if (!OnboardLib) {
+    console.warn("[Onboarding] Onboard/Shepherd library not loaded — tour skipped.");
+    _showToast("⚠️ Tutorial could not start. Please try again.");
     return;
   }
 
-  if (_shepherdTour) {
-    try { _shepherdTour.complete(); } catch (_) {}
+  if (_onboardTour) {
+    try { _onboardTour.complete(); } catch (_) {}
   }
 
-  const TOTAL = 13;
+  const TOTAL = 14;
 
-  _shepherdTour = new Shepherd.Tour({
+  _onboardTour = new OnboardLib.Tour({
     useModalOverlay: true,
     exitOnEsc: true,
     keyboardNavigation: true,
@@ -257,7 +275,7 @@ function _startTour(uid, awardCredits) {
     },
   });
 
-  _addGsapHooks(_shepherdTour);
+  _addGsapHooks(_onboardTour);
 
   /* ── Shared button factories ── */
   const backBtn  = { text: "\u2190 Back", action() { this.back(); }, classes: "shepherd-button-secondary" };
@@ -266,7 +284,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 1 — Welcome splash (centred, no attachment)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "welcome",
     title: `\uD83C\uDFAE Welcome to <span class="mt-hl">Math Katy</span>!`,
     text: _stepContent({
@@ -282,7 +300,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 2 — Navigation bar overview
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "navbar",
     title: `Your <span class="mt-hl">Navigation Bar</span>`,
     text: _stepContent({
@@ -308,7 +326,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 3 — Links tab (click-to-advance)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "links-tab",
     title: `The <span class="mt-hl">Links</span> Tab`,
     text: _stepContent({
@@ -332,7 +350,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 4 — Search & filter (input-to-advance)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "search",
     title: `<span class="mt-hl">Search</span> &amp; Filter`,
     text: _stepContent({
@@ -359,7 +377,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 5 — Opening links & session context
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "open-link",
     title: `Opening Links &amp; <span class="mt-hl">Session Time</span>`,
     text: _stepContent({
@@ -383,7 +401,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 6 — Share button (click-to-advance)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "share",
     title: `Share Links &amp; <span class="mt-hl">Earn Credits</span>`,
     text: _stepContent({
@@ -408,7 +426,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 7 — Credits & rank system
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "credits",
     title: `Credits &amp; <span class="mt-hl">Rank System</span>`,
     text: _stepContent({
@@ -433,7 +451,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 8 — Session timer
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "session-timer",
     title: `Your <span class="mt-hl">Session Timer</span>`,
     text: _stepContent({
@@ -458,7 +476,7 @@ function _startTour(uid, awardCredits) {
   /* ══════════════════════════════════════════════════════
      STEP 9 — Daily streak (click-to-advance)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "daily",
     title: `Daily <span class="mt-hl">Streak</span> Rewards`,
     text: _stepContent({
@@ -476,13 +494,44 @@ function _startTour(uid, awardCredits) {
   });
 
   /* ══════════════════════════════════════════════════════
-     STEP 10 — Leaderboard (click-to-advance)
+     STEP 10 — Daily streak mechanics (real interaction)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
+    id: "daily-mechanics",
+    title: `How <span class="mt-hl">Streaks</span> &amp; Bonuses Work`,
+    text: _stepContent({
+      icon: "📆", step: 10, total: TOTAL,
+      body: `Your streak increases by 1 each time you claim the next day in order.
+             Most days give <strong style="color:#34d399">+10 credits</strong>, while
+             <strong style="color:#fde047">Day 15 gives +100 credits</strong>. Claims are
+             spaced by 24 hours, and if you disappear too long your streak can reset,
+             so consistency is how you stack big rewards.`,
+      chips: [
+        { label: "24h between claims", type: "" },
+        { label: "Day 15 = +100 🪙", type: "green" },
+        { label: "Most days = +10 🪙", type: "" },
+      ],
+      instr: "👉 Click any day card in the streak grid to continue",
+    }),
+    attachTo: { element: "#dailyTracker", on: "top" },
+    advanceOn: { selector: "#dailyTracker .day-card", event: "click" },
+    buttons: [ backBtn ],
+    when: {
+      show() {
+        _switchTab("daily");
+        _pulseTarget("#dailyTracker");
+      },
+    },
+  });
+
+  /* ══════════════════════════════════════════════════════
+     STEP 11 — Leaderboard (click-to-advance)
+  ══════════════════════════════════════════════════════ */
+  _onboardTour.addStep({
     id: "leaderboard",
     title: `<span class="mt-hl">Leaderboard</span> &amp; Prizes`,
     text: _stepContent({
-      icon: "\uD83C\uDFC6", step: 10, total: TOTAL,
+      icon: "\uD83C\uDFC6", step: 11, total: TOTAL,
       body: `The leaderboard ranks every player by total platform time each bi-monthly season.
              The <strong style="color:#f1f5f9">top 10</strong> earn credit prizes when the
              season resets \u2014 the higher you climb, the bigger your reward. Rankings
@@ -501,13 +550,13 @@ function _startTour(uid, awardCredits) {
   });
 
   /* ══════════════════════════════════════════════════════
-     STEP 11 — Chat tab (click-to-advance)
+     STEP 12 — Chat tab (click-to-advance)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "chat",
     title: `Community <span class="mt-hl">Chat</span>`,
     text: _stepContent({
-      icon: "\uD83D\uDCAC", step: 11, total: TOTAL,
+      icon: "\uD83D\uDCAC", step: 12, total: TOTAL,
       body: `The Chat tab is your real-time community space. Share tips, react to
              messages with emojis, and stay connected with the Math Katy community.
              All messages are moderated \u2014 keep it friendly!`,
@@ -525,13 +574,13 @@ function _startTour(uid, awardCredits) {
   });
 
   /* ══════════════════════════════════════════════════════
-     STEP 12 — Account & referrals (click-to-advance)
+     STEP 13 — Account & referrals (click-to-advance)
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "account",
     title: `Your <span class="mt-hl">Account</span> &amp; Referrals`,
     text: _stepContent({
-      icon: "\uD83D\uDC64", step: 12, total: TOTAL,
+      icon: "\uD83D\uDC64", step: 13, total: TOTAL,
       body: `Your Account tab shows your full profile: credit balance, tier progress,
              shared links, and your unique <strong style="color:#f1f5f9">referral code</strong>.
              Share your code with friends \u2014 earn
@@ -551,9 +600,9 @@ function _startTour(uid, awardCredits) {
   });
 
   /* ══════════════════════════════════════════════════════
-     STEP 13 — Finale
+     STEP 14 — Finale
   ══════════════════════════════════════════════════════ */
-  _shepherdTour.addStep({
+  _onboardTour.addStep({
     id: "finale",
     title: "Tour Complete!",
     text: `<div class="mt-finale-text">
@@ -588,10 +637,10 @@ function _startTour(uid, awardCredits) {
   });
 
   /* ── Tour lifecycle handlers ── */
-  _shepherdTour.on("complete", _handleTourEnd);
-  _shepherdTour.on("cancel",   _handleTourEnd);
+  _onboardTour.on("complete", _handleTourEnd);
+  _onboardTour.on("cancel",   _handleTourEnd);
 
-  _shepherdTour.start();
+  _onboardTour.start();
 }
 
 async function _handleTourEnd() {
@@ -618,5 +667,7 @@ async function _handleTourEnd() {
 
 /** Public: start guided tour for existing users — awards +30 credits on completion. */
 export function startTourForExistingUser(uid) {
+  if (!uid) return false;
   _startTour(uid, true);
+  return true;
 }

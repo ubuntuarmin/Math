@@ -322,8 +322,14 @@ function renderTutorialCard(data) {
 
     document.getElementById("startTutorialBtn")?.addEventListener("click", () => {
         const uid = auth.currentUser?.uid;
-        if (!uid) return;
-        startTourForExistingUser(uid);
+        if (!uid) {
+            alert("Please wait a moment and try again.");
+            return;
+        }
+        const started = startTourForExistingUser(uid);
+        if (!started) {
+            alert("Tutorial is still loading. Please try again in a moment.");
+        }
     });
 }
 
