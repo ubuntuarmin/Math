@@ -107,6 +107,19 @@ function getLastCrossedResetDate(lastVisitMillis, now) {
     return latestCrossed;
 }
 
+function getCurrentBimonthlyResetMillis(now = new Date()) {
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const day = now.getDate();
+    if (day >= RESET_DAYS[1]) {
+        return new Date(year, month, RESET_DAYS[1], 0, 0, 0, 0).getTime();
+    }
+    if (day >= RESET_DAYS[0]) {
+        return new Date(year, month, RESET_DAYS[0], 0, 0, 0, 0).getTime();
+    }
+    return new Date(year, month - 1, RESET_DAYS[1], 0, 0, 0, 0).getTime();
+}
+
 /**
  * If this user was in the top 10 at the time of the last reset, award them
  * the corresponding credit prize and send an inbox notification.
@@ -236,6 +249,7 @@ async function handleDailyData(uid, userData) {
             : 0;
 
     const crossedReset = hasCrossedBimonthlyReset(lastVisitMillis, now);
+    const currentResetMillis = getCurrentBimonthlyResetMillis(now);
     let rewardedCredits = 0;
     if (crossedReset) {
         // Award top-10 credits BEFORE weekMinutes is zeroed, so the leaderboard
@@ -245,6 +259,12 @@ async function handleDailyData(uid, userData) {
             rewardedCredits = await distributeLeaderboardReward(uid, userData, lastResetDate);
         }
         updates.weekMinutes = 0;
+        updates.weekMinutesResetAtMs = currentResetMillis;
+    } else {
+        const existingResetMarker = Number(userData.weekMinutesResetAtMs || 0);
+        if (!Number.isFinite(existingResetMarker) || existingResetMarker <= 0) {
+            updates.weekMinutesResetAtMs = currentResetMillis;
+        }
     }
 
     updates.lastVisitTimestamp = serverTimestamp();
@@ -527,6 +547,7 @@ onAuthStateChanged(auth, async user => {
                 totalEarned: 20,
                 totalMinutes: 0,
                 weekMinutes: 0,
+                weekMinutesResetAtMs: Date.now(),
                 dailyLinkUsage: 0,
                 streak: 1,
                 unlockedLinks: [],

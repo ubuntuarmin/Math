@@ -182,6 +182,7 @@ const initLogin = () => {
         totalEarned: baseCredits,
         totalMinutes: 0,
         weekMinutes: 0,
+        weekMinutesResetAtMs: Date.now(),
         dailyLinkUsage: 0,
         streak: 0,
         unlockedLinks: [],

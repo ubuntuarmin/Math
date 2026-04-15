@@ -40,6 +40,29 @@ const SESSION_TTL_MS      = 24 * 60 * 60 * 1000; // 24-hour TTL for stored sessi
 const SLOT_EXPIRY_FALLBACK_MS = 4 * 60 * 60 * 1000; // fallback slot expiry for orphaned sessions
 const LOW_TIME_WARNING_MS = 5 * 60 * 1000;  // warn when < 5 minutes remain in session
 
+const LEADERBOARD_RESET_DAYS = [15, 29];
+
+function toMillisSafe(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value && typeof value.toMillis === "function") return value.toMillis();
+  return 0;
+}
+
+function getCurrentBimonthlyResetMillis(nowMs = Date.now()) {
+  const now = new Date(nowMs);
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+
+  if (day >= LEADERBOARD_RESET_DAYS[1]) {
+    return new Date(year, month, LEADERBOARD_RESET_DAYS[1], 0, 0, 0, 0).getTime();
+  }
+  if (day >= LEADERBOARD_RESET_DAYS[0]) {
+    return new Date(year, month, LEADERBOARD_RESET_DAYS[0], 0, 0, 0, 0).getTime();
+  }
+  return new Date(year, month - 1, LEADERBOARD_RESET_DAYS[1], 0, 0, 0, 0).getTime();
+}
+
 // Helper: compute average rating string ("4.2") or null
 function calcAvgRating(ratingSum, ratingCount) {
   if (!ratingCount) return null;
@@ -1160,15 +1183,43 @@ function closeIframeModal() {
   if (uid && minutesSpent > 0) {
     const cappedMinutes = Math.min(minutesSpent, 500);
     const userRef = doc(db, "users", uid);
-    updateDoc(userRef, {
-      weekMinutes:  increment(cappedMinutes),
-      totalMinutes: increment(cappedMinutes),
+    runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists()) {
+        throw new Error("User profile not found while updating session minutes.");
+      }
+
+      const data = snap.data() || {};
+      const currentResetMs = getCurrentBimonthlyResetMillis();
+      let resetMarker = toMillisSafe(data.weekMinutesResetAtMs);
+
+      if (resetMarker <= 0) {
+        const lastVisitMs = toMillisSafe(data.lastVisitTimestamp);
+        const shouldResetLegacyCarryOver =
+          lastVisitMs > 0 && lastVisitMs < currentResetMs;
+        resetMarker = shouldResetLegacyCarryOver
+          ? currentResetMs - 1
+          : currentResetMs;
+      }
+
+      const didReset = resetMarker < currentResetMs;
+      tx.update(userRef, {
+        weekMinutes: didReset ? cappedMinutes : increment(cappedMinutes),
+        totalMinutes: increment(cappedMinutes),
+        weekMinutesResetAtMs: currentResetMs,
+      });
+
+      return { didReset, currentResetMs };
+    }).then(({ didReset = false, currentResetMs = 0 } = {}) => {
+      if (currentUserData) {
+        currentUserData.weekMinutes = didReset
+          ? cappedMinutes
+          : (currentUserData.weekMinutes || 0) + cappedMinutes;
+        currentUserData.totalMinutes = (currentUserData.totalMinutes || 0) + cappedMinutes;
+        if (currentResetMs > 0) currentUserData.weekMinutesResetAtMs = currentResetMs;
+      }
     }).catch(err => console.warn(`Failed to update session minutes (uid=${uid}, minutes=${cappedMinutes}):`, err));
     // Keep local cache in sync so the UI reflects the change immediately
-    if (currentUserData) {
-      currentUserData.weekMinutes  = (currentUserData.weekMinutes  || 0) + cappedMinutes;
-      currentUserData.totalMinutes = (currentUserData.totalMinutes || 0) + cappedMinutes;
-    }
     // Notify the leaderboard to refresh so the new minutes are reflected
     document.dispatchEvent(new CustomEvent("weekMinutesUpdated"));
   }
