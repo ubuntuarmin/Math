@@ -29,6 +29,7 @@ document.addEventListener("click", (e) => {
   if (!notifBtn || !inboxDropdown) return;
 
   const target = e.target;
+  if (!(target instanceof Element)) return;
 
   // 1. Bell icon toggle — prevent navigation, show dropdown instead
   if (notifBtn.contains(target)) {
@@ -50,9 +51,9 @@ document.addEventListener("click", (e) => {
   const msgWrapper = target.closest("[data-msg-id]");
   if (msgWrapper && inboxDropdown.contains(msgWrapper)) {
     const msgId = msgWrapper.getAttribute("data-msg-id");
-    const joinUrl = decodeURIComponent(
+    const joinUrl = safeJoinUrl(decodeURIComponent(
       msgWrapper.getAttribute("data-msg-join-url") || ""
-    );
+    ));
 
     // If the click was on the delete button, handle delete instead
     const deleteBtn = target.closest("[data-msg-delete]");
@@ -213,7 +214,7 @@ function renderInbox(messages) {
         </div>
         <div class="flex items-center gap-2 ml-2">
           ${
-            msg.type === "chat_message" && msg.joinUrl
+            msg.type === "chat_message" && safeJoinUrl(msg.joinUrl)
               ? `<button class="text-[10px] px-2 py-1 rounded bg-blue-600/80 hover:bg-blue-500 text-white" data-msg-join="true">Join</button>`
               : ""
           }
@@ -310,15 +311,23 @@ function maybeShowBrowserNotifications(messages) {
     if (!document.hidden) continue;
     const title = msg.title || "New message";
     const body = msg.text || "";
+    const safeUrl = safeJoinUrl(msg.joinUrl);
     try {
       const n = new Notification(title, { body });
-      if (msg.joinUrl) {
+      if (safeUrl) {
         n.onclick = () => {
-          window.location.href = msg.joinUrl;
+          window.location.href = safeUrl;
         };
       }
     } catch (_) {}
   }
+}
+
+function safeJoinUrl(urlValue) {
+  const url = String(urlValue || "").trim();
+  if (!url) return "";
+  if (!url.startsWith("chat.html?partner=")) return "";
+  return url;
 }
 
 // Keep this for inbox.html (full page) which imports this file directly
