@@ -354,6 +354,124 @@ header.site-header::before {
   display: none;
 }
 
+/* ── More dropdown ─────────────────────────────────────── */
+
+.navbar-more-wrap {
+  position: relative;
+}
+
+.navbar-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #9ca3af;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.navbar-more-btn:hover,
+.navbar-more-btn[aria-expanded="true"] {
+  color: #e5e7eb;
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.25);
+  transform: none;
+  filter: none;
+}
+
+.navbar-more-btn.has-active {
+  color: #e5e7eb;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(168, 85, 247, 0.15));
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.18);
+}
+
+.navbar-more-caret {
+  font-size: 0.6rem;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-block;
+}
+
+.navbar-more-btn[aria-expanded="true"] .navbar-more-caret {
+  transform: rotate(180deg);
+}
+
+.navbar-more-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 200;
+  min-width: 168px;
+  background: rgba(5, 8, 22, 0.97);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 16px;
+  padding: 6px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  backdrop-filter: blur(20px) saturate(160%);
+}
+
+.navbar-more-dropdown.open {
+  display: flex;
+  animation: navbar-dropdown-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes navbar-dropdown-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Tab buttons inside the dropdown */
+.navbar-more-tab {
+  width: 100%;
+  text-align: left !important;
+  border-radius: 10px !important;
+  padding: 0.4rem 0.75rem !important;
+  font-size: 0.8rem !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.navbar-more-tab:hover {
+  transform: none !important;
+}
+
+/* External links inside the dropdown */
+.navbar-more-link {
+  display: flex;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.navbar-more-link:hover,
+.navbar-more-link:focus-visible {
+  color: #e5e7eb;
+  background: rgba(56, 189, 248, 0.08);
+  border-color: transparent;
+  transform: none;
+}
+
+.navbar-more-divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.12);
+  margin: 4px 2px;
+}
+
 /* Tab buttons inside the pill group — override global button styles */
 .navbar-tabs-group .tab-btn {
   padding: 0.3rem 0.75rem;
@@ -768,6 +886,36 @@ footer.site-footer {
     text-align: center;
   }
 
+  /* More dropdown becomes inline list inside mobile nav */
+  body.nav-open .navbar-more-wrap {
+    width: 100%;
+  }
+
+  body.nav-open .navbar-more-btn {
+    display: none;
+  }
+
+  body.nav-open .navbar-more-dropdown {
+    position: static;
+    display: flex;
+    border: none;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.6);
+    box-shadow: none;
+    padding: 4px;
+    animation: none;
+    backdrop-filter: none;
+  }
+
+  body.nav-open .navbar-more-tab {
+    text-align: left !important;
+    padding: 0.5rem 0.9rem !important;
+  }
+
+  body.nav-open .navbar-more-link {
+    padding: 0.5rem 0.9rem;
+  }
+
   .surface {
     padding: 1.4rem 1.1rem;
     border-radius: 18px;
@@ -784,7 +932,39 @@ footer.site-footer {
   }
 }
 
-/* ========= ATTENTION BANNER SLIDE ========= */
+/* ── Compact navbar for medium-small laptop screens ─────── */
+@media (min-width: 769px) and (max-width: 1200px) {
+  .navbar {
+    gap: 0.5rem;
+  }
+
+  .navbar-nav {
+    gap: 0.3rem;
+  }
+
+  .navbar-tabs-group .tab-btn {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.75rem;
+  }
+
+  .navbar-credits-pill,
+  .navbar-session-pill {
+    font-size: 0.7rem;
+    padding: 0.28rem 0.55rem;
+    gap: 0.25rem;
+  }
+
+  .navbar-action-btn {
+    font-size: 0.7rem;
+    padding: 0.28rem 0.65rem;
+  }
+
+  .navbar-signout-btn {
+    font-size: 0.7rem;
+    padding: 0.28rem 0.55rem;
+  }
+}
+
 
 @keyframes banner-slide {
   0% {
@@ -1372,232 +1552,200 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   GUIDED TOUR — Professional Intro.js dark-theme overlay
+   SHEPHERD.JS — Custom dark-theme onboarding overlay
 ═══════════════════════════════════════════════════════ */
 
-/* ── Tooltip entrance animation ────────────────────── */
+/* ── Keyframes shared by tour and onboard modal ─────── */
 @keyframes mt-tooltip-in {
   from { opacity: 0; translate: 0 10px; scale: 0.97; }
   to   { opacity: 1; translate: 0 0;    scale: 1;    }
 }
-
-/* ── Pulsing glow on the highlight border ──────────── */
-@keyframes mt-helper-pulse {
-  0%,100% { box-shadow: 0 0 0 2px #38bdf8, 0 0 24px rgba(56,189,248,0.30); }
-  50%     { box-shadow: 0 0 0 3px #a855f7, 0 0 40px rgba(168, 85,247,0.45); }
-}
-
-/* ── Shimmer sweep on the progress bar ─────────────── */
 @keyframes mt-bar-shimmer {
   from { background-position: -200% 0; }
   to   { background-position:  200% 0; }
 }
+@keyframes mt-hl-pulse {
+  0%,100% { box-shadow: 0 0 0 9999px rgba(3,7,18,0.82), 0 0 0 3px rgba(56,189,248,0.9), 0 0 20px rgba(56,189,248,0.5); }
+  50%     { box-shadow: 0 0 0 9999px rgba(3,7,18,0.82), 0 0 0 4px rgba(56,189,248,1),   0 0 36px rgba(56,189,248,0.7); }
+}
 
-/* ── Tooltip container ──────────────────────────────── */
-.introjs-tooltip.math-tour-tooltip,
-.introjs-tooltip {
+/* ── Modal overlay (darkens everything outside spotlight) */
+.shepherd-modal-overlay-container {
+  fill: rgba(3, 7, 18, 0.82) !important;
+}
+
+/* ── Shepherd tooltip container ─────────────────────── */
+.shepherd-element {
+  max-width: 400px !important;
+  min-width: 300px !important;
+  z-index: 10100 !important;
+}
+
+.shepherd-has-cancel-icon .shepherd-cancel-icon {
+  color: #64748b !important;
+  font-size: 1.4rem !important;
+  line-height: 1 !important;
+}
+.shepherd-has-cancel-icon .shepherd-cancel-icon:hover {
+  color: #94a3b8 !important;
+}
+
+.shepherd-content {
   background: linear-gradient(160deg, #0d1829 0%, #0f172a 100%) !important;
   border: 1px solid rgba(56, 189, 248, 0.40) !important;
   border-radius: 20px !important;
   box-shadow:
-    0 32px 72px rgba(0, 0, 0, 0.80),
-    0  0  50px rgba(56, 189, 248, 0.10),
+    0 32px 72px rgba(0, 0, 0, 0.85),
+    0  0  60px rgba(56, 189, 248, 0.10),
     inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
   color: #e5e7eb !important;
-  max-width: 380px !important;
-  min-width: 300px !important;
-  padding: 1.4rem 1.6rem 1.2rem !important;
-  animation: mt-tooltip-in 0.28s cubic-bezier(0.22,1,0.36,1) both !important;
-}
-
-.introjs-tooltip-header {
   padding: 0 !important;
-  margin-bottom: 0 !important;
-}
-
-.introjs-tooltiptext {
-  padding: 0 !important;
-  font-size: 0.875rem !important;
-  line-height: 1.65 !important;
-  color: #e5e7eb !important;
-}
-
-/* ── Progress bar ───────────────────────────────────── */
-.introjs-progress {
-  background: rgba(255,255,255,0.07) !important;
-  border-radius: 9999px !important;
-  height: 4px !important;
-  margin-bottom: 1rem !important;
   overflow: hidden !important;
 }
-.introjs-progressbar {
-  background: linear-gradient(
-    90deg,
-    #38bdf8 0%,
-    #a855f7 50%,
-    #38bdf8 100%
-  ) !important;
-  background-size: 200% 100% !important;
-  height: 100% !important;
-  border-radius: 9999px !important;
-  animation: mt-bar-shimmer 2.4s linear infinite !important;
-}
 
-/* ── Navigation buttons ─────────────────────────────── */
-.introjs-tooltipbuttons {
-  border-top: 1px solid rgba(148, 163, 184, 0.12) !important;
-  padding-top: 0.85rem !important;
-  margin-top: 0.85rem !important;
+/* ── Header ─────────────────────────────────────────── */
+.shepherd-header {
+  background: transparent !important;
+  padding: 1.4rem 1.6rem 0 !important;
   display: flex !important;
-  gap: 0.5rem !important;
-  justify-content: flex-end !important;
+  align-items: flex-start !important;
+  gap: 0.75rem !important;
 }
 
-.introjs-button {
-  border-radius: 9999px !important;
-  font-size: 0.78rem !important;
-  font-weight: 700 !important;
-  padding: 0.5rem 1.25rem !important;
-  transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease !important;
-  text-shadow: none !important;
-  cursor: pointer !important;
+.shepherd-title {
+  font-size: 1rem !important;
+  font-weight: 800 !important;
+  color: #f1f5f9 !important;
+  line-height: 1.3 !important;
+  flex: 1 !important;
 }
 
-.introjs-nextbutton,
-.introjs-donebutton {
-  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a855f7 100%) !important;
-  border: none !important;
-  color: #fff !important;
-  box-shadow: 0 4px 16px rgba(56,189,248,0.30) !important;
-}
-.introjs-nextbutton:hover,
-.introjs-donebutton:hover {
-  filter: brightness(1.15) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 6px 20px rgba(56,189,248,0.45) !important;
-  color: #fff !important;
-}
-.introjs-nextbutton:active,
-.introjs-donebutton:active {
-  transform: translateY(0) !important;
-}
-
-.introjs-prevbutton {
-  background: rgba(255,255,255,0.04) !important;
-  border: 1px solid rgba(148, 163, 184, 0.25) !important;
-  color: #94a3b8 !important;
-}
-.introjs-prevbutton:hover {
-  background: rgba(56,189,248,0.08) !important;
-  border-color: rgba(56,189,248,0.50) !important;
-  color: #38bdf8 !important;
-}
-.introjs-prevbutton.introjs-disabled {
-  opacity: 0.25 !important;
-  pointer-events: none !important;
-}
-
-/* ── Overlay ───────────────────────────────────────── */
-.introjs-overlay {
-  background: rgba(3, 6, 18, 0.78) !important;
-  backdrop-filter: blur(2px) !important;
-}
-
-/* ── Highlight box around the targeted element ─────── */
-.introjs-helperLayer {
-  border-radius: 14px !important;
-  animation: mt-helper-pulse 2s ease-in-out infinite !important;
-}
-
-/* ── Arrow / caret ─────────────────────────────────── */
-.introjs-arrow.top,
-.introjs-arrow.top-middle,
-.introjs-arrow.top-right {
-  border-bottom-color: #0d1829 !important;
-}
-.introjs-arrow.bottom,
-.introjs-arrow.bottom-middle,
-.introjs-arrow.bottom-right {
-  border-top-color: #0d1829 !important;
-}
-.introjs-arrow.left,
-.introjs-arrow.left-bottom {
-  border-right-color: #0d1829 !important;
-}
-.introjs-arrow.right,
-.introjs-arrow.right-bottom {
-  border-left-color: #0d1829 !important;
-}
-
-/* ═══════════════════════════════════════════════════════
-   TOUR STEP INNER COMPONENTS
-═══════════════════════════════════════════════════════ */
-
-/* Step card wrapper */
-.mt-step {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-/* Step-number badge (top-right) */
-.mt-step-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #64748b;
-  margin-bottom: 0.1rem;
-}
-.mt-step-badge span {
-  color: #38bdf8;
-}
-
-/* Icon circle */
-.mt-step-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(168,85,247,0.18));
-  border: 1px solid rgba(56,189,248,0.30);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.4rem;
-  margin-bottom: 0.25rem;
-  box-shadow: 0 0 18px rgba(56,189,248,0.15);
-  flex-shrink: 0;
-}
-
-/* Title */
-.mt-step-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #f1f5f9;
-  line-height: 1.25;
-  margin: 0;
-}
-
-/* Gradient highlight word inside title */
-.mt-hl {
+.shepherd-title .mt-hl {
   background: linear-gradient(90deg, #38bdf8, #a855f7);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Body text */
-.mt-step-body {
-  font-size: 0.845rem;
-  color: #94a3b8;
-  line-height: 1.65;
-  margin: 0;
+/* ── Text body ──────────────────────────────────────── */
+.shepherd-text {
+  padding: 0.65rem 1.6rem 0 !important;
+  font-size: 0.845rem !important;
+  color: #94a3b8 !important;
+  line-height: 1.65 !important;
 }
 
-/* Credit/stat chips */
+.shepherd-text p {
+  max-width: 100% !important;
+  margin-bottom: 0 !important;
+  color: inherit !important;
+}
+
+/* ── Footer / button row ────────────────────────────── */
+.shepherd-footer {
+  padding: 0.85rem 1.6rem 1.2rem !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.12) !important;
+  margin-top: 0.85rem !important;
+  display: flex !important;
+  gap: 0.5rem !important;
+  justify-content: flex-end !important;
+}
+
+/* Base button style (reset) */
+.shepherd-button {
+  border-radius: 9999px !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  padding: 0.5rem 1.25rem !important;
+  cursor: pointer !important;
+  transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border: none !important;
+  background-image: none !important;
+}
+
+/* Primary (Next/Finish) */
+.shepherd-button:not(.shepherd-button-secondary) {
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a855f7 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.30) !important;
+}
+.shepherd-button:not(.shepherd-button-secondary):hover {
+  filter: brightness(1.15) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 22px rgba(56, 189, 248, 0.50) !important;
+}
+.shepherd-button:not(.shepherd-button-secondary):active {
+  transform: translateY(0) !important;
+}
+
+/* Secondary (Back) */
+.shepherd-button-secondary {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  color: #94a3b8 !important;
+}
+.shepherd-button-secondary:hover {
+  background: rgba(56, 189, 248, 0.08) !important;
+  border-color: rgba(56, 189, 248, 0.50) !important;
+  color: #38bdf8 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+/* ── Arrow / caret ──────────────────────────────────── */
+.shepherd-arrow::before {
+  background: #0d1829 !important;
+  border-color: rgba(56, 189, 248, 0.40) !important;
+}
+
+/* ── Shepherd highlighted target element ────────────── */
+.shepherd-target-clickable {
+  cursor: pointer !important;
+}
+
+/* ── Progress bar (inside custom text) ─────────────── */
+.mt-shepherd-prog-wrap {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+  margin: 1rem 0 0;
+}
+
+.mt-shepherd-prog {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #38bdf8 0%, #a855f7 50%, #38bdf8 100%);
+  background-size: 200% 100%;
+  animation: mt-bar-shimmer 2.4s linear infinite;
+  transition: width 0.35s ease;
+}
+
+/* ── Step-icon circle ───────────────────────────────── */
+.mt-step-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(168,85,247,0.18));
+  border: 1px solid rgba(56,189,248,0.30);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 0 18px rgba(56,189,248,0.15);
+  flex-shrink: 0;
+}
+
+/* ── Info chips ─────────────────────────────────────── */
+.mt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
 .mt-chip {
   display: inline-block;
   background: rgba(56,189,248,0.12);
@@ -1620,15 +1768,7 @@ body {
   color: #34d399;
 }
 
-/* Chips row */
-.mt-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.1rem;
-}
-
-/* Tip card */
+/* ── Tip card ───────────────────────────────────────── */
 .mt-tip {
   background: rgba(56,189,248,0.06);
   border: 1px solid rgba(56,189,248,0.18);
@@ -1637,17 +1777,39 @@ body {
   font-size: 0.775rem;
   color: #7dd3fc;
   line-height: 1.55;
-  margin-top: 0.2rem;
+  margin-top: 0.75rem;
 }
-.mt-tip strong {
-  color: #38bdf8;
-  font-weight: 700;
+.mt-tip strong { color: #38bdf8; font-weight: 700; }
+
+/* ── Interactive instruction pill ───────────────────── */
+.mt-instr {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #7dd3fc;
+  font-weight: 600;
+  animation: mt-instr-pulse 2s ease-in-out infinite;
+}
+@keyframes mt-instr-pulse {
+  0%, 100% { border-color: rgba(56,189,248,0.25); }
+  50%       { border-color: rgba(56,189,248,0.70); box-shadow: 0 0 10px rgba(56,189,248,0.18); }
 }
 
-/* Final step celebration */
-.mt-finale {
+/* ── Highlight for tour targets ─────────────────────── */
+.mt-hl {
+  background: linear-gradient(90deg, #38bdf8, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Finale card ────────────────────────────────────── */
+.mt-finale-text {
   text-align: center;
-  padding: 0.5rem 0;
+  padding: 0.25rem 0 0;
 }
 .mt-finale-emoji {
   font-size: 2.8rem;
@@ -1668,7 +1830,6 @@ body {
   font-size: 0.845rem;
   color: #94a3b8;
   line-height: 1.65;
-  max-width: 280px;
   margin: 0 auto 0.6rem;
 }
 .mt-finale-sub {
@@ -1676,200 +1837,13 @@ body {
   color: #4b5563;
 }
 
-/* ═══════════════════════════════════════════════════════
-   INTERACTIVE TOUR SYSTEM
-═══════════════════════════════════════════════════════ */
-
-/* Full-screen dimmer (info steps without a target element) */
-.mt-tour-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  background: rgba(3, 7, 18, 0.82);
-  backdrop-filter: blur(3px);
-  animation: mt-tooltip-in 0.22s ease both;
-}
-
-/* Tooltip card */
-.mt-tour-tooltip {
-  position: fixed;
-  z-index: 10002;
-  max-width: 360px;
-  min-width: 280px;
-  width: calc(100vw - 24px);
-  background: linear-gradient(160deg, #0d1829 0%, #0f172a 100%);
-  border: 1px solid rgba(56, 189, 248, 0.40);
-  border-radius: 20px;
-  box-shadow:
-    0 32px 72px rgba(0, 0, 0, 0.80),
-    0  0  50px rgba(56, 189, 248, 0.10),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  padding: 1.4rem 1.6rem 1.2rem;
-  animation: mt-tooltip-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
-  /* Default: centred for backdrop-style info steps */
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-/* When JS positions near an element, transform is overridden */
-.mt-tour-tooltip[style*="top"] {
-  transform: none;
-}
-
-/* Finale card is a bit wider */
-.mt-tour-finale {
-  max-width: 420px;
-  text-align: center;
-}
-
-/* Progress bar */
-.mt-tour-prog-wrap {
-  width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 9999px;
-  overflow: hidden;
-  margin-bottom: 1rem;
-}
-.mt-tour-prog {
-  height: 100%;
-  border-radius: 9999px;
-  background: linear-gradient(90deg, #38bdf8 0%, #a855f7 50%, #38bdf8 100%);
-  background-size: 200% 100%;
-  animation: mt-bar-shimmer 2.4s linear infinite;
-  transition: width 0.35s ease;
-}
-
-/* "Click this element" instruction pill */
-.mt-tour-instr {
-  margin-top: 0.75rem;
-  padding: 0.5rem 0.85rem;
-  background: rgba(56, 189, 248, 0.08);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 10px;
-  font-size: 0.8rem;
-  color: #7dd3fc;
-  font-weight: 600;
-  animation: mt-instr-pulse 2s ease-in-out infinite;
-}
-@keyframes mt-instr-pulse {
-  0%, 100% { border-color: rgba(56,189,248,0.25); }
-  50%       { border-color: rgba(56,189,248,0.70); box-shadow: 0 0 10px rgba(56,189,248,0.18); }
-}
-
-/* Button row */
-.mt-tour-btn-row {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
-}
-.mt-tour-btn-next {
-  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a855f7 100%);
-  border: none;
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 700;
-  padding: 0.5rem 1.25rem;
-  border-radius: 9999px;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(56,189,248,0.28);
-  transition: filter 120ms, transform 120ms, box-shadow 120ms;
-}
-.mt-tour-btn-next:hover  { filter: brightness(1.15); transform: translateY(-1px); }
-.mt-tour-btn-next:active { transform: translateY(0); }
-.mt-tour-btn-back {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(148,163,184,0.25);
-  color: #94a3b8;
-  font-size: 0.78rem;
-  font-weight: 700;
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: background 120ms, border-color 120ms, color 120ms;
-}
-.mt-tour-btn-back:hover {
-  background: rgba(56,189,248,0.08);
-  border-color: rgba(56,189,248,0.50);
-  color: #38bdf8;
-}
-
-/* Highlighted target element — glowing ring punching through the backdrop */
-.mt-tour-hl {
-  position: relative !important;
-  z-index: 10001 !important;
-  border-radius: 10px !important;
-  box-shadow:
-    0 0 0 9999px rgba(3, 7, 18, 0.80),
-    0 0 0 3px rgba(56, 189, 248, 0.85),
-    0 0 20px rgba(56, 189, 248, 0.45) !important;
-  animation: mt-hl-pulse 1.8s ease-in-out infinite !important;
-  outline: none !important;
-  /* Ensure clicks reach the real element */
-  pointer-events: auto !important;
-}
-@keyframes mt-hl-pulse {
-  0%,100% { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(56,189,248,0.85), 0 0 20px rgba(56,189,248,0.45); }
-  50%     { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(56,189,248,1),    0 0 34px rgba(56,189,248,0.65); }
-}
-
-/* Self-healing: warning highlight (amber) when user strays to the wrong tab */
-.mt-tour-hl-warn {
-  position: relative !important;
-  z-index: 10001 !important;
-  border-radius: 10px !important;
-  box-shadow:
-    0 0 0 9999px rgba(3, 7, 18, 0.80),
-    0 0 0 3px rgba(251, 191, 36, 0.90),
-    0 0 20px rgba(251, 191, 36, 0.50) !important;
-  animation: mt-hl-warn-pulse 1.4s ease-in-out infinite !important;
-  outline: none !important;
-  pointer-events: auto !important;
-}
-@keyframes mt-hl-warn-pulse {
-  0%,100% { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(251,191,36,0.90), 0 0 20px rgba(251,191,36,0.50); }
-  50%     { box-shadow: 0 0 0 9999px rgba(3,7,18,0.80), 0 0 0 3px rgba(251,191,36,1),    0 0 36px rgba(251,191,36,0.75); }
-}
-
-/* Self-healing reroute pill */
-.mt-tour-reroute {
-  position: fixed;
-  top: 1.25rem;
-  left: 50%;
-  transform: translateX(-50%) translateY(-80px);
-  z-index: 10015;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: linear-gradient(135deg, #78350f, #92400e);
-  border: 1px solid rgba(251, 191, 36, 0.50);
-  color: #fde68a;
-  font-size: 0.82rem;
-  font-weight: 700;
-  padding: 0.6rem 1.25rem;
-  border-radius: 9999px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.60);
-  white-space: nowrap;
-  animation: mt-reroute-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-@keyframes mt-reroute-in {
-  from { transform: translateX(-50%) translateY(-80px); opacity: 0; }
-  to   { transform: translateX(-50%) translateY(0);     opacity: 1; }
-}
-.mt-tour-reroute-icon {
-  font-size: 1rem;
-}
-
-/* Credits toast */
+/* ── Credits toast ──────────────────────────────────── */
 .mt-tour-toast {
   position: fixed;
   bottom: 1.5rem;
   left: 50%;
   transform: translateX(-50%) translateY(80px);
-  z-index: 10010;
+  z-index: 10200;
   background: linear-gradient(135deg, #065f46, #064e3b);
   border: 1px solid rgba(52,211,153,0.40);
   color: #6ee7b7;
@@ -1881,6 +1855,7 @@ body {
   opacity: 0;
   transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), opacity 0.35s ease;
   white-space: nowrap;
+  pointer-events: none;
 }
 .mt-tour-toast.mt-tour-toast-show {
   opacity: 1;

@@ -8,11 +8,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Intro.js — Interactive guided tour
+  <!-- Shepherd.js — OnboardJS-style guided tour library
        Note: Add SRI integrity hashes in production for security. -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/introjs.min.css"
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@13.0.0/dist/css/shepherd.css"
         crossorigin="anonymous" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/intro.js/7.2.0/intro.min.js"
+  <script src="https://cdn.jsdelivr.net/npm/shepherd.js@13.0.0/dist/js/shepherd.min.js"
           crossorigin="anonymous"></script>
 
   <!-- GSAP — Professional animation engine
@@ -157,32 +157,35 @@
     <!-- Nav items -->
     <div class="navbar-nav" id="mainNav">
 
-      <!-- Tab group pill -->
+      <!-- Primary tab group pill -->
       <div class="navbar-tabs-group" id="tourNavTabs">
         <button class="tab-btn active" data-tab="links" id="tourTabLinks">🔗 Links</button>
         <button class="tab-btn" data-tab="daily" id="tourTabDaily">🔥 Daily</button>
         <button class="tab-btn" data-tab="leaderboard" id="tourTabLeaderboard">🏆 Top</button>
-        <button class="tab-btn" data-tab="appeals">⚖️ Appeals</button>
-        <button class="tab-btn" data-tab="news" id="tourTabNews">📰 News</button>
         <button class="tab-btn" data-tab="chat" id="tourTabChat">💬 Chat</button>
         <button class="tab-btn" data-tab="account" id="tourTabAccount">👤 Account</button>
-        <button class="tab-btn" data-tab="admin">🛡️ Admin</button>
+      </div>
+
+      <!-- More dropdown (secondary tabs + extra links) -->
+      <div class="navbar-more-wrap" id="navMoreWrap">
+        <button class="navbar-more-btn" id="navMoreBtn" aria-expanded="false" aria-haspopup="true">
+          More <span class="navbar-more-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="navbar-more-dropdown" id="navMoreDropdown" role="menu">
+          <button class="tab-btn navbar-more-tab" data-tab="news" id="tourTabNews" role="menuitem">📰 News</button>
+          <button class="tab-btn navbar-more-tab" data-tab="appeals" role="menuitem">⚖️ Appeals</button>
+          <button class="tab-btn navbar-more-tab" data-tab="admin" role="menuitem">🛡️ Admin</button>
+          <div class="navbar-more-divider" aria-hidden="true"></div>
+          <a href="promote.html" class="navbar-more-link" role="menuitem">✨ Promote</a>
+          <a href="rules.html" class="navbar-more-link" role="menuitem">📖 Rules</a>
+        </div>
       </div>
 
       <span class="navbar-sep" aria-hidden="true"></span>
 
-      <!-- Action links -->
+      <!-- Share action -->
       <a href="share.html" class="navbar-action-btn navbar-action-share whitespace-nowrap" id="tourShareBtn">
         + Share
-      </a>
-      <a href="promote.html" class="navbar-action-btn navbar-action-promote whitespace-nowrap">
-        ✨ Promote
-      </a>
-      <a href="rules.html"
-         class="text-xs font-bold text-purple-300 hover:text-purple-200 transition-colors
-                px-2.5 py-1.5 rounded-full border border-purple-500/30 hover:border-purple-400/60
-                hover:bg-purple-500/10 whitespace-nowrap">
-        📖 Rules
       </a>
 
       <!-- Inbox bell -->
@@ -1395,11 +1398,25 @@
 
 <script>
   // ── Tab switcher ──────────────────────────────────────────
+  const _moreTabs    = ["news", "appeals", "admin"];
+  const _navMoreBtn  = document.getElementById("navMoreBtn");
+  const _navMoreDrop = document.getElementById("navMoreDropdown");
+  const _navMoreWrap = document.getElementById("navMoreWrap");
+
+  function _syncMoreBtn() {
+    const anyMoreActive = !!document.querySelector(".tab-btn.active[data-tab]")
+      && _moreTabs.includes(document.querySelector(".tab-btn.active")?.dataset.tab || "");
+    _navMoreBtn?.classList.toggle("has-active", anyMoreActive);
+  }
+
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const tab = btn.dataset.tab;
       // Close mobile nav when a tab is selected
       document.body.classList.remove("nav-open");
+      // Close More dropdown
+      _navMoreDrop?.classList.remove("open");
+      _navMoreBtn?.setAttribute("aria-expanded", "false");
       // Update button states
       document.querySelectorAll(".tab-btn").forEach((b) =>
         b.classList.toggle("active", b === btn)
@@ -1408,7 +1425,24 @@
       document.querySelectorAll(".tab-content").forEach((el) =>
         el.classList.toggle("active", el.id === `tab-${tab}`)
       );
+      // Sync More button highlight
+      _syncMoreBtn();
     });
+  });
+
+  // ── More dropdown toggle ──────────────────────────────────
+  _navMoreBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = _navMoreDrop.classList.toggle("open");
+    _navMoreBtn.setAttribute("aria-expanded", String(isOpen));
+  });
+
+  // Close More dropdown when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!_navMoreWrap?.contains(e.target)) {
+      _navMoreDrop?.classList.remove("open");
+      _navMoreBtn?.setAttribute("aria-expanded", "false");
+    }
   });
 
   // ── Mobile nav toggle ─────────────────────────────────────
