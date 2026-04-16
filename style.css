@@ -1585,9 +1585,11 @@ body {
 /* ── Onboard tooltip container ──────────────────────── */
 .onboard-tooltip,
 .shepherd-element {
-  max-width: min(400px, calc(100vw - 16px)) !important;
-  min-width: min(300px, calc(100vw - 16px)) !important;
-  width: min(400px, calc(100vw - 16px)) !important;
+  --mt-tour-inline-padding: 16px;
+  --mt-tour-vw-fit: calc(100vw - var(--mt-tour-inline-padding));
+  max-width: min(400px, var(--mt-tour-vw-fit)) !important;
+  min-width: min(300px, var(--mt-tour-vw-fit)) !important;
+  width: min(400px, var(--mt-tour-vw-fit)) !important;
   z-index: 10100 !important;
 }
 
@@ -2004,12 +2006,15 @@ body {
 }
 
 /* Small laptops: denser, smoother tour cards */
+/* 1366x768 and 1440x900-class displays are the primary target for this compact mode. */
 @media (max-width: 1366px), (max-height: 820px) {
   .onboard-tooltip,
   .shepherd-element {
-    max-width: min(360px, calc(100vw - 12px)) !important;
-    min-width: min(260px, calc(100vw - 12px)) !important;
-    width: min(360px, calc(100vw - 12px)) !important;
+    --mt-tour-inline-padding: 12px;
+    --mt-tour-vw-fit: calc(100vw - var(--mt-tour-inline-padding));
+    max-width: min(360px, var(--mt-tour-vw-fit)) !important;
+    min-width: min(260px, var(--mt-tour-vw-fit)) !important;
+    width: min(360px, var(--mt-tour-vw-fit)) !important;
   }
   .onboard-content,
   .shepherd-content {

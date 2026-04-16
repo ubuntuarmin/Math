@@ -145,10 +145,9 @@ const COMPACT_MAX_HEIGHT = 820;
 const NATIVE_VIEWPORT_MARGIN = 12;
 const NATIVE_CARD_EDGE_GAP = 24;
 const NATIVE_CARD_DEFAULT_HEIGHT = 360;
-const NATIVE_CARD_MIN_HEIGHT = 280;
 
-function _isCompactViewport() {
-  // Inclusive thresholds mirror CSS media queries: max-width:1366px / max-height:820px.
+function _shouldUseCompactLayout() {
+  // Thresholds match CSS media queries: max-width:1366px / max-height:820px (inclusive).
   return window.innerWidth <= COMPACT_MAX_WIDTH || window.innerHeight <= COMPACT_MAX_HEIGHT;
 }
 
@@ -193,11 +192,20 @@ function _icon(emoji) {
   return `<div class="mt-step-icon">${emoji}</div>`;
 }
 
+function _escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Helper: compact pricing rows
 function _pricing(rows) {
   if (!rows?.length) return "";
   return `<div class="mt-pricing-grid">${rows.map(({ tier, value }) =>
-    `<div class="mt-price-row"><span>${tier}</span><strong>${value}</strong></div>`
+    `<div class="mt-price-row"><span>${_escapeHtml(tier)}</span><strong>${_escapeHtml(value)}</strong></div>`
   ).join("")}</div>`;
 }
 
@@ -266,6 +274,7 @@ class NativeOnboardTour {
     this.card = null;
     this.currentTarget = null;
     this.cleanupAdvance = null;
+    this.cardMeasuredHeight = null;
     this.repositionRaf = null;
     this.boundEsc = (e) => {
       if (e.key === "Escape" && this.options.exitOnEsc) this.cancel();
@@ -346,6 +355,7 @@ class NativeOnboardTour {
     if (this.cleanupAdvance) { this.cleanupAdvance(); this.cleanupAdvance = null; }
     if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
     this.currentTarget = null;
+    this.cardMeasuredHeight = null;
     document.removeEventListener("keydown", this.boundEsc);
     window.removeEventListener("resize", this.boundReposition);
     window.removeEventListener("scroll", this.boundReposition, true);
@@ -372,6 +382,11 @@ class NativeOnboardTour {
       <div class="mt-native-tour-body">${text}</div>
       <footer class="mt-native-tour-footer"></footer>
     `;
+    // scrollHeight may briefly be 0 during first paint; default keeps placement stable.
+    this.cardMeasuredHeight = Math.min(
+      this.card.scrollHeight || NATIVE_CARD_DEFAULT_HEIGHT,
+      window.innerHeight - NATIVE_CARD_EDGE_GAP
+    );
 
     const footer = this.card.querySelector(".mt-native-tour-footer");
     buttons.forEach((btnCfg) => {
@@ -434,7 +449,8 @@ class NativeOnboardTour {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const cardW = Math.min(420, Math.max(300, vw - NATIVE_CARD_EDGE_GAP));
-    const cardH = Math.min(this.card.offsetHeight || NATIVE_CARD_DEFAULT_HEIGHT, vh - NATIVE_CARD_EDGE_GAP);
+    const measuredCardHeight = this.cardMeasuredHeight || NATIVE_CARD_DEFAULT_HEIGHT;
+    const cardH = Math.min(measuredCardHeight, vh - NATIVE_CARD_EDGE_GAP);
     const gap = 14;
     const minMargin = NATIVE_VIEWPORT_MARGIN;
 
@@ -457,7 +473,7 @@ class NativeOnboardTour {
     left = Math.max(minMargin, Math.min(vw - cardW - minMargin, left));
 
     this.card.style.width = `${cardW}px`;
-    this.card.style.maxHeight = `${Math.max(NATIVE_CARD_MIN_HEIGHT, vh - NATIVE_CARD_EDGE_GAP)}px`;
+    this.card.style.maxHeight = `${Math.max(160, vh - NATIVE_CARD_EDGE_GAP)}px`;
     this.card.style.left = `${left}px`;
     this.card.style.top = `${top}px`;
     this.card.style.transform = "none";
@@ -587,7 +603,7 @@ async function _waitForOnboardLib(timeoutMs = TOUR_LIB_LOAD_MAX_MS) {
 async function _startTour(uid, awardCredits) {
   _tourUid          = uid;
   _tourAwardCredits = !!awardCredits;
-  const compact = _isCompactViewport();
+  const compact = _shouldUseCompactLayout();
 
   const OnboardLib = await _waitForOnboardLib();
   const TourCtor = OnboardLib?.Tour || NativeOnboardTour;
