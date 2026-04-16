@@ -1,5 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { doc, updateDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { TIER_CONFIG, FREE_SESSION_MINUTES } from "./tier.js";
 
 // ══════════════════════════════════════════════════════════
 //  PROFILE SETUP FORM
@@ -140,6 +141,7 @@ let _tourLibLoadPromise = null;
 const TOUR_LIB_SOURCE_TIMEOUT_MS = 4500;
 const TOUR_LIB_LOAD_MAX_MS = 12000;
 const NATIVE_TOUR_CLS = "mt-native-tour-target";
+const SESSION_TOPUP_COST = 50;
 
 const _tourScriptSources = [
   "https://cdn.jsdelivr.net/npm/onboardjs@latest/dist/onboard.umd.min.js",
@@ -180,6 +182,15 @@ function _instr(text) {
 // Helper: step icon circle
 function _icon(emoji) {
   return `<div class="mt-step-icon">${emoji}</div>`;
+}
+
+function _tierTopupChips() {
+  return [
+    { label: `Basic = ${TIER_CONFIG.BASIC.limitMinutes}m/top-up`, type: "" },
+    { label: `Silver = ${TIER_CONFIG.SILVER.limitMinutes}m`, type: "" },
+    { label: `Gold = ${TIER_CONFIG.GOLD.limitMinutes}m`, type: "purple" },
+    { label: `VIP = ${TIER_CONFIG.VIP.limitMinutes}m ⭐`, type: "purple" },
+  ];
 }
 
 // Build the body section of a step (icon + progress + body + chips + tip + instruction)
@@ -249,6 +260,7 @@ class NativeOnboardTour {
     this.boundEsc = (e) => {
       if (e.key === "Escape" && this.options.exitOnEsc) this.cancel();
     };
+    this.boundReposition = () => this._repositionCurrent();
   }
 
   addStep(step) {
@@ -310,6 +322,8 @@ class NativeOnboardTour {
     this.card = this.host.querySelector(".mt-native-tour-card");
     this.host.querySelector(".mt-native-tour-overlay")?.addEventListener("click", () => this.cancel());
     document.addEventListener("keydown", this.boundEsc);
+    window.addEventListener("resize", this.boundReposition);
+    window.addEventListener("scroll", this.boundReposition, { passive: true });
   }
 
   _teardown() {
@@ -317,6 +331,8 @@ class NativeOnboardTour {
     if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
     this.currentTarget = null;
     document.removeEventListener("keydown", this.boundEsc);
+    window.removeEventListener("resize", this.boundReposition);
+    window.removeEventListener("scroll", this.boundReposition);
     if (this.host) this.host.remove();
     this.host = null;
     this.card = null;
@@ -392,6 +408,16 @@ class NativeOnboardTour {
     this.card.style.transform = "translate(-50%, -50%)";
   }
 
+  _repositionCurrent() {
+    if (!this.card) return;
+    const step = this.steps[this.index];
+    if (!step) return;
+    const targetSelector = step.attachTo?.element || "";
+    const target = targetSelector ? document.querySelector(targetSelector) : null;
+    if (target) this._positionNear(target, step.attachTo?.on || "bottom");
+    else this._positionCenter();
+  }
+
   _positionNear(target, on) {
     if (!this.card || !target) return;
     const rect = target.getBoundingClientRect();
@@ -399,17 +425,18 @@ class NativeOnboardTour {
     const vh = window.innerHeight;
     const cardW = Math.min(420, Math.max(300, vw - 24));
     const gap = 14;
+    this.card.style.width = `${cardW}px`;
+    const cardH = this.card.offsetHeight || 280;
 
     let left = rect.left + rect.width / 2 - cardW / 2;
     let top = on === "top" ? rect.top - gap : rect.bottom + gap;
     if (on === "left") { left = rect.left - cardW - gap; top = rect.top; }
     if (on === "right") { left = rect.right + gap; top = rect.top; }
 
-    if (top + 20 > vh) top = vh - 20;
+    if (top + cardH + 20 > vh) top = Math.max(20, vh - cardH - 20);
     if (top < 20) top = 20;
     left = Math.max(12, Math.min(vw - cardW - 12, left));
 
-    this.card.style.width = `${cardW}px`;
     this.card.style.left = `${left}px`;
     this.card.style.top = `${top}px`;
     this.card.style.transform = "none";
@@ -625,7 +652,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabLinks", on: "bottom" },
     advanceOn: { selector: "#tourTabLinks", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _switchTab("links"); _pulseTarget("#tourTabLinks"); } },
   });
 
@@ -645,7 +672,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#linksSearch", on: "bottom" },
     advanceOn: { selector: "#linksSearch", event: "input" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: {
       show() {
         _switchTab("links");
@@ -700,8 +727,7 @@ async function _startTour(uid, awardCredits) {
       instr: "\uD83D\uDC46 Click the <strong>+ Share</strong> button to continue",
     }),
     attachTo: { element: "#tourShareBtn", on: "bottom" },
-    advanceOn: { selector: "#tourShareBtn", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn() ],
     when: { show() { _pulseTarget("#tourShareBtn"); } },
   });
 
@@ -710,18 +736,21 @@ async function _startTour(uid, awardCredits) {
   ══════════════════════════════════════════════════════ */
   _onboardTour.addStep({
     id: "credits",
-    title: `Credits &amp; <span class="mt-hl">Rank System</span>`,
+    title: `Credits, <span class="mt-hl">Pricing</span> &amp; Rank System`,
     text: _stepContent({
       icon: "\uD83E\uDE99", step: 7, total: TOTAL,
       body: `Your credits are your <strong style="color:#f1f5f9">platform currency and
              reputation score</strong>. Accumulate them to unlock higher tiers with better
              perks \u2014 each tier increases your session top-up bonus and shows your status
-             to the community.`,
+             to the community. Every top-up always costs
+             <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong> \u2014 only the
+             minutes gained change by tier.`,
       chips: [
         { label: "Basic", type: "" },
         { label: "Silver", type: "" },
         { label: "Gold", type: "purple" },
         { label: "VIP \u2B50", type: "purple" },
+        { label: `${SESSION_TOPUP_COST} \uD83E\uDE99 per top-up`, type: "green" },
       ],
       tip: "Refer a friend and earn <strong>+150 credits</strong> \u2014 the fastest single way to rank up!",
     }),
@@ -735,20 +764,15 @@ async function _startTour(uid, awardCredits) {
   ══════════════════════════════════════════════════════ */
   _onboardTour.addStep({
     id: "session-timer",
-    title: `Your <span class="mt-hl">Session Timer</span>`,
+    title: `Session Timer &amp; <span class="mt-hl">Top-up Pricing</span>`,
     text: _stepContent({
       icon: "\u23F1\uFE0F", step: 8, total: TOTAL,
-      body: `Every new browser session gives you <strong style="color:#f1f5f9">30 free
-             minutes</strong> across all links. When time is low, click this button to
-             top up for <strong style="color:#fde047">50 credits</strong>. Higher rank =
-             more minutes per refill \u2014 VIP gets a massive
-             <strong style="color:#a855f7">6 hours</strong>!`,
-      chips: [
-        { label: "Basic = 45 min/top-up", type: "" },
-        { label: "Silver = 60 min", type: "" },
-        { label: "Gold = 2 hrs", type: "purple" },
-        { label: "VIP = 6 hrs \u2B50", type: "purple" },
-      ],
+      body: `Every new browser session gives you <strong style="color:#f1f5f9">${FREE_SESSION_MINUTES} free
+              minutes</strong> across all links. When time is low, click this button to
+              top up for <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong>.
+              Higher rank = more minutes per refill, so ranking up gives
+              <strong style="color:#34d399">better value per top-up</strong>.`,
+      chips: _tierTopupChips(),
     }),
     attachTo: { element: "#navSessionTime", on: "bottom" },
     buttons: [ backBtn, nextBtn() ],
@@ -771,7 +795,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabDaily", on: "bottom" },
     advanceOn: { selector: "#tourTabDaily", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabDaily"); } },
   });
 
@@ -797,7 +821,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#dailyTracker", on: "top" },
     advanceOn: { selector: "#dailyTracker .day-card", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: {
       show() {
         _switchTab("daily");
@@ -827,7 +851,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabLeaderboard", on: "bottom" },
     advanceOn: { selector: "#tourTabLeaderboard", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabLeaderboard"); } },
   });
 
@@ -851,7 +875,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabChat", on: "bottom" },
     advanceOn: { selector: "#tourTabChat", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabChat"); } },
   });
 
@@ -877,7 +901,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabAccount", on: "bottom" },
     advanceOn: { selector: "#tourTabAccount", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabAccount"); } },
   });
 
@@ -901,7 +925,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#navMoreBtn", on: "bottom" },
     advanceOn: { selector: "#tourTabNews", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: {
       show() {
         const moreBtn = document.getElementById("navMoreBtn");

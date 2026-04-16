@@ -1585,8 +1585,8 @@ body {
 /* ── Onboard tooltip container ──────────────────────── */
 .onboard-tooltip,
 .shepherd-element {
-  max-width: 400px !important;
-  min-width: 300px !important;
+  max-width: min(400px, calc(100vw - 24px)) !important;
+  min-width: min(300px, calc(100vw - 24px)) !important;
   z-index: 10100 !important;
 }
 
@@ -1612,6 +1612,7 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
   color: #e5e7eb !important;
   padding: 0 !important;
+  max-height: min(80vh, 680px) !important;
   overflow: hidden !important;
 }
 
@@ -1649,6 +1650,10 @@ body {
   font-size: 0.845rem !important;
   color: #94a3b8 !important;
   line-height: 1.65 !important;
+  max-height: min(50vh, 420px) !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.5) rgba(148, 163, 184, 0.15);
 }
 
 .onboard-body p,
@@ -1765,8 +1770,10 @@ body {
 .mt-native-tour-card {
   position: fixed;
   z-index: 10101;
-  max-width: 420px;
-  min-width: 300px;
+  width: min(420px, calc(100vw - 24px));
+  max-width: min(420px, calc(100vw - 24px));
+  min-width: min(300px, calc(100vw - 24px));
+  max-height: min(80vh, 680px);
   background: linear-gradient(160deg, #0d1829 0%, #0f172a 100%);
   border: 1px solid rgba(56, 189, 248, 0.40);
   border-radius: 20px;
@@ -1785,6 +1792,10 @@ body {
   font-size: 0.845rem;
   color: #94a3b8;
   line-height: 1.65;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.5) rgba(148, 163, 184, 0.15);
 }
 .mt-native-tour-footer {
   padding: 0.85rem 1.6rem 1.2rem;
@@ -1964,4 +1975,59 @@ body {
 }
 #onboardModal:not(.hidden) .panel {
   animation: onboard-modal-in 0.40s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#onboardModal .panel {
+  max-height: min(92vh, 760px);
+  overflow-y: auto;
+}
+
+@media (max-width: 1280px) {
+  .onboard-header,
+  .shepherd-header,
+  .onboard-body,
+  .shepherd-text,
+  .onboard-footer,
+  .shepherd-footer,
+  .mt-native-tour-header,
+  .mt-native-tour-body,
+  .mt-native-tour-footer {
+    padding-left: 1.1rem !important;
+    padding-right: 1.1rem !important;
+  }
+
+  .onboard-title,
+  .shepherd-title,
+  .mt-native-tour-header {
+    font-size: 0.94rem !important;
+  }
+}
+
+@media (max-width: 1024px), (max-height: 780px) {
+  .onboard-tooltip,
+  .shepherd-element,
+  .mt-native-tour-card {
+    width: min(380px, calc(100vw - 20px)) !important;
+    min-width: min(270px, calc(100vw - 20px)) !important;
+    max-width: min(380px, calc(100vw - 20px)) !important;
+  }
+
+  .onboard-body,
+  .shepherd-text,
+  .mt-native-tour-body {
+    font-size: 0.8rem !important;
+    line-height: 1.55 !important;
+    max-height: min(48vh, 320px) !important;
+  }
+
+  .onboard-button,
+  .shepherd-button,
+  .mt-native-tour-btn {
+    padding: 0.45rem 0.95rem !important;
+    font-size: 0.74rem !important;
+  }
+
+  #onboardModal .panel {
+    padding: 1.1rem !important;
+  }
 }
