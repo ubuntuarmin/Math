@@ -279,7 +279,7 @@ onAuthStateChanged(auth, async (user) => {
 
   // Auto-resume the most recent saved conversation
   if (_savedChats.length > 0) {
-    const recent = [..._savedChats].sort((a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0))[0];
+    const recent = _savedChats[0];
     if (recent?.partnerUid) {
       openRoom(recent.partnerUid, recent.partnerLabel || recent.partnerUid);
     }
