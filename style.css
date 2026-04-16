@@ -1770,7 +1770,6 @@ body {
 .mt-native-tour-card {
   position: fixed;
   z-index: 10101;
-  width: min(420px, calc(100vw - 24px));
   max-width: min(420px, calc(100vw - 24px));
   min-width: min(300px, calc(100vw - 24px));
   max-height: min(80vh, 680px);
@@ -2007,7 +2006,6 @@ body {
   .onboard-tooltip,
   .shepherd-element,
   .mt-native-tour-card {
-    width: min(380px, calc(100vw - 20px)) !important;
     min-width: min(270px, calc(100vw - 20px)) !important;
     max-width: min(380px, calc(100vw - 20px)) !important;
   }

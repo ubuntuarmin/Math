@@ -5,6 +5,7 @@
  * Buying more time costs 50 credits and adds limitMinutes to the session.
  */
 export const FREE_SESSION_MINUTES = 30; // free minutes for everyone, regardless of rank
+export const SESSION_TOPUP_COST = 50;   // credits needed to buy more session time
 
 /**
  * ADMIN PROMOTION REQUIREMENTS

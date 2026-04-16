@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { doc, updateDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import { TIER_CONFIG, FREE_SESSION_MINUTES } from "./tier.js";
+import { TIER_CONFIG, FREE_SESSION_MINUTES, SESSION_TOPUP_COST } from "./tier.js";
 
 // ══════════════════════════════════════════════════════════
 //  PROFILE SETUP FORM
@@ -141,7 +141,9 @@ let _tourLibLoadPromise = null;
 const TOUR_LIB_SOURCE_TIMEOUT_MS = 4500;
 const TOUR_LIB_LOAD_MAX_MS = 12000;
 const NATIVE_TOUR_CLS = "mt-native-tour-target";
-const SESSION_TOPUP_COST = 50;
+const FALLBACK_CARD_HEIGHT = 280;
+const FALLBACK_CARD_MIN_HEIGHT = 260;
+const FALLBACK_CARD_MAX_HEIGHT = 680;
 
 const _tourScriptSources = [
   "https://cdn.jsdelivr.net/npm/onboardjs@latest/dist/onboard.umd.min.js",
@@ -187,9 +189,9 @@ function _icon(emoji) {
 function _tierTopupChips() {
   return [
     { label: `Basic = ${TIER_CONFIG.BASIC.limitMinutes}m/top-up`, type: "" },
-    { label: `Silver = ${TIER_CONFIG.SILVER.limitMinutes}m`, type: "" },
-    { label: `Gold = ${TIER_CONFIG.GOLD.limitMinutes}m`, type: "purple" },
-    { label: `VIP = ${TIER_CONFIG.VIP.limitMinutes}m ⭐`, type: "purple" },
+    { label: `Silver = ${TIER_CONFIG.SILVER.limitMinutes}m/top-up`, type: "" },
+    { label: `Gold = ${TIER_CONFIG.GOLD.limitMinutes}m/top-up`, type: "purple" },
+    { label: `VIP = ${TIER_CONFIG.VIP.limitMinutes}m/top-up ⭐`, type: "purple" },
   ];
 }
 
@@ -424,9 +426,10 @@ class NativeOnboardTour {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const cardW = Math.min(420, Math.max(300, vw - 24));
+    const cardH = Number.isFinite(vh)
+      ? Math.min(Math.max(FALLBACK_CARD_MIN_HEIGHT, vh * 0.8), FALLBACK_CARD_MAX_HEIGHT)
+      : FALLBACK_CARD_HEIGHT;
     const gap = 14;
-    this.card.style.width = `${cardW}px`;
-    const cardH = this.card.offsetHeight || 280;
 
     let left = rect.left + rect.width / 2 - cardW / 2;
     let top = on === "top" ? rect.top - gap : rect.bottom + gap;
@@ -437,6 +440,7 @@ class NativeOnboardTour {
     if (top < 20) top = 20;
     left = Math.max(12, Math.min(vw - cardW - 12, left));
 
+    this.card.style.width = `${cardW}px`;
     this.card.style.left = `${left}px`;
     this.card.style.top = `${top}px`;
     this.card.style.transform = "none";
@@ -768,10 +772,10 @@ async function _startTour(uid, awardCredits) {
     text: _stepContent({
       icon: "\u23F1\uFE0F", step: 8, total: TOTAL,
       body: `Every new browser session gives you <strong style="color:#f1f5f9">${FREE_SESSION_MINUTES} free
-              minutes</strong> across all links. When time is low, click this button to
-              top up for <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong>.
-              Higher rank = more minutes per refill, so ranking up gives
-              <strong style="color:#34d399">better value per top-up</strong>.`,
+             minutes</strong> across all links. When time is low, click this button to
+             top up for <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong>.
+             Higher rank = more minutes per refill, so ranking up gives
+             <strong style="color:#34d399">better value per top-up</strong>.`,
       chips: _tierTopupChips(),
     }),
     attachTo: { element: "#navSessionTime", on: "bottom" },
