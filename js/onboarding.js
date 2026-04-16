@@ -1,5 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { doc, updateDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { TIER_CONFIG, FREE_SESSION_MINUTES, SESSION_TOPUP_COST } from "./tier.js";
 
 // ══════════════════════════════════════════════════════════
 //  PROFILE SETUP FORM
@@ -28,15 +29,125 @@ export function showOnboarding() {
   onboardModal.setAttribute("aria-hidden", "false");
   if (errorEl) errorEl.textContent = "";
   setTimeout(() => firstInput?.focus(), 50);
+  // Start Three.js particle field after the modal has rendered
+  requestAnimationFrame(() => _initOnboardScene());
 }
 
 export function hideOnboarding() {
   if (!onboardModal) return;
+  _destroyOnboardScene();
   onboardModal.classList.add("hidden");
   onboardModal.setAttribute("aria-hidden", "true");
 }
 
-async function finalizeOnboarding(uid, firstName) {
+// ── Three.js animated particle field behind the onboarding modal ───────
+function _initOnboardScene() {
+  _destroyOnboardScene();
+  if (typeof THREE === "undefined") return;
+
+  const canvas = document.getElementById("onboardThreeCanvas");
+  if (!canvas) return;
+
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
+  renderer.setSize(W, H, false);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 0.1, 100);
+  camera.position.z = 10;
+
+  // Particle data
+  const COUNT    = 70;
+  const MAX_DIST = 140;
+  const MAX_SEGS = (COUNT * (COUNT - 1)) >> 1;
+
+  const pos = new Float32Array(COUNT * 3);
+  const vel = [];
+  for (let i = 0; i < COUNT; i++) {
+    pos[i * 3]     = (Math.random() - 0.5) * W;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * H;
+    pos[i * 3 + 2] = 0;
+    vel.push({ x: (Math.random() - 0.5) * 0.22, y: (Math.random() - 0.5) * 0.22 });
+  }
+
+  const ptGeom  = new THREE.BufferGeometry();
+  const ptAttr  = new THREE.BufferAttribute(pos, 3);
+  ptAttr.setUsage(THREE.DynamicDrawUsage);
+  ptGeom.setAttribute("position", ptAttr);
+  const ptMat   = new THREE.PointsMaterial({ size: 2.5, color: 0x38bdf8, transparent: true, opacity: 0.85, sizeAttenuation: false });
+  scene.add(new THREE.Points(ptGeom, ptMat));
+
+  // Line segments between close particles
+  const linePos  = new Float32Array(MAX_SEGS * 6);
+  const lineGeom = new THREE.BufferGeometry();
+  const lineAttr = new THREE.BufferAttribute(linePos, 3);
+  lineAttr.setUsage(THREE.DynamicDrawUsage);
+  lineGeom.setAttribute("position", lineAttr);
+  const lineMat  = new THREE.LineBasicMaterial({ color: 0x6366f1, transparent: true, opacity: 0.20 });
+  const lineMesh = new THREE.LineSegments(lineGeom, lineMat);
+  scene.add(lineMesh);
+
+  const state = { raf: null };
+
+  function _tick() {
+    state.raf = requestAnimationFrame(_tick);
+    const hw = W / 2, hh = H / 2;
+    for (let i = 0; i < COUNT; i++) {
+      pos[i * 3]     += vel[i].x;
+      pos[i * 3 + 1] += vel[i].y;
+      if (pos[i * 3]     >  hw) pos[i * 3]     = -hw;
+      if (pos[i * 3]     < -hw) pos[i * 3]     =  hw;
+      if (pos[i * 3 + 1] >  hh) pos[i * 3 + 1] = -hh;
+      if (pos[i * 3 + 1] < -hh) pos[i * 3 + 1] =  hh;
+    }
+    ptAttr.needsUpdate = true;
+
+    let li = 0;
+    const maxD2 = MAX_DIST * MAX_DIST;
+    for (let i = 0; i < COUNT; i++) {
+      for (let j = i + 1; j < COUNT; j++) {
+        const dx = pos[i * 3] - pos[j * 3];
+        const dy = pos[i * 3 + 1] - pos[j * 3 + 1];
+        if (dx * dx + dy * dy < maxD2) {
+          linePos[li++] = pos[i * 3];     linePos[li++] = pos[i * 3 + 1]; linePos[li++] = 0;
+          linePos[li++] = pos[j * 3];     linePos[li++] = pos[j * 3 + 1]; linePos[li++] = 0;
+        }
+      }
+    }
+    lineGeom.setDrawRange(0, li / 3);
+    lineAttr.needsUpdate = true;
+
+    renderer.render(scene, camera);
+  }
+  _tick();
+
+  function _onResize() {
+    const nW = window.innerWidth, nH = window.innerHeight;
+    renderer.setSize(nW, nH, false);
+    camera.left = -nW / 2; camera.right = nW / 2;
+    camera.top = nH / 2;   camera.bottom = -nH / 2;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", _onResize);
+
+  _onboardThree = {
+    destroy() {
+      cancelAnimationFrame(state.raf);
+      window.removeEventListener("resize", _onResize);
+      ptGeom.dispose();  ptMat.dispose();
+      lineGeom.dispose(); lineMat.dispose();
+      renderer.dispose();
+      _onboardThree = null;
+    },
+  };
+}
+
+function _destroyOnboardScene() {
+  if (_onboardThree) _onboardThree.destroy();
+}
   try {
     const snap      = await getDoc(doc(db, "users", uid));
     const freshData = snap.data() || {};
@@ -136,10 +247,14 @@ let _tourUid          = null;
 let _tourAwardCredits = false;
 let _onboardTour      = null;
 let _tourLibLoadPromise = null;
+let _onboardThree     = null;  // Three.js particle scene state
 
 const TOUR_LIB_SOURCE_TIMEOUT_MS = 4500;
 const TOUR_LIB_LOAD_MAX_MS = 12000;
 const NATIVE_TOUR_CLS = "mt-native-tour-target";
+const FALLBACK_CARD_HEIGHT = 280;
+const FALLBACK_CARD_MIN_HEIGHT = 260;
+const FALLBACK_CARD_MAX_HEIGHT = 680;
 
 const _tourScriptSources = [
   "https://cdn.jsdelivr.net/npm/onboardjs@latest/dist/onboard.umd.min.js",
@@ -182,6 +297,26 @@ function _icon(emoji) {
   return `<div class="mt-step-icon">${emoji}</div>`;
 }
 
+// Helper: step-dot progress navigation
+function _buildDotNav(currentIndex, total) {
+  let html = '<div class="mt-ntc-dots" aria-hidden="true">';
+  for (let i = 0; i < total; i++) {
+    const cls = i < currentIndex ? "past" : (i === currentIndex ? "active" : "");
+    html += `<span class="mt-ntc-dot${cls ? " " + cls : ""}"></span>`;
+  }
+  html += "</div>";
+  return html;
+}
+
+function _tierTopupChips() {
+  return [
+    { label: `Basic = ${TIER_CONFIG.BASIC.limitMinutes}m/top-up`, type: "" },
+    { label: `Silver = ${TIER_CONFIG.SILVER.limitMinutes}m/top-up`, type: "" },
+    { label: `Gold = ${TIER_CONFIG.GOLD.limitMinutes}m/top-up`, type: "purple" },
+    { label: `VIP = ${TIER_CONFIG.VIP.limitMinutes}m/top-up ⭐`, type: "purple" },
+  ];
+}
+
 // Build the body section of a step (icon + progress + body + chips + tip + instruction)
 function _stepContent({ icon, body, chips, tip, instr, step, total }) {
   return [
@@ -203,22 +338,23 @@ function _animateIn(el) {
   );
 }
 
-// GSAP subtle pulse on a target element to draw attention
+// GSAP dramatic ring-pulse on a target element to draw attention
 function _pulseTarget(selector) {
   if (typeof gsap === "undefined" || !selector) return;
   const el = document.querySelector(selector);
   if (!el) return;
   gsap.timeline({ repeat: 1, yoyo: true })
-    .to(el, { scale: 1.05, duration: 0.25, ease: "power1.inOut" })
-    .to(el, { scale: 1,    duration: 0.25, ease: "power1.inOut" });
+    .to(el, { scale: 1.06, duration: 0.22, ease: "power1.inOut" })
+    .to(el, { scale: 1,    duration: 0.22, ease: "power1.inOut" });
 }
 
 // Register GSAP animation hooks on the tour instance
+// (only fires for OnboardJS-style tooltips; native fallback animates itself in _renderCurrent)
 function _addGsapHooks(tour) {
   tour.on("show", () => {
     requestAnimationFrame(() => {
-      const tooltip = document.querySelector(".onboard-tooltip, .mt-native-tour-card");
-      _animateIn(tooltip);
+      const tooltip = document.querySelector(".onboard-tooltip");
+      if (tooltip) _animateIn(tooltip);
     });
   });
 }
@@ -242,6 +378,7 @@ class NativeOnboardTour {
     this.steps = [];
     this.handlers = { show: [], complete: [], cancel: [] };
     this.index = -1;
+    this._direction = 1;  // +1 = forward, -1 = back (drives slide animation)
     this.host = null;
     this.card = null;
     this.currentTarget = null;
@@ -249,6 +386,7 @@ class NativeOnboardTour {
     this.boundEsc = (e) => {
       if (e.key === "Escape" && this.options.exitOnEsc) this.cancel();
     };
+    this.boundReposition = () => this._repositionCurrent();
   }
 
   addStep(step) {
@@ -265,18 +403,21 @@ class NativeOnboardTour {
   start() {
     if (!this.steps.length) return;
     this._mount();
+    this._direction = 1;
     this.index = 0;
     this._renderCurrent();
   }
 
   next() {
     if (this.index >= this.steps.length - 1) return this.complete();
+    this._direction = 1;
     this.index += 1;
     this._renderCurrent();
   }
 
   back() {
     if (this.index <= 0) return;
+    this._direction = -1;
     this.index -= 1;
     this._renderCurrent();
   }
@@ -310,6 +451,8 @@ class NativeOnboardTour {
     this.card = this.host.querySelector(".mt-native-tour-card");
     this.host.querySelector(".mt-native-tour-overlay")?.addEventListener("click", () => this.cancel());
     document.addEventListener("keydown", this.boundEsc);
+    window.addEventListener("resize", this.boundReposition);
+    window.addEventListener("scroll", this.boundReposition, { passive: true });
   }
 
   _teardown() {
@@ -317,6 +460,8 @@ class NativeOnboardTour {
     if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
     this.currentTarget = null;
     document.removeEventListener("keydown", this.boundEsc);
+    window.removeEventListener("resize", this.boundReposition);
+    window.removeEventListener("scroll", this.boundReposition);
     if (this.host) this.host.remove();
     this.host = null;
     this.card = null;
@@ -328,14 +473,29 @@ class NativeOnboardTour {
     if (this.cleanupAdvance) { this.cleanupAdvance(); this.cleanupAdvance = null; }
     if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
 
-    const title = step.title || "";
-    const text = step.text || "";
-    const buttons = step.buttons || [];
+    const title      = step.title || "";
+    const text       = step.text  || "";
+    const buttons    = step.buttons || [];
+    const stepNum    = this.index + 1;
+    const totalSteps = this.steps.length;
+
     this.card.innerHTML = `
+      <div class="mt-ntc-top-bar">
+        ${_buildDotNav(this.index, totalSteps)}
+        <span class="mt-ntc-step-label">${stepNum}&thinsp;/&thinsp;${totalSteps}</span>
+      </div>
       <header class="mt-native-tour-header">${title}</header>
       <div class="mt-native-tour-body">${text}</div>
       <footer class="mt-native-tour-footer"></footer>
     `;
+
+    // Direction-aware slide-in animation
+    if (typeof gsap !== "undefined") {
+      gsap.fromTo(this.card,
+        { x: this._direction * 26, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.30, ease: "power2.out", clearProps: "transform" }
+      );
+    }
 
     const footer = this.card.querySelector(".mt-native-tour-footer");
     buttons.forEach((btnCfg) => {
@@ -392,12 +552,25 @@ class NativeOnboardTour {
     this.card.style.transform = "translate(-50%, -50%)";
   }
 
+  _repositionCurrent() {
+    if (!this.card) return;
+    const step = this.steps[this.index];
+    if (!step) return;
+    const targetSelector = step.attachTo?.element || "";
+    const target = targetSelector ? document.querySelector(targetSelector) : null;
+    if (target) this._positionNear(target, step.attachTo?.on || "bottom");
+    else this._positionCenter();
+  }
+
   _positionNear(target, on) {
     if (!this.card || !target) return;
     const rect = target.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const cardW = Math.min(420, Math.max(300, vw - 24));
+    const cardH = Number.isFinite(vh)
+      ? Math.min(Math.max(FALLBACK_CARD_MIN_HEIGHT, vh * 0.8), FALLBACK_CARD_MAX_HEIGHT)
+      : FALLBACK_CARD_HEIGHT;
     const gap = 14;
 
     let left = rect.left + rect.width / 2 - cardW / 2;
@@ -405,7 +578,7 @@ class NativeOnboardTour {
     if (on === "left") { left = rect.left - cardW - gap; top = rect.top; }
     if (on === "right") { left = rect.right + gap; top = rect.top; }
 
-    if (top + 20 > vh) top = vh - 20;
+    if (top + cardH + 20 > vh) top = Math.max(20, vh - cardH - 20);
     if (top < 20) top = 20;
     left = Math.max(12, Math.min(vw - cardW - 12, left));
 
@@ -580,26 +753,24 @@ async function _startTour(uid, awardCredits) {
   });
 
   /* ══════════════════════════════════════════════════════
-     STEP 2 — Navigation bar overview
+     STEP 2 — Navigation bar overview (with mini-diagram)
   ══════════════════════════════════════════════════════ */
   _onboardTour.addStep({
     id: "navbar",
     title: `Your <span class="mt-hl">Navigation Bar</span>`,
     text: _stepContent({
       icon: "\uD83E\uDDED", step: 2, total: TOTAL,
-      body: `The nav bar at the top gives instant access to every part of Math Katy. Five
-             primary tabs are always visible and the
-             <strong style="color:#f1f5f9">More \u25BE</strong> dropdown hides less-used
-             pages so the bar stays compact even on smaller screens.`,
-      chips: [
-        { label: "Links \uD83D\uDD17", type: "" },
-        { label: "Daily \uD83D\uDD25", type: "green" },
-        { label: "Top \uD83C\uDFC6", type: "" },
-        { label: "Chat \uD83D\uDCAC", type: "" },
-        { label: "Account \uD83D\uDC64", type: "" },
-        { label: "More \u25BE", type: "purple" },
-      ],
-    }),
+      body: `The nav bar at the top is how you move around Math Katy. Five primary tabs are
+             always visible; the <strong style="color:#f1f5f9">More \u25BE</strong> dropdown
+             reveals extra pages. Tap any tab below \u2014 it works right now!`,
+    }) + `<div class="mt-nav-diagram">
+        <span class="mt-nav-tab active">\uD83D\uDD17 Links</span>
+        <span class="mt-nav-tab">\uD83D\uDD25 Daily</span>
+        <span class="mt-nav-tab">\uD83C\uDFC6 Top</span>
+        <span class="mt-nav-tab">\uD83D\uDCAC Chat</span>
+        <span class="mt-nav-tab">\uD83D\uDC64 Account</span>
+        <span class="mt-nav-tab purple">More \u25BE</span>
+      </div>`,
     attachTo: { element: "#tourNavTabs", on: "bottom" },
     buttons: [ backBtn, nextBtn() ],
     when: { show() { _pulseTarget("#tourNavTabs"); } },
@@ -625,7 +796,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabLinks", on: "bottom" },
     advanceOn: { selector: "#tourTabLinks", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _switchTab("links"); _pulseTarget("#tourTabLinks"); } },
   });
 
@@ -645,7 +816,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#linksSearch", on: "bottom" },
     advanceOn: { selector: "#linksSearch", event: "input" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: {
       show() {
         _switchTab("links");
@@ -701,7 +872,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourShareBtn", on: "bottom" },
     advanceOn: { selector: "#tourShareBtn", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn() ],
     when: { show() { _pulseTarget("#tourShareBtn"); } },
   });
 
@@ -710,18 +881,21 @@ async function _startTour(uid, awardCredits) {
   ══════════════════════════════════════════════════════ */
   _onboardTour.addStep({
     id: "credits",
-    title: `Credits &amp; <span class="mt-hl">Rank System</span>`,
+    title: `Credits, <span class="mt-hl">Pricing</span> &amp; Rank System`,
     text: _stepContent({
       icon: "\uD83E\uDE99", step: 7, total: TOTAL,
       body: `Your credits are your <strong style="color:#f1f5f9">platform currency and
              reputation score</strong>. Accumulate them to unlock higher tiers with better
              perks \u2014 each tier increases your session top-up bonus and shows your status
-             to the community.`,
+             to the community. Every top-up always costs
+             <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong> \u2014 only the
+             minutes gained change by tier.`,
       chips: [
         { label: "Basic", type: "" },
         { label: "Silver", type: "" },
         { label: "Gold", type: "purple" },
         { label: "VIP \u2B50", type: "purple" },
+        { label: `${SESSION_TOPUP_COST} \uD83E\uDE99 per top-up`, type: "green" },
       ],
       tip: "Refer a friend and earn <strong>+150 credits</strong> \u2014 the fastest single way to rank up!",
     }),
@@ -735,20 +909,15 @@ async function _startTour(uid, awardCredits) {
   ══════════════════════════════════════════════════════ */
   _onboardTour.addStep({
     id: "session-timer",
-    title: `Your <span class="mt-hl">Session Timer</span>`,
+    title: `Session Timer &amp; <span class="mt-hl">Top-up Pricing</span>`,
     text: _stepContent({
       icon: "\u23F1\uFE0F", step: 8, total: TOTAL,
-      body: `Every new browser session gives you <strong style="color:#f1f5f9">30 free
+      body: `Every new browser session gives you <strong style="color:#f1f5f9">${FREE_SESSION_MINUTES} free
              minutes</strong> across all links. When time is low, click this button to
-             top up for <strong style="color:#fde047">50 credits</strong>. Higher rank =
-             more minutes per refill \u2014 VIP gets a massive
-             <strong style="color:#a855f7">6 hours</strong>!`,
-      chips: [
-        { label: "Basic = 45 min/top-up", type: "" },
-        { label: "Silver = 60 min", type: "" },
-        { label: "Gold = 2 hrs", type: "purple" },
-        { label: "VIP = 6 hrs \u2B50", type: "purple" },
-      ],
+             top up for <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong>.
+             Higher rank = more minutes per refill, so ranking up gives
+             <strong style="color:#34d399">better value per top-up</strong>.`,
+      chips: _tierTopupChips(),
     }),
     attachTo: { element: "#navSessionTime", on: "bottom" },
     buttons: [ backBtn, nextBtn() ],
@@ -771,7 +940,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabDaily", on: "bottom" },
     advanceOn: { selector: "#tourTabDaily", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabDaily"); } },
   });
 
@@ -797,7 +966,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#dailyTracker", on: "top" },
     advanceOn: { selector: "#dailyTracker .day-card", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: {
       show() {
         _switchTab("daily");
@@ -827,7 +996,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabLeaderboard", on: "bottom" },
     advanceOn: { selector: "#tourTabLeaderboard", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabLeaderboard"); } },
   });
 
@@ -851,7 +1020,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabChat", on: "bottom" },
     advanceOn: { selector: "#tourTabChat", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabChat"); } },
   });
 
@@ -877,7 +1046,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#tourTabAccount", on: "bottom" },
     advanceOn: { selector: "#tourTabAccount", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: { show() { _pulseTarget("#tourTabAccount"); } },
   });
 
@@ -901,7 +1070,7 @@ async function _startTour(uid, awardCredits) {
     }),
     attachTo: { element: "#navMoreBtn", on: "bottom" },
     advanceOn: { selector: "#tourTabNews", event: "click" },
-    buttons: [ backBtn ],
+    buttons: [ backBtn, nextBtn("Continue \u2192") ],
     when: {
       show() {
         const moreBtn = document.getElementById("navMoreBtn");

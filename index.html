@@ -14,6 +14,10 @@
   <script src="https://cdn.jsdelivr.net/npm/onboardjs@latest/dist/onboard.umd.min.js"
           crossorigin="anonymous"></script>
 
+  <!-- Three.js — 3D rendering engine for tour background animations -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"
+          crossorigin="anonymous" defer></script>
+
   <!-- GSAP — Professional animation engine
        Note: Add SRI integrity hashes in production for security.
        Deferred scripts execute before DOMContentLoaded, so gsap is available in our DOMContentLoaded handlers. -->
@@ -980,7 +984,11 @@
      class="fixed inset-0 z-[200] flex items-center justify-center
             bg-gray-950/95 backdrop-blur-sm hidden"
      aria-hidden="true">
-  <div class="modal-glass panel rounded-3xl
+  <!-- Three.js particle-field canvas — rendered behind the glass card -->
+  <canvas id="onboardThreeCanvas"
+          class="absolute inset-0 w-full h-full pointer-events-none"
+          aria-hidden="true"></canvas>
+  <div class="modal-glass panel rounded-3xl relative z-10
               p-8 w-full max-w-sm mx-4 shadow-2xl">
     <div class="text-center mb-6">
       <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600
