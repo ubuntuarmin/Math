@@ -114,6 +114,12 @@
           </button>
         </div>
         <p id="startChatError" class="text-xs text-red-400 mt-2 hidden"></p>
+        <div class="mt-4 pt-4 border-t border-gray-800">
+          <div class="text-[11px] text-gray-500 uppercase tracking-widest font-bold mb-2">Saved Conversations</div>
+          <div id="savedChatsList" class="space-y-2">
+            <p class="text-xs text-gray-600">No saved conversations yet.</p>
+          </div>
+        </div>
       </div>
 
       <!-- Active Chat Room -->
@@ -125,6 +131,13 @@
             <div class="text-xs text-gray-500 uppercase tracking-widest font-bold mb-0.5">Chatting with</div>
             <div id="partnerLabel" class="text-sm font-bold text-white font-mono truncate max-w-[200px]"></div>
             <div id="partnerStatus" class="text-[11px] text-gray-500 mt-1">Offline</div>
+            <div class="mt-2 flex items-center gap-2">
+              <input id="partnerNicknameInput" type="text" placeholder="Set nickname…"
+                     class="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-[11px] text-white outline-none focus:border-blue-500 transition w-36" />
+              <button id="saveNicknameBtn" class="text-[11px] px-2 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors">
+                Save
+              </button>
+            </div>
           </div>
           <button id="closeChatBtn" class="text-gray-500 hover:text-red-400 text-xs transition-colors px-2 py-1">
             ✕ Close
