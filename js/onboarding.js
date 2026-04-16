@@ -137,13 +137,14 @@ let _tourAwardCredits = false;
 let _onboardTour      = null;
 let _tourLibLoadPromise = null;
 
-const SHEPHERD_VERSION = "13.0.0";
-const TOUR_LIB_SOURCE_TIMEOUT_MS = 3000;
+const TOUR_LIB_SOURCE_TIMEOUT_MS = 4500;
+const TOUR_LIB_LOAD_MAX_MS = 12000;
+const NATIVE_TOUR_CLS = "mt-native-tour-target";
 
 const _tourScriptSources = [
-  `https://cdn.jsdelivr.net/npm/shepherd.js@${SHEPHERD_VERSION}/dist/js/shepherd.min.js`,
-  `https://unpkg.com/shepherd.js@${SHEPHERD_VERSION}/dist/js/shepherd.min.js`,
-  `https://cdnjs.cloudflare.com/ajax/libs/shepherd.js/${SHEPHERD_VERSION}/js/shepherd.min.js`,
+  "https://cdn.jsdelivr.net/npm/onboardjs@latest/dist/onboard.umd.min.js",
+  "https://unpkg.com/onboardjs@latest/dist/onboard.umd.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/onboardjs/latest/onboard.umd.min.js",
 ];
 
 // Helper: programmatically switch the app to a named tab
@@ -155,7 +156,7 @@ function _switchTab(tabName) {
 // Helper: animated progress bar HTML
 function _progressBar(current, total) {
   const pct = Math.round((current / total) * 100);
-  return `<div class="mt-shepherd-prog-wrap"><div class="mt-shepherd-prog" style="width:${pct}%"></div></div>`;
+  return `<div class="mt-onboard-prog-wrap"><div class="mt-onboard-prog" style="width:${pct}%"></div></div>`;
 }
 
 // Helper: chip badges
@@ -216,7 +217,7 @@ function _pulseTarget(selector) {
 function _addGsapHooks(tour) {
   tour.on("show", () => {
     requestAnimationFrame(() => {
-      const tooltip = document.querySelector(".shepherd-element");
+      const tooltip = document.querySelector(".onboard-tooltip, .mt-native-tour-card");
       _animateIn(tooltip);
     });
   });
@@ -235,9 +236,178 @@ function _showToast(msg) {
   }, 4500);
 }
 
+class NativeOnboardTour {
+  constructor(options = {}) {
+    this.options = options;
+    this.steps = [];
+    this.handlers = { show: [], complete: [], cancel: [] };
+    this.index = -1;
+    this.host = null;
+    this.card = null;
+    this.currentTarget = null;
+    this.cleanupAdvance = null;
+    this.boundEsc = (e) => {
+      if (e.key === "Escape" && this.options.exitOnEsc) this.cancel();
+    };
+  }
+
+  addStep(step) {
+    this.steps.push(step);
+    return this;
+  }
+
+  on(event, handler) {
+    if (!this.handlers[event]) this.handlers[event] = [];
+    this.handlers[event].push(handler);
+    return this;
+  }
+
+  start() {
+    if (!this.steps.length) return;
+    this._mount();
+    this.index = 0;
+    this._renderCurrent();
+  }
+
+  next() {
+    if (this.index >= this.steps.length - 1) return this.complete();
+    this.index += 1;
+    this._renderCurrent();
+  }
+
+  back() {
+    if (this.index <= 0) return;
+    this.index -= 1;
+    this._renderCurrent();
+  }
+
+  complete() {
+    this._teardown();
+    this._emit("complete");
+  }
+
+  cancel() {
+    this._teardown();
+    this._emit("cancel");
+  }
+
+  _emit(event) {
+    (this.handlers[event] || []).forEach((fn) => {
+      try { fn.call(this); } catch (_) {}
+    });
+  }
+
+  _mount() {
+    this._teardown();
+    this.host = document.createElement("div");
+    this.host.className = "mt-native-tour-host";
+    this.host.innerHTML = `<div class="mt-native-tour-overlay"></div><section class="mt-native-tour-card" role="dialog" aria-live="polite"></section>`;
+    document.body.appendChild(this.host);
+    this.card = this.host.querySelector(".mt-native-tour-card");
+    this.host.querySelector(".mt-native-tour-overlay")?.addEventListener("click", () => this.cancel());
+    document.addEventListener("keydown", this.boundEsc);
+  }
+
+  _teardown() {
+    if (this.cleanupAdvance) { this.cleanupAdvance(); this.cleanupAdvance = null; }
+    if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
+    this.currentTarget = null;
+    document.removeEventListener("keydown", this.boundEsc);
+    if (this.host) this.host.remove();
+    this.host = null;
+    this.card = null;
+  }
+
+  _renderCurrent() {
+    const step = this.steps[this.index];
+    if (!step || !this.card) return;
+    if (this.cleanupAdvance) { this.cleanupAdvance(); this.cleanupAdvance = null; }
+    if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
+
+    const title = step.title || "";
+    const text = step.text || "";
+    const buttons = step.buttons || [];
+    this.card.innerHTML = `
+      <header class="mt-native-tour-header">${title}</header>
+      <div class="mt-native-tour-body">${text}</div>
+      <footer class="mt-native-tour-footer"></footer>
+    `;
+
+    const footer = this.card.querySelector(".mt-native-tour-footer");
+    buttons.forEach((btnCfg) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `mt-native-tour-btn ${btnCfg.classes || ""}`.trim();
+      btn.textContent = btnCfg.text || "Next";
+      btn.addEventListener("click", () => {
+        try {
+          if (typeof btnCfg.action === "function") btnCfg.action.call(this);
+        } catch (_) {}
+      });
+      footer?.appendChild(btn);
+    });
+
+    const targetSelector = step.attachTo?.element || "";
+    const target = targetSelector ? document.querySelector(targetSelector) : null;
+    if (target) {
+      this.currentTarget = target;
+      target.classList.add(NATIVE_TOUR_CLS);
+      if (this.options.defaultStepOptions?.scrollTo) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      this._positionNear(target, step.attachTo?.on || "bottom");
+    } else {
+      this._positionCenter();
+    }
+
+    if (step.advanceOn?.selector && step.advanceOn?.event) {
+      const advanceEl = document.querySelector(step.advanceOn.selector);
+      if (advanceEl) {
+        const advance = () => this.next();
+        advanceEl.addEventListener(step.advanceOn.event, advance, { once: true });
+        this.cleanupAdvance = () => advanceEl.removeEventListener(step.advanceOn.event, advance);
+      }
+    }
+
+    if (step.when?.show) {
+      try { step.when.show.call(this); } catch (_) {}
+    }
+    this._emit("show");
+  }
+
+  _positionCenter() {
+    if (!this.card) return;
+    this.card.style.left = "50%";
+    this.card.style.top = "50%";
+    this.card.style.transform = "translate(-50%, -50%)";
+  }
+
+  _positionNear(target, on) {
+    if (!this.card || !target) return;
+    const rect = target.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cardW = Math.min(420, Math.max(300, vw - 24));
+    const gap = 14;
+
+    let left = rect.left + rect.width / 2 - cardW / 2;
+    let top = on === "top" ? rect.top - gap : rect.bottom + gap;
+    if (on === "left") { left = rect.left - cardW - gap; top = rect.top; }
+    if (on === "right") { left = rect.right + gap; top = rect.top; }
+
+    if (top + 20 > vh) top = vh - 20;
+    if (top < 20) top = 20;
+    left = Math.max(12, Math.min(vw - cardW - 12, left));
+
+    this.card.style.width = `${cardW}px`;
+    this.card.style.left = `${left}px`;
+    this.card.style.top = `${top}px`;
+    this.card.style.transform = "none";
+  }
+}
+
 function _getOnboardLib() {
   if (typeof Onboard !== "undefined" && Onboard?.Tour) return Onboard;
-  if (typeof Shepherd !== "undefined" && Shepherd?.Tour) return Shepherd;
   return null;
 }
 
@@ -336,7 +506,7 @@ function _getTourLibLoadPromise(timeoutMs) {
   return _tourLibLoadPromise;
 }
 
-async function _waitForOnboardLib(timeoutMs = 8000) {
+async function _waitForOnboardLib(timeoutMs = TOUR_LIB_LOAD_MAX_MS) {
   const lib = _getOnboardLib();
   if (lib) return lib;
 
@@ -345,30 +515,28 @@ async function _waitForOnboardLib(timeoutMs = 8000) {
   return _getOnboardLib();
 }
 
-// ── Build and start the Onboard.js-compatible tour ──────────────────
+// ── Build and start the OnboardJS tour ───────────────────────────────
 async function _startTour(uid, awardCredits) {
   _tourUid          = uid;
   _tourAwardCredits = !!awardCredits;
 
   const OnboardLib = await _waitForOnboardLib();
-  if (!OnboardLib) {
-    console.warn("[Onboarding] Onboard/Shepherd library not loaded — tour skipped.");
-    _showToast("⚠️ Tutorial could not start. Please try again.");
-    return;
-  }
+  const TourCtor = OnboardLib?.Tour || NativeOnboardTour;
+  const usingNativeFallback = !OnboardLib?.Tour;
+  if (usingNativeFallback) _showToast("ℹ️ Opening onboarding in local advanced mode.");
 
   if (_onboardTour) {
     try { _onboardTour.complete(); } catch (_) {}
   }
 
-  const TOTAL = 14;
+  const TOTAL = 15;
 
-  _onboardTour = new OnboardLib.Tour({
+  _onboardTour = new TourCtor({
     useModalOverlay: true,
     exitOnEsc: true,
     keyboardNavigation: true,
     defaultStepOptions: {
-      classes: "shepherd-math-tour",
+      classes: "onboard-math-tour",
       scrollTo: { behavior: "smooth", block: "center" },
       cancelIcon: { enabled: true },
       modalOverlayOpeningPadding: 8,
@@ -382,7 +550,7 @@ async function _startTour(uid, awardCredits) {
   _addGsapHooks(_onboardTour);
 
   /* ── Shared button factories ── */
-  const backBtn  = { text: "\u2190 Back", action() { this.back(); }, classes: "shepherd-button-secondary" };
+  const backBtn  = { text: "\u2190 Back", action() { this.back(); }, classes: "onboard-button-secondary" };
   const nextBtn  = (label = "Next \u2192") => ({ text: label, action() { this.next(); } });
 
   /* ══════════════════════════════════════════════════════
@@ -704,7 +872,37 @@ async function _startTour(uid, awardCredits) {
   });
 
   /* ══════════════════════════════════════════════════════
-     STEP 14 — Finale
+     STEP 14 — News and update feed
+  ══════════════════════════════════════════════════════ */
+  _onboardTour.addStep({
+    id: "news",
+    title: `<span class="mt-hl">News</span> &amp; Product Updates`,
+    text: _stepContent({
+      icon: "📰", step: 14, total: TOTAL,
+      body: `The News tab is where we post feature drops, policy updates, and
+             important announcements. Checking it keeps you ahead of ranking
+             changes, new tools, and community events.`,
+      chips: [
+        { label: "Feature release notes", type: "" },
+        { label: "Event announcements", type: "green" },
+        { label: "Rules and policy updates", type: "" },
+      ],
+      instr: "👉 Open <strong>More ▾</strong>, then click <strong>📰 News</strong> to continue",
+    }),
+    attachTo: { element: "#navMoreBtn", on: "bottom" },
+    advanceOn: { selector: "#tourTabNews", event: "click" },
+    buttons: [ backBtn ],
+    when: {
+      show() {
+        const moreBtn = document.getElementById("navMoreBtn");
+        if (moreBtn?.getAttribute("aria-expanded") !== "true") moreBtn?.click();
+        _pulseTarget("#navMoreBtn");
+      },
+    },
+  });
+
+  /* ══════════════════════════════════════════════════════
+     STEP 15 — Finale
   ══════════════════════════════════════════════════════ */
   _onboardTour.addStep({
     id: "finale",

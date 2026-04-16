@@ -1558,7 +1558,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   SHEPHERD.JS — Custom dark-theme onboarding overlay
+   ONBOARDJS — Custom dark-theme onboarding overlay
 ═══════════════════════════════════════════════════════ */
 
 /* ── Keyframes shared by tour and onboard modal ─────── */
@@ -1576,26 +1576,32 @@ body {
 }
 
 /* ── Modal overlay (darkens everything outside spotlight) */
+.onboard-overlay,
 .shepherd-modal-overlay-container {
   fill: rgba(3, 7, 18, 0.82) !important;
+  background: rgba(3, 7, 18, 0.82) !important;
 }
 
-/* ── Shepherd tooltip container ─────────────────────── */
+/* ── Onboard tooltip container ──────────────────────── */
+.onboard-tooltip,
 .shepherd-element {
   max-width: 400px !important;
   min-width: 300px !important;
   z-index: 10100 !important;
 }
 
+.onboard-cancel,
 .shepherd-has-cancel-icon .shepherd-cancel-icon {
   color: #64748b !important;
   font-size: 1.4rem !important;
   line-height: 1 !important;
 }
+.onboard-cancel:hover,
 .shepherd-has-cancel-icon .shepherd-cancel-icon:hover {
   color: #94a3b8 !important;
 }
 
+.onboard-content,
 .shepherd-content {
   background: linear-gradient(160deg, #0d1829 0%, #0f172a 100%) !important;
   border: 1px solid rgba(56, 189, 248, 0.40) !important;
@@ -1610,6 +1616,7 @@ body {
 }
 
 /* ── Header ─────────────────────────────────────────── */
+.onboard-header,
 .shepherd-header {
   background: transparent !important;
   padding: 1.4rem 1.6rem 0 !important;
@@ -1618,6 +1625,7 @@ body {
   gap: 0.75rem !important;
 }
 
+.onboard-title,
 .shepherd-title {
   font-size: 1rem !important;
   font-weight: 800 !important;
@@ -1626,6 +1634,7 @@ body {
   flex: 1 !important;
 }
 
+.onboard-title .mt-hl,
 .shepherd-title .mt-hl {
   background: linear-gradient(90deg, #38bdf8, #a855f7);
   -webkit-background-clip: text;
@@ -1634,6 +1643,7 @@ body {
 }
 
 /* ── Text body ──────────────────────────────────────── */
+.onboard-body,
 .shepherd-text {
   padding: 0.65rem 1.6rem 0 !important;
   font-size: 0.845rem !important;
@@ -1641,6 +1651,7 @@ body {
   line-height: 1.65 !important;
 }
 
+.onboard-body p,
 .shepherd-text p {
   max-width: 100% !important;
   margin-bottom: 0 !important;
@@ -1648,6 +1659,7 @@ body {
 }
 
 /* ── Footer / button row ────────────────────────────── */
+.onboard-footer,
 .shepherd-footer {
   padding: 0.85rem 1.6rem 1.2rem !important;
   border-top: 1px solid rgba(148, 163, 184, 0.12) !important;
@@ -1658,6 +1670,7 @@ body {
 }
 
 /* Base button style (reset) */
+.onboard-button,
 .shepherd-button {
   border-radius: 9999px !important;
   font-size: 0.78rem !important;
@@ -1672,26 +1685,31 @@ body {
 }
 
 /* Primary (Next/Finish) */
+.onboard-button:not(.onboard-button-secondary),
 .shepherd-button:not(.shepherd-button-secondary) {
   background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a855f7 100%) !important;
   color: #fff !important;
   box-shadow: 0 4px 16px rgba(56, 189, 248, 0.30) !important;
 }
+.onboard-button:not(.onboard-button-secondary):hover,
 .shepherd-button:not(.shepherd-button-secondary):hover {
   filter: brightness(1.15) !important;
   transform: translateY(-1px) !important;
   box-shadow: 0 6px 22px rgba(56, 189, 248, 0.50) !important;
 }
+.onboard-button:not(.onboard-button-secondary):active,
 .shepherd-button:not(.shepherd-button-secondary):active {
   transform: translateY(0) !important;
 }
 
 /* Secondary (Back) */
+.onboard-button-secondary,
 .shepherd-button-secondary {
   background: rgba(255, 255, 255, 0.04) !important;
   border: 1px solid rgba(148, 163, 184, 0.25) !important;
   color: #94a3b8 !important;
 }
+.onboard-button-secondary:hover,
 .shepherd-button-secondary:hover {
   background: rgba(56, 189, 248, 0.08) !important;
   border-color: rgba(56, 189, 248, 0.50) !important;
@@ -1701,18 +1719,20 @@ body {
 }
 
 /* ── Arrow / caret ──────────────────────────────────── */
+.onboard-arrow::before,
 .shepherd-arrow::before {
   background: #0d1829 !important;
   border-color: rgba(56, 189, 248, 0.40) !important;
 }
 
 /* ── Shepherd highlighted target element ────────────── */
+.onboard-target-clickable,
 .shepherd-target-clickable {
   cursor: pointer !important;
 }
 
 /* ── Progress bar (inside custom text) ─────────────── */
-.mt-shepherd-prog-wrap {
+.mt-onboard-prog-wrap {
   width: 100%;
   height: 4px;
   background: rgba(255, 255, 255, 0.08);
@@ -1721,13 +1741,82 @@ body {
   margin: 1rem 0 0;
 }
 
-.mt-shepherd-prog {
+.mt-onboard-prog {
   height: 100%;
   border-radius: 9999px;
   background: linear-gradient(90deg, #38bdf8 0%, #a855f7 50%, #38bdf8 100%);
   background-size: 200% 100%;
   animation: mt-bar-shimmer 2.4s linear infinite;
   transition: width 0.35s ease;
+}
+
+/* ── Native fallback tour shell ─────────────────────── */
+.mt-native-tour-host {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+}
+.mt-native-tour-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.82);
+  backdrop-filter: blur(2px);
+}
+.mt-native-tour-card {
+  position: fixed;
+  z-index: 10101;
+  max-width: 420px;
+  min-width: 300px;
+  background: linear-gradient(160deg, #0d1829 0%, #0f172a 100%);
+  border: 1px solid rgba(56, 189, 248, 0.40);
+  border-radius: 20px;
+  box-shadow: 0 32px 72px rgba(0, 0, 0, 0.85), 0 0 60px rgba(56, 189, 248, 0.10);
+  color: #e5e7eb;
+  overflow: hidden;
+}
+.mt-native-tour-header {
+  padding: 1.4rem 1.6rem 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+.mt-native-tour-body {
+  padding: 0.65rem 1.6rem 0;
+  font-size: 0.845rem;
+  color: #94a3b8;
+  line-height: 1.65;
+}
+.mt-native-tour-footer {
+  padding: 0.85rem 1.6rem 1.2rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  margin-top: 0.85rem;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.mt-native-tour-btn {
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #a855f7 100%);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.30);
+}
+.mt-native-tour-btn.onboard-button-secondary {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+  box-shadow: none;
+}
+.mt-native-tour-target {
+  position: relative;
+  z-index: 10102;
+  outline: 3px solid rgba(56,189,248,0.85);
+  outline-offset: 3px;
+  border-radius: 10px;
+  animation: mt-hl-pulse 1.35s ease-in-out infinite;
 }
 
 /* ── Step-icon circle ───────────────────────────────── */
