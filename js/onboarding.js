@@ -156,7 +156,7 @@ function _switchTab(tabName) {
 // Helper: animated progress bar HTML
 function _progressBar(current, total) {
   const pct = Math.round((current / total) * 100);
-  return `<div class="mt-onboard-prog-wrap"><div class="mt-onboard-prog" style="width:${pct}%"></div></div>`;
+  return `<div class="mt-onboard-progress-wrap"><div class="mt-onboard-progress" style="width:${pct}%"></div></div>`;
 }
 
 // Helper: chip badges
@@ -293,7 +293,11 @@ class NativeOnboardTour {
 
   _emit(event) {
     (this.handlers[event] || []).forEach((fn) => {
-      try { fn.call(this); } catch (err) { console.warn("[Onboarding] Native tour event handler failed:", err); }
+      try {
+        fn.call(this);
+      } catch (err) {
+        console.warn("[Onboarding] Native tour event handler failed:", err);
+      }
     });
   }
 
