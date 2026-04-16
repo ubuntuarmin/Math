@@ -37,6 +37,7 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SIX_HOURS_MS   = 6 * 60 * 60 * 1000;
 const MAX_MSG_LEN    = 500;
+const MAX_NICKNAME_LEN = 32;
 const NOTIFICATION_TEXT_MAX_LEN = 140;
 const NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 // Gold tier requires 300+ lifetime credits
@@ -103,6 +104,10 @@ const sendBtn        = document.getElementById("sendBtn");
 const closeChatBtn   = document.getElementById("closeChatBtn");
 const partnerStatus  = document.getElementById("partnerStatus");
 const typingStatus   = document.getElementById("typingStatus");
+
+if (partnerNicknameInput) {
+  partnerNicknameInput.maxLength = MAX_NICKNAME_LEN;
+}
 
 // ── Check access ──────────────────────────────────────────────────────────────
 function hasAccess(userData) {
@@ -262,6 +267,7 @@ onAuthStateChanged(auth, async (user) => {
   if (urlPartner && partnerInput) {
     partnerInput.value = urlPartner;
     openChat();
+    // URL partner target takes priority over auto-resume.
     return;
   }
 
@@ -327,6 +333,7 @@ function showError(msg) {
 async function resolvePartner(input) {
   const raw = String(input || "").trim();
   const normalized = normalizeChatHandle(raw);
+  // Resolve handles before UID fallback; some handles can look UID-like.
   if (CHAT_HANDLE_RE.test(normalized)) {
     const byLower = query(
       collection(db, "users"),
@@ -595,7 +602,7 @@ closeChatBtn?.addEventListener("click", () => {
 
 saveNicknameBtn?.addEventListener("click", () => {
   if (!_activePartnerUid) return;
-  const next = String(partnerNicknameInput?.value || "").trim().slice(0, 32);
+  const next = String(partnerNicknameInput?.value || "").trim().slice(0, MAX_NICKNAME_LEN);
   if (next) _nicknamesByUid[_activePartnerUid] = next;
   else delete _nicknamesByUid[_activePartnerUid];
   persistNicknames();
