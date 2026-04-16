@@ -38,6 +38,7 @@ import {
 const SIX_HOURS_MS   = 6 * 60 * 60 * 1000;
 const MAX_MSG_LEN    = 500;
 const NOTIFICATION_TEXT_MAX_LEN = 140;
+const NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 // Gold tier requires 300+ lifetime credits
 const GOLD_MIN_EARNED = 300;
 
@@ -75,6 +76,10 @@ let _myTypingRef = null;
 let _myPresenceRef = null;
 let _partnerOnline = false;
 let _typingStopTimer = null;
+let _savedChats = [];
+let _nicknamesByUid = {};
+let _activePartnerBaseLabel = null;
+const _notificationLastSentAt = new Map();
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const chatLoading    = document.getElementById("chatLoading");
@@ -86,8 +91,11 @@ const copyIdBtn      = document.getElementById("copyIdBtn");
 const partnerInput   = document.getElementById("partnerIdInput");
 const startChatBtn   = document.getElementById("startChatBtn");
 const startChatError = document.getElementById("startChatError");
+const savedChatsList = document.getElementById("savedChatsList");
 const chatRoom       = document.getElementById("chatRoom");
 const partnerLabel   = document.getElementById("partnerLabel");
+const partnerNicknameInput = document.getElementById("partnerNicknameInput");
+const saveNicknameBtn = document.getElementById("saveNicknameBtn");
 const chatMessages   = document.getElementById("chatMessages");
 const noMessages     = document.getElementById("noMessages");
 const chatInput      = document.getElementById("chatInput");
@@ -101,6 +109,119 @@ function hasAccess(userData) {
   const totalEarned  = userData.totalEarned || 0;
   const referralCount = (userData.referrals || []).length;
   return totalEarned >= GOLD_MIN_EARNED || referralCount >= 1;
+}
+
+function savedChatsStorageKey(uid) {
+  return `mathkaty_saved_chats_${uid}`;
+}
+
+function nicknamesStorageKey(uid) {
+  return `mathkaty_chat_nicknames_${uid}`;
+}
+
+function loadSavedChats(uid) {
+  if (!uid) return [];
+  try {
+    const raw = localStorage.getItem(savedChatsStorageKey(uid));
+    const parsed = JSON.parse(raw || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item.partnerUid === "string")
+      .map((item) => ({
+        partnerUid: String(item.partnerUid),
+        partnerLabel: String(item.partnerLabel || item.partnerUid),
+        lastOpenedAt: Number(item.lastOpenedAt || 0),
+      }))
+      .slice(0, 25);
+  } catch (_) {
+    return [];
+  }
+}
+
+function persistSavedChats() {
+  if (!_currentUser?.uid) return;
+  try {
+    localStorage.setItem(
+      savedChatsStorageKey(_currentUser.uid),
+      JSON.stringify(_savedChats.slice(0, 25))
+    );
+  } catch (_) {}
+}
+
+function loadNicknames(uid) {
+  if (!uid) return {};
+  try {
+    const raw = localStorage.getItem(nicknamesStorageKey(uid));
+    const parsed = JSON.parse(raw || "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch (_) {
+    return {};
+  }
+}
+
+function persistNicknames() {
+  if (!_currentUser?.uid) return;
+  try {
+    localStorage.setItem(
+      nicknamesStorageKey(_currentUser.uid),
+      JSON.stringify(_nicknamesByUid || {})
+    );
+  } catch (_) {}
+}
+
+function displayNameFor(uid, fallbackLabel = null) {
+  const nick = String(_nicknamesByUid?.[uid] || "").trim();
+  if (nick) return nick;
+  return fallbackLabel || uid;
+}
+
+function renderSavedChats() {
+  if (!savedChatsList) return;
+  if (!_savedChats.length) {
+    savedChatsList.innerHTML = `<p class="text-xs text-gray-600">No saved conversations yet.</p>`;
+    return;
+  }
+  savedChatsList.innerHTML = "";
+  const ordered = [..._savedChats]
+    .sort((a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0))
+    .slice(0, 8);
+
+  for (const item of ordered) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "w-full text-left px-3 py-2 rounded-xl bg-gray-800/70 hover:bg-gray-700/70 border border-gray-700/70 transition-colors";
+    const title = escapeHtml(displayNameFor(item.partnerUid, item.partnerLabel));
+    const sub = escapeHtml(item.partnerLabel || item.partnerUid);
+    row.innerHTML = `
+      <div class="text-sm text-white truncate">${title}</div>
+      <div class="text-[11px] text-gray-500 font-mono truncate">${sub}</div>
+    `;
+    row.addEventListener("click", () => {
+      openRoom(item.partnerUid, item.partnerLabel);
+    });
+    savedChatsList.appendChild(row);
+  }
+}
+
+function upsertSavedChat(partnerUid, partnerLabel) {
+  if (!partnerUid) return;
+  const idx = _savedChats.findIndex((x) => x.partnerUid === partnerUid);
+  const next = {
+    partnerUid,
+    partnerLabel: partnerLabel || partnerUid,
+    lastOpenedAt: Date.now(),
+  };
+  if (idx >= 0) {
+    _savedChats[idx] = { ..._savedChats[idx], ...next };
+  } else {
+    _savedChats.push(next);
+  }
+  _savedChats = _savedChats
+    .sort((a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0))
+    .slice(0, 25);
+  persistSavedChats();
+  renderSavedChats();
 }
 
 // ── Auth flow ─────────────────────────────────────────────────────────────────
@@ -120,6 +241,8 @@ onAuthStateChanged(auth, async (user) => {
   _myHandle = await ensureUserChatHandle(user.uid, _userData);
   _userData.chatHandle = _myHandle || getPreferredChatHandle(_userData, user.uid);
   _userData.chatHandleLower = _userData.chatHandle;
+  _savedChats = loadSavedChats(user.uid);
+  _nicknamesByUid = loadNicknames(user.uid);
 
   chatLoading?.classList.add("hidden");
 
@@ -132,12 +255,22 @@ onAuthStateChanged(auth, async (user) => {
   chatApp?.classList.remove("hidden");
   if (myChatIdEl) myChatIdEl.textContent = _userData.chatHandle || user.uid;
   if (myUidValueEl) myUidValueEl.textContent = user.uid;
+  renderSavedChats();
 
   // Pre-fill partner from URL param (e.g. chat.html?partner=UID)
   const urlPartner = new URLSearchParams(window.location.search).get("partner");
   if (urlPartner && partnerInput) {
     partnerInput.value = urlPartner;
     openChat();
+    return;
+  }
+
+  // Auto-resume the most recent saved conversation
+  if (_savedChats.length > 0) {
+    const recent = [..._savedChats].sort((a, b) => (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0))[0];
+    if (recent?.partnerUid) {
+      openRoom(recent.partnerUid, recent.partnerLabel || recent.partnerUid);
+    }
   }
 });
 
@@ -193,21 +326,24 @@ function showError(msg) {
 // ── Open a specific chat room ──────────────────────────────────────────────────
 async function resolvePartner(input) {
   const raw = String(input || "").trim();
-  if (looksLikeUid(raw)) {
-    return { uid: raw, label: raw };
+  const normalized = normalizeChatHandle(raw);
+  if (CHAT_HANDLE_RE.test(normalized)) {
+    const byLower = query(
+      collection(db, "users"),
+      where("chatHandleLower", "==", normalized),
+      limit(1)
+    );
+    const lowerSnap = await getDocs(byLower);
+    if (!lowerSnap.empty) {
+      const hit = lowerSnap.docs[0];
+      const data = hit.data() || {};
+      return { uid: hit.id, label: data.chatHandle || normalized };
+    }
+    return null;
   }
 
-  const normalized = normalizeChatHandle(raw);
-  const byLower = query(
-    collection(db, "users"),
-    where("chatHandleLower", "==", normalized),
-    limit(1)
-  );
-  const lowerSnap = await getDocs(byLower);
-  if (!lowerSnap.empty) {
-    const hit = lowerSnap.docs[0];
-    const data = hit.data() || {};
-    return { uid: hit.id, label: data.chatHandle || normalized };
+  if (looksLikeUid(raw)) {
+    return { uid: raw, label: raw };
   }
 
   return null;
@@ -219,11 +355,15 @@ async function openRoom(partnerId, partnerDisplayLabel = null) {
 
   _activeRoomId = buildRoomId(_currentUser.uid, partnerId);
   _activePartnerUid = partnerId;
+  _activePartnerBaseLabel = partnerDisplayLabel || partnerId;
   _partnerOnline = false;
 
-  if (partnerLabel) partnerLabel.textContent = partnerDisplayLabel || partnerId;
+  if (partnerLabel) partnerLabel.textContent = displayNameFor(partnerId, _activePartnerBaseLabel);
   if (partnerStatus) partnerStatus.textContent = "Offline";
   if (typingStatus) typingStatus.textContent = "";
+  if (partnerNicknameInput) {
+    partnerNicknameInput.value = String(_nicknamesByUid?.[partnerId] || "");
+  }
   if (chatMessages) {
     chatMessages.innerHTML = "";
     if (noMessages) {
@@ -233,6 +373,7 @@ async function openRoom(partnerId, partnerDisplayLabel = null) {
   }
 
   chatRoom?.classList.remove("hidden");
+  upsertSavedChat(partnerId, _activePartnerBaseLabel);
 
   // Subscribe to new messages
   const messagesRef = ref(rtdb, `chats/${_activeRoomId}/messages`);
@@ -301,6 +442,7 @@ function detachListener() {
   _activeRefs = [];
   _activeRoomId = null;
   _activePartnerUid = null;
+  _activePartnerBaseLabel = null;
   _myTypingRef = null;
   _myPresenceRef = null;
   _partnerOnline = false;
@@ -385,7 +527,10 @@ async function sendMessage() {
       timestamp: Date.now(), // client-time used for ordering; server timestamp isn't available as a value in RTDB push
     });
 
-    if (!_partnerOnline) {
+    const now = Date.now();
+    const lastNotifAt = _notificationLastSentAt.get(_activeRoomId) || 0;
+    if (!_partnerOnline && now - lastNotifAt >= NOTIFICATION_COOLDOWN_MS) {
+      _notificationLastSentAt.set(_activeRoomId, now);
       await addDoc(collection(db, "messages"), {
         to: _activePartnerUid,
         fromName: _myHandle || "Chat",
@@ -444,9 +589,27 @@ closeChatBtn?.addEventListener("click", () => {
   detachListener();
   chatRoom?.classList.add("hidden");
   if (chatMessages) chatMessages.innerHTML = "";
-  if (partnerInput) partnerInput.value = "";
   if (partnerStatus) partnerStatus.textContent = "Offline";
   if (typingStatus) typingStatus.textContent = "";
+});
+
+saveNicknameBtn?.addEventListener("click", () => {
+  if (!_activePartnerUid) return;
+  const next = String(partnerNicknameInput?.value || "").trim().slice(0, 32);
+  if (next) _nicknamesByUid[_activePartnerUid] = next;
+  else delete _nicknamesByUid[_activePartnerUid];
+  persistNicknames();
+  if (partnerLabel) {
+    partnerLabel.textContent = displayNameFor(_activePartnerUid, _activePartnerBaseLabel || _activePartnerUid);
+  }
+  renderSavedChats();
+});
+
+partnerNicknameInput?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    saveNicknameBtn?.click();
+  }
 });
 
 // ── Auto-resize textarea ──────────────────────────────────────────────────────
