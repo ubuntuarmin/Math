@@ -138,7 +138,8 @@ function loadSavedChats(uid) {
         lastOpenedAt: Number(item.lastOpenedAt || 0),
       }))
       .slice(0, 25);
-  } catch (_) {
+  } catch (err) {
+    console.warn("Failed to load saved chats:", err);
     return [];
   }
 }
@@ -150,7 +151,9 @@ function persistSavedChats() {
       savedChatsStorageKey(_currentUser.uid),
       JSON.stringify(_savedChats.slice(0, 25))
     );
-  } catch (_) {}
+  } catch (err) {
+    console.warn("Failed to save chat list:", err);
+  }
 }
 
 function loadNicknames(uid) {
@@ -160,7 +163,8 @@ function loadNicknames(uid) {
     const parsed = JSON.parse(raw || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     return parsed;
-  } catch (_) {
+  } catch (err) {
+    console.warn("Failed to load nicknames:", err);
     return {};
   }
 }
@@ -172,7 +176,9 @@ function persistNicknames() {
       nicknamesStorageKey(_currentUser.uid),
       JSON.stringify(_nicknamesByUid || {})
     );
-  } catch (_) {}
+  } catch (err) {
+    console.warn("Failed to save nicknames:", err);
+  }
 }
 
 function displayNameFor(uid, fallbackLabel = null) {
@@ -267,7 +273,7 @@ onAuthStateChanged(auth, async (user) => {
   if (urlPartner && partnerInput) {
     partnerInput.value = urlPartner;
     openChat();
-    // URL partner target takes priority over auto-resume.
+    // URL partner target takes priority; return exits this auth callback so auto-resume does not run.
     return;
   }
 
