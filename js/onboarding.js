@@ -293,7 +293,7 @@ class NativeOnboardTour {
 
   _emit(event) {
     (this.handlers[event] || []).forEach((fn) => {
-      try { fn.call(this); } catch (_) {}
+      try { fn.call(this); } catch (err) { console.warn("[Onboarding] Native tour event handler failed:", err); }
     });
   }
 
@@ -342,7 +342,9 @@ class NativeOnboardTour {
       btn.addEventListener("click", () => {
         try {
           if (typeof btnCfg.action === "function") btnCfg.action.call(this);
-        } catch (_) {}
+        } catch (err) {
+          console.warn("[Onboarding] Native tour button action failed:", err);
+        }
       });
       footer?.appendChild(btn);
     });
@@ -370,7 +372,11 @@ class NativeOnboardTour {
     }
 
     if (step.when?.show) {
-      try { step.when.show.call(this); } catch (_) {}
+      try {
+        step.when.show.call(this);
+      } catch (err) {
+        console.warn("[Onboarding] Native tour step show hook failed:", err);
+      }
     }
     this._emit("show");
   }
