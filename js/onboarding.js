@@ -156,7 +156,7 @@ function _switchTab(tabName) {
 // Helper: animated progress bar HTML
 function _progressBar(current, total) {
   const pct = Math.round((current / total) * 100);
-  return `<div class="mt-onboard-progress-wrap"><div class="mt-onboard-progress" style="width:${pct}%"></div></div>`;
+  return `<div class="onboard-progress-wrap"><div class="onboard-progress" style="width:${pct}%"></div></div>`;
 }
 
 // Helper: chip badges
@@ -533,7 +533,7 @@ async function _startTour(uid, awardCredits) {
   const OnboardLib = await _waitForOnboardLib();
   const TourCtor = OnboardLib?.Tour || NativeOnboardTour;
   const usingNativeFallback = !OnboardLib?.Tour;
-  if (usingNativeFallback) _showToast("ℹ️ Opening onboarding in local advanced mode.");
+  if (usingNativeFallback) _showToast("ℹ️ Using built-in onboarding (external library unavailable).");
 
   if (_onboardTour) {
     try { _onboardTour.complete(); } catch (_) {}
