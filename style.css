@@ -1781,7 +1781,7 @@ body {
   overflow: hidden;
 }
 .mt-native-tour-header {
-  padding: 0 1.6rem 0;  /* top-bar handles top spacing; overridden below for clarity */
+  padding: 0 1.6rem 0;
   font-size: 1rem;
   font-weight: 800;
   color: #f1f5f9;
@@ -2097,13 +2097,6 @@ body {
 }
 
 /* ── Native tour card upgrades ─────────────────────── */
-/* Remove top padding from header since the top-bar handles top spacing */
-.mt-native-tour-header {
-  padding: 0 1.6rem 0;
-  font-size: 1rem;
-  font-weight: 800;
-  color: #f1f5f9;
-}
 
 /* Glowing gradient line at the very top of the card */
 .mt-native-tour-card::after {

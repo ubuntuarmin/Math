@@ -343,9 +343,9 @@ function _pulseTarget(selector) {
   if (typeof gsap === "undefined" || !selector) return;
   const el = document.querySelector(selector);
   if (!el) return;
-  gsap.timeline({ repeat: 3, yoyo: true })
-    .to(el, { scale: 1.07, duration: 0.20, ease: "power1.inOut" })
-    .to(el, { scale: 1,    duration: 0.20, ease: "power1.inOut" });
+  gsap.timeline({ repeat: 1, yoyo: true })
+    .to(el, { scale: 1.06, duration: 0.22, ease: "power1.inOut" })
+    .to(el, { scale: 1,    duration: 0.22, ease: "power1.inOut" });
 }
 
 // Register GSAP animation hooks on the tour instance
@@ -871,6 +871,7 @@ async function _startTour(uid, awardCredits) {
       instr: "\uD83D\uDC46 Click the <strong>+ Share</strong> button to continue",
     }),
     attachTo: { element: "#tourShareBtn", on: "bottom" },
+    advanceOn: { selector: "#tourShareBtn", event: "click" },
     buttons: [ backBtn, nextBtn() ],
     when: { show() { _pulseTarget("#tourShareBtn"); } },
   });
