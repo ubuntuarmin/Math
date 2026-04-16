@@ -273,7 +273,7 @@ onAuthStateChanged(auth, async (user) => {
   if (urlPartner && partnerInput) {
     partnerInput.value = urlPartner;
     openChat();
-    // URL partner target takes priority; return exits this auth callback so auto-resume does not run.
+    // URL partner target takes priority; returning here exits this auth callback so auto-resume does not run.
     return;
   }
 
@@ -355,7 +355,7 @@ async function resolvePartner(input) {
     return null;
   }
 
-  if (looksLikeUid(raw)) {
+  else if (looksLikeUid(raw)) {
     return { uid: raw, label: raw };
   }
 
