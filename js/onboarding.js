@@ -140,6 +140,17 @@ let _tourLibLoadPromise = null;
 const TOUR_LIB_SOURCE_TIMEOUT_MS = 4500;
 const TOUR_LIB_LOAD_MAX_MS = 12000;
 const NATIVE_TOUR_CLS = "mt-native-tour-target";
+const COMPACT_MAX_WIDTH = 1366;
+const COMPACT_MAX_HEIGHT = 820;
+const NATIVE_VIEWPORT_MARGIN = 12;
+const NATIVE_CARD_EDGE_GAP = 24;
+const NATIVE_CARD_DEFAULT_HEIGHT = 360;
+const NATIVE_CARD_MIN_HEIGHT = 280;
+
+function _isCompactViewport() {
+  // Inclusive thresholds mirror CSS media queries: max-width:1366px / max-height:820px.
+  return window.innerWidth <= COMPACT_MAX_WIDTH || window.innerHeight <= COMPACT_MAX_HEIGHT;
+}
 
 const _tourScriptSources = [
   "https://cdn.jsdelivr.net/npm/onboardjs@latest/dist/onboard.umd.min.js",
@@ -182,12 +193,21 @@ function _icon(emoji) {
   return `<div class="mt-step-icon">${emoji}</div>`;
 }
 
-// Build the body section of a step (icon + progress + body + chips + tip + instruction)
-function _stepContent({ icon, body, chips, tip, instr, step, total }) {
+// Helper: compact pricing rows
+function _pricing(rows) {
+  if (!rows?.length) return "";
+  return `<div class="mt-pricing-grid">${rows.map(({ tier, value }) =>
+    `<div class="mt-price-row"><span>${tier}</span><strong>${value}</strong></div>`
+  ).join("")}</div>`;
+}
+
+// Build the body section of a step (icon + progress + body + pricing + chips + tip + instruction)
+function _stepContent({ icon, body, chips, tip, instr, pricing, step, total }) {
   return [
     _icon(icon),
     _progressBar(step, total),
     `<p style="color:#94a3b8;font-size:.845rem;line-height:1.65;margin-top:.5rem">${body}</p>`,
+    _pricing(pricing),
     _chips(chips),
     _tip(tip),
     _instr(instr),
@@ -246,8 +266,16 @@ class NativeOnboardTour {
     this.card = null;
     this.currentTarget = null;
     this.cleanupAdvance = null;
+    this.repositionRaf = null;
     this.boundEsc = (e) => {
       if (e.key === "Escape" && this.options.exitOnEsc) this.cancel();
+    };
+    this.boundReposition = () => {
+      if (this.repositionRaf) return;
+      this.repositionRaf = requestAnimationFrame(() => {
+        this.repositionRaf = null;
+        this._repositionCurrent();
+      });
     };
   }
 
@@ -310,6 +338,8 @@ class NativeOnboardTour {
     this.card = this.host.querySelector(".mt-native-tour-card");
     this.host.querySelector(".mt-native-tour-overlay")?.addEventListener("click", () => this.cancel());
     document.addEventListener("keydown", this.boundEsc);
+    window.addEventListener("resize", this.boundReposition, { passive: true });
+    window.addEventListener("scroll", this.boundReposition, true);
   }
 
   _teardown() {
@@ -317,6 +347,12 @@ class NativeOnboardTour {
     if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
     this.currentTarget = null;
     document.removeEventListener("keydown", this.boundEsc);
+    window.removeEventListener("resize", this.boundReposition);
+    window.removeEventListener("scroll", this.boundReposition, true);
+    if (this.repositionRaf) {
+      cancelAnimationFrame(this.repositionRaf);
+      this.repositionRaf = null;
+    }
     if (this.host) this.host.remove();
     this.host = null;
     this.card = null;
@@ -397,22 +433,44 @@ class NativeOnboardTour {
     const rect = target.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const cardW = Math.min(420, Math.max(300, vw - 24));
+    const cardW = Math.min(420, Math.max(300, vw - NATIVE_CARD_EDGE_GAP));
+    const cardH = Math.min(this.card.offsetHeight || NATIVE_CARD_DEFAULT_HEIGHT, vh - NATIVE_CARD_EDGE_GAP);
     const gap = 14;
+    const minMargin = NATIVE_VIEWPORT_MARGIN;
 
     let left = rect.left + rect.width / 2 - cardW / 2;
     let top = on === "top" ? rect.top - gap : rect.bottom + gap;
     if (on === "left") { left = rect.left - cardW - gap; top = rect.top; }
     if (on === "right") { left = rect.right + gap; top = rect.top; }
 
-    if (top + 20 > vh) top = vh - 20;
-    if (top < 20) top = 20;
-    left = Math.max(12, Math.min(vw - cardW - 12, left));
+    const belowTop = rect.bottom + gap;
+    const aboveTop = rect.top - cardH - gap;
+    const canPlaceBelow = belowTop + cardH <= vh - minMargin;
+    const canPlaceAbove = aboveTop >= minMargin;
+
+    if (on === "bottom" && !canPlaceBelow && canPlaceAbove) top = aboveTop;
+    if (on === "top" && !canPlaceAbove && canPlaceBelow) top = belowTop;
+    if (on === "left" && left < minMargin) left = rect.right + gap;
+    if (on === "right" && left + cardW > vw - minMargin) left = rect.left - cardW - gap;
+
+    top = Math.max(minMargin, Math.min(vh - cardH - minMargin, top));
+    left = Math.max(minMargin, Math.min(vw - cardW - minMargin, left));
 
     this.card.style.width = `${cardW}px`;
+    this.card.style.maxHeight = `${Math.max(NATIVE_CARD_MIN_HEIGHT, vh - NATIVE_CARD_EDGE_GAP)}px`;
     this.card.style.left = `${left}px`;
     this.card.style.top = `${top}px`;
     this.card.style.transform = "none";
+  }
+
+  _repositionCurrent() {
+    const step = this.steps[this.index];
+    if (!step || !this.card) return;
+    if (this.currentTarget && document.contains(this.currentTarget)) {
+      this._positionNear(this.currentTarget, step.attachTo?.on || "bottom");
+      return;
+    }
+    this._positionCenter();
   }
 }
 
@@ -529,6 +587,7 @@ async function _waitForOnboardLib(timeoutMs = TOUR_LIB_LOAD_MAX_MS) {
 async function _startTour(uid, awardCredits) {
   _tourUid          = uid;
   _tourAwardCredits = !!awardCredits;
+  const compact = _isCompactViewport();
 
   const OnboardLib = await _waitForOnboardLib();
   const TourCtor = OnboardLib?.Tour || NativeOnboardTour;
@@ -546,13 +605,17 @@ async function _startTour(uid, awardCredits) {
     exitOnEsc: true,
     keyboardNavigation: true,
     defaultStepOptions: {
-      classes: "onboard-math-tour",
+      classes: compact ? "onboard-math-tour onboard-compact" : "onboard-math-tour",
       scrollTo: { behavior: "smooth", block: "center" },
       cancelIcon: { enabled: true },
-      modalOverlayOpeningPadding: 8,
-      modalOverlayOpeningRadius: 10,
+      modalOverlayOpeningPadding: compact ? 5 : 8,
+      modalOverlayOpeningRadius: compact ? 8 : 10,
       popperOptions: {
-        modifiers: [{ name: "offset", options: { offset: [0, 14] } }],
+        modifiers: [
+          { name: "offset", options: { offset: [0, compact ? 10 : 14] } },
+          { name: "preventOverflow", options: { boundary: "viewport", padding: compact ? 8 : 12 } },
+          { name: "flip", options: { fallbackPlacements: ["top", "bottom", "right", "left"] } },
+        ],
       },
     },
   });
@@ -710,20 +773,24 @@ async function _startTour(uid, awardCredits) {
   ══════════════════════════════════════════════════════ */
   _onboardTour.addStep({
     id: "credits",
-    title: `Credits &amp; <span class="mt-hl">Rank System</span>`,
+    title: `Credits, Rank &amp; <span class="mt-hl">Pricing</span>`,
     text: _stepContent({
       icon: "\uD83E\uDE99", step: 7, total: TOTAL,
-      body: `Your credits are your <strong style="color:#f1f5f9">platform currency and
-             reputation score</strong>. Accumulate them to unlock higher tiers with better
-             perks \u2014 each tier increases your session top-up bonus and shows your status
-             to the community.`,
-      chips: [
-        { label: "Basic", type: "" },
-        { label: "Silver", type: "" },
-        { label: "Gold", type: "purple" },
-        { label: "VIP \u2B50", type: "purple" },
+      body: `Credits are your <strong style="color:#f1f5f9">currency + reputation</strong>.
+             Keep earning to unlock better tiers. <strong style="color:#fde047">Session top-ups
+             always cost 50 credits</strong> \u2014 your tier decides how many minutes that 50 buys.`,
+      pricing: [
+        { tier: "Basic", value: "45m / 50 \uD83E\uDE99" },
+        { tier: "Silver", value: "60m / 50 \uD83E\uDE99" },
+        { tier: "Gold", value: "120m / 50 \uD83E\uDE99" },
+        { tier: "VIP", value: "360m / 50 \uD83E\uDE99" },
       ],
-      tip: "Refer a friend and earn <strong>+150 credits</strong> \u2014 the fastest single way to rank up!",
+      chips: [
+        { label: "Share = +50 \uD83E\uDE99", type: "green" },
+        { label: "Vote = +10 \uD83E\uDE99", type: "green" },
+        { label: "Referral = +150 \uD83E\uDE99", type: "purple" },
+      ],
+      tip: "Referral bonus is the fastest single jump: <strong>+150 credits</strong> per signup.",
     }),
     attachTo: { element: "#tourCreditsPill", on: "bottom" },
     buttons: [ backBtn, nextBtn() ],
@@ -738,17 +805,20 @@ async function _startTour(uid, awardCredits) {
     title: `Your <span class="mt-hl">Session Timer</span>`,
     text: _stepContent({
       icon: "\u23F1\uFE0F", step: 8, total: TOTAL,
-      body: `Every new browser session gives you <strong style="color:#f1f5f9">30 free
-             minutes</strong> across all links. When time is low, click this button to
-             top up for <strong style="color:#fde047">50 credits</strong>. Higher rank =
-             more minutes per refill \u2014 VIP gets a massive
-             <strong style="color:#a855f7">6 hours</strong>!`,
-      chips: [
-        { label: "Basic = 45 min/top-up", type: "" },
-        { label: "Silver = 60 min", type: "" },
-        { label: "Gold = 2 hrs", type: "purple" },
-        { label: "VIP = 6 hrs \u2B50", type: "purple" },
+      body: `You get <strong style="color:#f1f5f9">30 free minutes per browser session</strong>.
+             The timer only runs while a site is open in the viewer. When time is low,
+             click here to buy more for <strong style="color:#fde047">50 credits</strong>.`,
+      pricing: [
+        { tier: "Free each session", value: "30m" },
+        { tier: "Top-up cost", value: "50 \uD83E\uDE99" },
+        { tier: "Best value tier", value: "VIP = 6h/top-up" },
       ],
+      chips: [
+        { label: "Timer pauses when viewer closes", type: "green" },
+        { label: "Shared across all links", type: "" },
+        { label: "Higher rank = better refill value", type: "purple" },
+      ],
+      tip: "Close idle viewers quickly to save time for when you actually need it.",
     }),
     attachTo: { element: "#navSessionTime", on: "bottom" },
     buttons: [ backBtn, nextBtn() ],
