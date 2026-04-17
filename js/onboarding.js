@@ -575,7 +575,8 @@ class NativeOnboardTour {
 
     // Direction-aware slide-in animation
     if (typeof gsap !== "undefined" && !prefersReducedMotion()) {
-      // Keep transform styles so position transforms (especially centered placement) are preserved.
+      // Avoid clearing transform after GSAP: center placement uses translate(-50%, -50%),
+      // and clearing transforms can cause the card to jump/shift after each step animation.
       gsap.fromTo(this.card,
         { x: this._direction * 26, opacity: 0 },
         { x: 0, opacity: 1, duration: 0.30, ease: "power2.out" }
@@ -659,7 +660,7 @@ class NativeOnboardTour {
     this.card.style.width = `${cardW}px`;
     const measured = this.card.getBoundingClientRect();
     const cardH = Math.min(
-      measured?.height || FALLBACK_CARD_HEIGHT,
+      measured.height || FALLBACK_CARD_HEIGHT,
       Number.isFinite(vh)
         ? Math.min(Math.max(FALLBACK_CARD_MIN_HEIGHT, vh * 0.8), FALLBACK_CARD_MAX_HEIGHT)
         : FALLBACK_CARD_MAX_HEIGHT
