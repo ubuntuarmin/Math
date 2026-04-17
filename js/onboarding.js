@@ -29,8 +29,16 @@ export function showOnboarding() {
   onboardModal.setAttribute("aria-hidden", "false");
   if (errorEl) errorEl.textContent = "";
   setTimeout(() => firstInput?.focus(), 50);
-  // Start Three.js particle field after the modal has rendered
-  requestAnimationFrame(() => _initOnboardScene());
+  // Start Three.js particle field after the modal has rendered.
+  // Load Three.js lazily so it doesn't add startup main-thread work.
+  requestAnimationFrame(async () => {
+    try {
+      await _ensureThreeLib(THREE_LOAD_MAX_MS);
+    } catch (err) {
+      console.warn("[Onboarding] Three.js load failed:", err);
+    }
+    _initOnboardScene();
+  });
 }
 
 export function hideOnboarding() {
@@ -281,6 +289,7 @@ let _tourContext      = null;
 let _activeFeatureIds = [];
 let _onboardTour      = null;
 let _tourLibLoadPromise = null;
+let _threeLoadPromise = null;
 let _onboardThree     = null;  // Three.js particle scene state
 let _jitListenersBound = false;
 const _visitedFeaturesByUid = new Map();
@@ -288,11 +297,13 @@ const _featureToursInFlight = new Set();
 
 const TOUR_LIB_SOURCE_TIMEOUT_MS = 4500;
 const TOUR_LIB_LOAD_MAX_MS = 12000;
+const THREE_LOAD_MAX_MS = 10000;
 const NATIVE_TOUR_CLS = "mt-native-tour-target";
 const FALLBACK_CARD_HEIGHT = 280;
 const FALLBACK_CARD_MIN_HEIGHT = 260;
 const FALLBACK_CARD_MAX_HEIGHT = 680;
 const LOCAL_TOUR_LIB_SRC = "./js/vendor/onboard.umd.min.js";
+const THREE_LIB_SRC = "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js";
 
 const _tourScriptSources = [
   LOCAL_TOUR_LIB_SRC,
@@ -633,6 +644,11 @@ function _getOnboardLib() {
   return null;
 }
 
+function _getThreeLib() {
+  if (typeof THREE !== "undefined" && THREE?.WebGLRenderer) return THREE;
+  return null;
+}
+
 function _loadScript(src, timeoutMs = TOUR_LIB_SOURCE_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[src="${src}"]`);
@@ -712,6 +728,28 @@ async function _ensureOnboardLib(maxDurationMs = 8000) {
   }
 
   return null;
+}
+
+function _getThreeLibLoadPromise(timeoutMs) {
+  if (_threeLoadPromise) return _threeLoadPromise;
+
+  _threeLoadPromise = (async () => {
+    try {
+      if (_getThreeLib()) return _getThreeLib();
+      await _loadScript(THREE_LIB_SRC, timeoutMs);
+      return _getThreeLib();
+    } finally {
+      _threeLoadPromise = null;
+    }
+  })();
+
+  return _threeLoadPromise;
+}
+
+async function _ensureThreeLib(timeoutMs = THREE_LOAD_MAX_MS) {
+  if (_getThreeLib()) return _getThreeLib();
+  await _getThreeLibLoadPromise(timeoutMs);
+  return _getThreeLib();
 }
 
 function _getTourLibLoadPromise(timeoutMs) {
