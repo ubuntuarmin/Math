@@ -292,7 +292,7 @@ const NATIVE_TOUR_CLS = "mt-native-tour-target";
 const FALLBACK_CARD_HEIGHT = 280;
 const FALLBACK_CARD_MIN_HEIGHT = 260;
 const FALLBACK_CARD_MAX_HEIGHT = 680;
-const LOCAL_TOUR_LIB_SRC = new URL("./vendor/onboard.umd.min.js", import.meta.url).href;
+const LOCAL_TOUR_LIB_SRC = "./js/vendor/onboard.umd.min.js";
 
 const _tourScriptSources = [
   LOCAL_TOUR_LIB_SRC,
