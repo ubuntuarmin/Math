@@ -1,0 +1,126 @@
+import React from "https://esm.sh/react@18.3.1";
+import { flushSync } from "https://esm.sh/react-dom@18.3.1";
+import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+
+const SHARE_PAGE_HTML = `
+<header class="site-header">
+  <nav class="navbar">
+    <a href="index.html" class="navbar-brand">
+      <span class="navbar-brand-logo">📐</span>
+      <span class="navbar-brand-text">Math Katy</span>
+    </a>
+    <a href="index.html" class="btn-outline text-xs">← Back to Links</a>
+  </nav>
+</header>
+
+<main>
+  <div class="container">
+    <section class="surface max-w-2xl mx-auto">
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 shadow-lg shadow-blue-500/30">🔗</div>
+        <h1 class="text-3xl font-black text-white mb-2">Share with the Community</h1>
+        <p class="text-gray-400 text-sm max-w-md mx-auto leading-relaxed">
+          Share a game site URL or embed your own HTML game — it goes
+          <strong class="text-white">live immediately</strong>, no approval needed.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 mb-8">
+        <div class="bg-gray-900/60 border border-emerald-500/20 rounded-xl p-3 text-center">
+          <div class="text-emerald-400 text-xl font-black mb-1">+50</div>
+          <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Credits</div>
+          <div class="text-gray-500 text-[10px] mt-1">on submit</div>
+        </div>
+        <div class="bg-gray-900/60 border border-blue-500/20 rounded-xl p-3 text-center">
+          <div class="text-blue-400 text-xl font-black mb-1">⚡</div>
+          <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Instant</div>
+          <div class="text-gray-500 text-[10px] mt-1">live immediately</div>
+        </div>
+        <div class="bg-gray-900/60 border border-yellow-500/20 rounded-xl p-3 text-center">
+          <div class="text-yellow-400 text-xl font-black mb-1">+10</div>
+          <div class="text-gray-400 text-[11px] uppercase font-bold tracking-wider">Per upvote</div>
+          <div class="text-gray-500 text-[10px] mt-1">others earn too</div>
+        </div>
+      </div>
+
+      <div class="mb-6">
+        <div class="text-xs text-gray-400 uppercase font-bold tracking-wider mb-3 flex items-center">
+          Submission Type
+          <span class="tooltip-icon" tabindex="0" role="note" aria-label="What is the difference?">?<span class="tooltip-text">URL: share a link to any existing game site. HTML: paste your own HTML/JS game code — it runs in a safe sandbox.</span></span>
+        </div>
+        <div class="flex gap-2">
+          <button id="typeUrlBtn" class="type-tab active flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">🔗 URL / Link</button>
+          <button id="typeHtmlBtn" class="type-tab flex-1 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">💻 HTML Code</button>
+        </div>
+      </div>
+
+      <form id="shareForm" class="space-y-5">
+        <div id="urlField">
+          <label for="shareUrl" class="block text-sm font-semibold text-gray-300 mb-1.5">Link URL <span class="text-red-400">*</span></label>
+          <input id="shareUrl" type="url" placeholder="https://awesome-game-site.com" autocomplete="off" class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700 text-sm text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 transition" />
+          <p class="text-[11px] text-gray-500 mt-1.5">Must start with <code class="text-blue-400">https://</code> and be a site anyone can visit.</p>
+        </div>
+
+        <div id="htmlField" class="hidden">
+          <label for="shareHtml" class="block text-sm font-semibold text-gray-300 mb-1.5">HTML Code <span class="text-red-400">*</span></label>
+          <textarea id="shareHtml" rows="8" maxlength="50000" placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html&gt;&#10;  &lt;body&gt;&#10;    &lt;h1&gt;My Game&lt;/h1&gt;&#10;    &lt;canvas id=&quot;game&quot;&gt;&lt;/canvas&gt;&#10;    &lt;script&gt;/* your game logic */&lt;/script&gt;&#10;  &lt;/body&gt;&#10;&lt;/html&gt;" class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700 text-sm text-white outline-none resize-y font-mono focus:border-purple-500 focus:ring-1 focus:ring-purple-500/40 transition"></textarea>
+          <div class="flex justify-between items-center mt-1">
+            <p class="text-[11px] text-gray-500">Paste a complete HTML page. Scripts, canvas, and styles are supported.</p>
+            <span class="text-[11px] text-gray-600"><span id="htmlCharCount">0</span>/50000</span>
+          </div>
+          <div class="mt-2 p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 text-[11px] text-purple-300/80 leading-relaxed">💡 Your HTML runs in a sandboxed iframe. Scripts, canvas, styles, and fetch requests are supported. External popups are allowed via <code>allow-popups</code>.</div>
+        </div>
+
+        <div>
+          <label for="shareTitle" class="block text-sm font-semibold text-gray-300 mb-1.5">Site name <span class="text-red-400">*</span></label>
+          <input id="shareTitle" type="text" placeholder="e.g. Cool Racing Game" maxlength="80" class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700 text-sm text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 transition" />
+        </div>
+
+        <div>
+          <label for="shareDesc" class="block text-sm font-semibold text-gray-300 mb-1.5">Short description <span class="text-red-400">*</span></label>
+          <textarea id="shareDesc" rows="3" maxlength="300" placeholder="What is it? Why is it good? (at least 10 characters)" class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700 text-sm text-white outline-none resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 transition"></textarea>
+          <p class="text-[11px] text-gray-500 mt-1"><span id="descCharCount">0</span>/300 characters</p>
+        </div>
+
+        <div>
+          <label for="shareHashtags" class="block text-sm font-semibold text-gray-300 mb-1.5 flex items-center">Hashtags <span class="text-gray-600 ml-1">(optional)</span><span class="tooltip-icon" tabindex="0" role="note" aria-label="Hashtag help">?<span class="tooltip-text">Add up to 5 hashtags separated by spaces or commas. Start with # or just type the word — e.g. #racing fun multiplayer.</span></span></label>
+          <input id="shareHashtags" type="text" placeholder="e.g. #racing #multiplayer #free" maxlength="120" class="w-full bg-gray-900/80 px-4 py-3 rounded-xl border border-gray-700 text-sm text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40 transition" />
+          <p class="text-[11px] text-gray-500 mt-1.5">Up to 5 hashtags separated by spaces. E.g. <code class="text-blue-400">#racing #fun</code></p>
+        </div>
+
+        <div class="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20 text-xs text-yellow-300/80 leading-relaxed flex items-start gap-2">
+          <span>⚠️</span>
+          <span>Do not submit fake, broken, or inappropriate links/code.
+          If 3 or more community members report your submission as fake, your
+          <strong class="text-yellow-300">50 credits will be reversed</strong> and the submission removed.
+          <span class="tooltip-icon" tabindex="0" role="note" aria-label="Report system info">?<span class="tooltip-text">Users can flag links as Fake/Spam or Blocked/Broken. Reaching 3 reports removes the link. Fake reports also reverse your 50 earned credits. You can appeal in the ⚖️ Appeals tab.</span></span>
+          </span>
+        </div>
+
+        <div id="shareError" class="text-sm text-red-400 min-h-[1.25rem] hidden"></div>
+        <div id="shareSuccess" class="text-sm text-emerald-400 min-h-[1.25rem] hidden"></div>
+
+        <button id="shareSubmit" type="submit" class="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white transition-all shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]">Share <span class="text-blue-200">(+50 credits)</span></button>
+      </form>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <span>© 2026 Math Katy</span>
+    <span class="text-xs text-gray-600">Community link sharing · Earn credits · Report bad links</span>
+  </div>
+</footer>
+`;
+
+const rootEl = document.getElementById("react-root");
+if (rootEl) {
+  const root = createRoot(rootEl);
+  flushSync(() => {
+    root.render(React.createElement("div", {
+      dangerouslySetInnerHTML: { __html: SHARE_PAGE_HTML },
+    }));
+  });
+  await import("./share.js");
+}
