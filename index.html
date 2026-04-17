@@ -11,22 +11,13 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
 
-  <!-- OnboardJS guided tour library (local copy for reliable availability) -->
+  <!-- OnboardJS guided tour styles -->
   <link rel="preload" href="./js/vendor/onboard.css" as="style" onload="this.rel='stylesheet'" />
   <noscript><link rel="stylesheet" href="./js/vendor/onboard.css" /></noscript>
-  <script src="./js/vendor/onboard.umd.min.js" defer></script>
-
-  <!-- Three.js — 3D rendering engine for tour background animations -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"
-          crossorigin="anonymous" defer></script>
 
   <!-- GSAP — Professional animation engine
        Note: Add SRI integrity hashes in production for security.
-       Deferred scripts execute before DOMContentLoaded, so gsap is available in our DOMContentLoaded handlers. -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"
-          crossorigin="anonymous" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"
-          crossorigin="anonymous" defer></script>
+       Loaded lazily in non-critical enhancement init to reduce startup blocking time. -->
 
   <style>
     /* ── Tab system ─────────────────────────────────────── */
@@ -1499,11 +1490,85 @@
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const IDLE_CALLBACK_POLYFILL_DELAY_MS = 200; // Short post-render fallback delay when requestIdleCallback is unavailable.
   const NON_CRITICAL_IDLE_TIMEOUT_MS = 800; // Ensures enhancements still start promptly when the main thread stays busy.
+  const GSAP_SRC = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js";
+  const SCROLL_TRIGGER_SRC = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js";
+  const _scriptLoadPromises = new Map();
   let _nonCriticalStarted = false;
   let _pageVisible = document.visibilityState === "visible";
   document.addEventListener("visibilitychange", () => {
     _pageVisible = document.visibilityState === "visible";
   });
+
+  function loadScriptOnce(src, timeoutMs = 9000) {
+    const existingPromise = _scriptLoadPromises.get(src);
+    if (existingPromise) return existingPromise;
+    const promise = new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing && (existing.dataset.loaded === "1" || existing.readyState === "complete")) {
+        resolve();
+        return;
+      }
+
+      const target = existing || document.createElement("script");
+      if (!existing) {
+        target.src = src;
+        target.crossOrigin = "anonymous";
+        target.async = true;
+      }
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        target.removeEventListener("load", onLoad);
+        target.removeEventListener("error", onError);
+      };
+      const onLoad = () => {
+        target.dataset.loaded = "1";
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        if (!existing) target.remove();
+        reject(new Error(`Failed to load ${src}`));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        if (!existing) target.remove();
+        reject(new Error(`Timed out loading ${src}`));
+      }, timeoutMs);
+
+      target.addEventListener("load", onLoad);
+      target.addEventListener("error", onError);
+      if (!existing) document.head.appendChild(target);
+    }).finally(() => {
+      _scriptLoadPromises.delete(src);
+    });
+
+    _scriptLoadPromises.set(src, promise);
+    return promise;
+  }
+
+  async function ensureGsapLoaded() {
+    if (typeof gsap !== "undefined") return true;
+    try {
+      await loadScriptOnce(GSAP_SRC);
+    } catch (err) {
+      console.warn("[Perf] GSAP failed to load:", err);
+      return false;
+    }
+    return typeof gsap !== "undefined";
+  }
+
+  async function ensureScrollTriggerLoaded() {
+    if (typeof ScrollTrigger !== "undefined") return true;
+    try {
+      await loadScriptOnce(SCROLL_TRIGGER_SRC);
+    } catch (err) {
+      console.warn("[Perf] ScrollTrigger failed to load:", err);
+      return false;
+    }
+    return typeof ScrollTrigger !== "undefined";
+  }
 
   /* ────────────────────────────────────────────────────────
      1. ANIMATED CANVAS BACKGROUND  (aurora nebula effect)
@@ -1771,7 +1836,7 @@
   /* ────────────────────────────────────────────────────────
      INIT ALL
   ──────────────────────────────────────────────────────── */
-  function runNonCriticalEnhancements() {
+  async function runNonCriticalEnhancements() {
     if (_nonCriticalStarted) return;
     _nonCriticalStarted = true;
 
@@ -1780,6 +1845,10 @@
     initMagnetic();
     addRippleToNavBtns();
 
+    const gsapReady = await ensureGsapLoaded();
+    if (gsapReady) {
+      await ensureScrollTriggerLoaded();
+    }
     if (typeof gsap !== "undefined" && typeof ScrollTrigger !== "undefined") {
       gsap.registerPlugin(ScrollTrigger);
     }
