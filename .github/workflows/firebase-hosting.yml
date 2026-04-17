@@ -21,7 +21,7 @@ jobs:
           projectId: ${{ env.FIREBASE_PROJECT }}
           channelId: live
 
-      - name: Deploy Firestore Rules and Indexes
+      - name: Deploy Firestore and Realtime Database Rules
         env:
           SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
@@ -31,6 +31,6 @@ jobs:
           chmod 600 "$SA_FILE"
           echo "$SERVICE_ACCOUNT" > "$SA_FILE"
           GOOGLE_APPLICATION_CREDENTIALS="$SA_FILE" firebase deploy \
-            --only firestore:rules,firestore:indexes \
+            --only firestore:rules,firestore:indexes,database \
             --project "$FIREBASE_PROJECT" \
             --non-interactive
