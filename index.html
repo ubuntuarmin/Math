@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="style.css" />
 
   <!-- OnboardJS guided tour library (local copy for reliable availability) -->
-  <link rel="preload" href="./js/vendor/onboard.css" as="style" onload="this.onload=null;this.rel='stylesheet'" onerror="this.onerror=null;this.rel='stylesheet'" />
+  <link rel="preload" href="./js/vendor/onboard.css" as="style" onload="this.rel='stylesheet'" />
   <noscript><link rel="stylesheet" href="./js/vendor/onboard.css" /></noscript>
   <script src="./js/vendor/onboard.umd.min.js" defer></script>
 
@@ -1497,7 +1497,8 @@
 (function () {
   "use strict";
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const NON_CRITICAL_FALLBACK_DELAY_MS = 220; // Keep post-paint startup delay short on browsers without requestIdleCallback.
+  const NON_CRITICAL_FALLBACK_DELAY_MS = 220; // Small fallback delay chosen to let first render settle on browsers without requestIdleCallback.
+  const NON_CRITICAL_IDLE_TIMEOUT_MS = 800; // Ensures enhancements still start promptly when the main thread stays busy.
   let _nonCriticalStarted = false;
   let _pageVisible = !document.hidden;
   document.addEventListener("visibilitychange", () => {
@@ -1787,18 +1788,25 @@
   }
 
   function scheduleNonCriticalEnhancements() {
+    const interactionEvents = ["pointerdown", "keydown", "touchstart"];
+    const cleanupInteractionListeners = () => {
+      interactionEvents.forEach((evt) => {
+        window.removeEventListener(evt, onFirstInteraction, { passive: true });
+      });
+    };
     const kick = () => {
       if (document.visibilityState === "hidden") return;
       runNonCriticalEnhancements();
+      cleanupInteractionListeners();
     };
 
     const onFirstInteraction = () => runNonCriticalEnhancements();
-    ["pointerdown", "keydown", "touchstart"].forEach((evt) => {
+    interactionEvents.forEach((evt) => {
       window.addEventListener(evt, onFirstInteraction, { once: true, passive: true });
     });
 
     if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(kick, { timeout: 800 });
+      window.requestIdleCallback(kick, { timeout: NON_CRITICAL_IDLE_TIMEOUT_MS });
     } else {
       setTimeout(kick, NON_CRITICAL_FALLBACK_DELAY_MS);
     }
