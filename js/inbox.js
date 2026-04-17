@@ -177,6 +177,8 @@ async function markAllAsRead() {
  */
 function InboxMessage({ msg }) {
   const joinUrl = safeJoinUrl(msg.joinUrl);
+  const isChatAction = (msg.type === "chat_message" || msg.type === "chat_invite") && !!joinUrl;
+  const chatActionLabel = msg.type === "chat_invite" ? "Accept Chat" : "Open Chat";
   return h("div", {
     className: `p-3 rounded-lg transition border border-transparent ${
       !msg.read ? "bg-blue-500/10 border-blue-500/30" : "bg-gray-800/40"
@@ -195,10 +197,10 @@ function InboxMessage({ msg }) {
       h("p", { className: "text-xs text-gray-200 leading-tight" }, msg.text || "")
     ),
     h("div", { className: "flex items-center gap-2 ml-2" },
-      msg.type === "chat_message" && joinUrl && h("button", {
+      isChatAction && h("button", {
         className: "text-[10px] px-2 py-1 rounded bg-blue-600/80 hover:bg-blue-500 text-white",
         "data-msg-join": "true",
-      }, "Join"),
+      }, chatActionLabel),
       h("button", {
         className: "text-xs text-gray-500 hover:text-red-400",
         title: "Delete",
