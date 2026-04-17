@@ -1577,7 +1577,8 @@
     let lastFrame = 0;
     const FRAME_INTERVAL = 1000 / 30; // target 30fps (~33.33ms per frame) to conserve CPU
     function loop(ts) {
-      // Pause background animation while the iframe modal is open to free CPU/GPU for games
+      // `window._bgPaused` is an existing cross-file global switch toggled by iframe/game flows.
+      // Pause background animation while the iframe modal is open to free CPU/GPU for games.
       if (!window._bgPaused && _pageVisible && ts - lastFrame > FRAME_INTERVAL) {
         lastFrame = ts;
         draw();
@@ -1797,7 +1798,7 @@
     });
 
     if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(kick, { timeout: 1500 });
+      window.requestIdleCallback(kick, { timeout: 800 });
     } else {
       setTimeout(kick, NON_CRITICAL_FALLBACK_DELAY_MS);
     }
