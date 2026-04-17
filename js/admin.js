@@ -12,6 +12,7 @@
  */
 
 import { auth, db } from "./firebase.js";
+import { runDuplicateLinkCleanupPass } from "./linkDuplicateCleanup.js";
 import {
     collection,
     doc,
@@ -35,6 +36,7 @@ const PRODUCTIVE_CREDIT_REWARD = 15;
 
 // ─── Module state ─────────────────────────────────────────────────────────────
 let _currentUserData = null;
+let _duplicateCleanupStarted = false;
 
 // ─── Escape helper ────────────────────────────────────────────────────────────
 function esc(str) {
@@ -71,6 +73,18 @@ export async function renderAdminHub(userData) {
 
     // Run 48-h escalation check for all logged-in users (lightweight, idempotent)
     await checkEscalations();
+
+    if (userData.isAdmin && !_duplicateCleanupStarted) {
+        _duplicateCleanupStarted = true;
+        runDuplicateLinkCleanupPass({
+            isAdmin: true,
+            adminUid: auth.currentUser?.uid || "",
+        }).catch(err => {
+            console.warn("[Admin] Duplicate cleanup pass failed:", err);
+        }).finally(() => {
+            _duplicateCleanupStarted = false;
+        });
+    }
 
     container.innerHTML = `
         <div class="flex justify-center py-8">
