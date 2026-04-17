@@ -1500,9 +1500,9 @@
   const IDLE_CALLBACK_POLYFILL_DELAY_MS = 200; // Short post-render fallback delay when requestIdleCallback is unavailable.
   const NON_CRITICAL_IDLE_TIMEOUT_MS = 800; // Ensures enhancements still start promptly when the main thread stays busy.
   let _nonCriticalStarted = false;
-  let _pageVisible = !document.hidden;
+  let _pageVisible = document.visibilityState === "visible";
   document.addEventListener("visibilitychange", () => {
-    _pageVisible = !document.hidden;
+    _pageVisible = document.visibilityState === "visible";
   });
 
   /* ────────────────────────────────────────────────────────
