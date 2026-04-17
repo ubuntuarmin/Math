@@ -21,6 +21,7 @@ import {
   query as rtdbQuery,
   orderByChild,
   endAt,
+  limitToFirst,
   get,
   serverTimestamp as rtdbServerTimestamp,
   off,
@@ -40,6 +41,9 @@ const MAX_MSG_LEN    = 500;
 const MAX_NICKNAME_LEN = 32;
 const NOTIFICATION_TEXT_MAX_LEN = 140;
 const NOTIFICATION_COOLDOWN_MS = 45 * 1000;
+const INVITE_COOLDOWN_MS = 2 * 60 * 1000;
+const ACTIVE_RECENTLY_MS = 2 * 60 * 1000;
+const PRESENCE_HEARTBEAT_MS = 30 * 1000;
 // Gold tier requires 300+ lifetime credits
 const GOLD_MIN_EARNED = 300;
 
@@ -74,13 +78,16 @@ let _activeRoomId  = null;
 let _activePartnerUid = null;
 let _activeRefs = [];
 let _myTypingRef = null;
-let _myPresenceRef = null;
+let _myGlobalPresenceRef = null;
 let _partnerOnline = false;
+let _partnerInActiveRoom = false;
 let _typingStopTimer = null;
+let _presenceHeartbeatTimer = null;
 let _savedChats = [];
 let _nicknamesByUid = {};
 let _activePartnerBaseLabel = null;
 const _notificationLastSentAt = new Map();
+const _inviteLastSentAt = new Map();
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const chatLoading    = document.getElementById("chatLoading");
@@ -262,6 +269,8 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
+  setupGlobalPresence();
+
   // Show chat UI
   chatApp?.classList.remove("hidden");
   if (myChatIdEl) myChatIdEl.textContent = _userData.chatHandle || user.uid;
@@ -272,7 +281,7 @@ onAuthStateChanged(auth, async (user) => {
   const urlPartner = new URLSearchParams(window.location.search).get("partner");
   if (urlPartner && partnerInput) {
     partnerInput.value = urlPartner;
-    openChat();
+    openChat({ sendInvite: false });
     // URL partner target takes priority; returning here exits this auth callback so auto-resume does not run.
     return;
   }
@@ -281,7 +290,7 @@ onAuthStateChanged(auth, async (user) => {
   if (_savedChats.length > 0) {
     const recent = _savedChats[0];
     if (recent?.partnerUid) {
-      openRoom(recent.partnerUid, recent.partnerLabel || recent.partnerUid);
+      openRoom(recent.partnerUid, recent.partnerLabel || recent.partnerUid, { sendInvite: false });
     }
   }
 });
@@ -301,7 +310,7 @@ partnerInput?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); openChat(); }
 });
 
-async function openChat() {
+async function openChat({ sendInvite = true } = {}) {
   if (!_currentUser) return;
   const partnerInputValue = (partnerInput?.value || "").trim();
 
@@ -326,7 +335,7 @@ async function openChat() {
     return;
   }
 
-  await openRoom(resolved.uid, resolved.label);
+  await openRoom(resolved.uid, resolved.label, { sendInvite });
 }
 
 function showError(msg) {
@@ -362,7 +371,99 @@ async function resolvePartner(input) {
   return null;
 }
 
-async function openRoom(partnerId, partnerDisplayLabel = null) {
+function currentRoomPresencePayload() {
+  return {
+    online: true,
+    lastSeen: Date.now(),
+    currentRoom: _activeRoomId || null,
+  };
+}
+
+function setupGlobalPresence() {
+  if (!_currentUser?.uid) return;
+  if (_presenceHeartbeatTimer) {
+    clearInterval(_presenceHeartbeatTimer);
+    _presenceHeartbeatTimer = null;
+  }
+
+  _myGlobalPresenceRef = ref(rtdb, `presence/${_currentUser.uid}`);
+  set(_myGlobalPresenceRef, currentRoomPresencePayload()).catch(() => {});
+  onDisconnect(_myGlobalPresenceRef).set({
+    online: false,
+    lastSeen: rtdbServerTimestamp(),
+    currentRoom: null,
+  });
+
+  _presenceHeartbeatTimer = setInterval(() => {
+    if (!_myGlobalPresenceRef) return;
+    set(_myGlobalPresenceRef, currentRoomPresencePayload()).catch(() => {});
+  }, PRESENCE_HEARTBEAT_MS);
+}
+
+function updateGlobalPresenceRoom() {
+  if (!_myGlobalPresenceRef) return;
+  set(_myGlobalPresenceRef, currentRoomPresencePayload()).catch(() => {});
+}
+
+async function maybeSendChatInvite(partnerUid) {
+  if (!_currentUser?.uid || !partnerUid) return;
+  const roomId = buildRoomId(_currentUser.uid, partnerUid);
+  const now = Date.now();
+  const lastInviteAt = _inviteLastSentAt.get(roomId) || 0;
+  if (now - lastInviteAt < INVITE_COOLDOWN_MS) return;
+
+  try {
+    const existingMessageSnap = await get(
+      rtdbQuery(ref(rtdb, `chats/${roomId}/messages`), limitToFirst(1))
+    );
+    if (existingMessageSnap.exists()) return;
+
+    _inviteLastSentAt.set(roomId, now);
+    await addDoc(collection(db, "messages"), {
+      to: partnerUid,
+      fromName: _myHandle || "Chat",
+      title: "New chat request",
+      text: "Tap Accept Chat to open this private conversation.",
+      type: "chat_invite",
+      joinUrl: `chat.html?partner=${encodeURIComponent(_currentUser.uid)}`,
+      read: false,
+      timestamp: serverTimestamp(),
+    });
+  } catch (err) {
+    console.warn("Failed to send chat invite:", err);
+  }
+}
+
+function applyPartnerStatus(state) {
+  if (!partnerStatus) return;
+  const isOnline = !!state?.online;
+  const isInRoom = isOnline && state?.currentRoom === _activeRoomId;
+  const lastSeen = Number(state?.lastSeen || 0);
+  const activeRecently = !isOnline && lastSeen > 0 && (Date.now() - lastSeen) < ACTIVE_RECENTLY_MS;
+
+  _partnerOnline = isOnline;
+  _partnerInActiveRoom = isInRoom;
+
+  if (isInRoom) {
+    partnerStatus.textContent = "In chat now";
+    partnerStatus.className = "text-[11px] mt-1 text-emerald-400";
+    return;
+  }
+  if (isOnline) {
+    partnerStatus.textContent = "Online";
+    partnerStatus.className = "text-[11px] mt-1 text-emerald-500";
+    return;
+  }
+  if (activeRecently) {
+    partnerStatus.textContent = "Active recently";
+    partnerStatus.className = "text-[11px] mt-1 text-amber-400";
+    return;
+  }
+  partnerStatus.textContent = "Offline";
+  partnerStatus.className = "text-[11px] mt-1 text-gray-500";
+}
+
+async function openRoom(partnerId, partnerDisplayLabel = null, { sendInvite = false } = {}) {
   // Detach any previous listener
   detachListener();
 
@@ -370,6 +471,8 @@ async function openRoom(partnerId, partnerDisplayLabel = null) {
   _activePartnerUid = partnerId;
   _activePartnerBaseLabel = partnerDisplayLabel || partnerId;
   _partnerOnline = false;
+  _partnerInActiveRoom = false;
+  updateGlobalPresenceRoom();
 
   if (partnerLabel) partnerLabel.textContent = displayNameFor(partnerId, _activePartnerBaseLabel);
   if (partnerStatus) partnerStatus.textContent = "Offline";
@@ -387,6 +490,9 @@ async function openRoom(partnerId, partnerDisplayLabel = null) {
 
   chatRoom?.classList.remove("hidden");
   upsertSavedChat(partnerId, _activePartnerBaseLabel);
+  if (sendInvite) {
+    maybeSendChatInvite(partnerId);
+  }
 
   // Subscribe to new messages
   const messagesRef = ref(rtdb, `chats/${_activeRoomId}/messages`);
@@ -411,14 +517,10 @@ async function openRoom(partnerId, partnerDisplayLabel = null) {
   });
 
   // Partner presence listener
-  const partnerPresenceRef = ref(rtdb, `chats/${_activeRoomId}/presence/${_activePartnerUid}`);
+  const partnerPresenceRef = ref(rtdb, `presence/${_activePartnerUid}`);
   _activeRefs.push(partnerPresenceRef);
   onValue(partnerPresenceRef, (snap) => {
-    const state = snap.val();
-    _partnerOnline = !!state?.online;
-    if (!partnerStatus) return;
-    partnerStatus.textContent = _partnerOnline ? "Online now" : "Offline";
-    partnerStatus.className = `text-[11px] mt-1 ${_partnerOnline ? "text-emerald-400" : "text-gray-500"}`;
+    applyPartnerStatus(snap.val() || {});
   });
 
   // Partner typing listener
@@ -429,12 +531,8 @@ async function openRoom(partnerId, partnerDisplayLabel = null) {
     typingStatus.textContent = snap.val() ? "Typing…" : "";
   });
 
-  // Mark me online for this room while open
-  _myPresenceRef = ref(rtdb, `chats/${_activeRoomId}/presence/${_currentUser.uid}`);
   _myTypingRef = ref(rtdb, `chats/${_activeRoomId}/typing/${_currentUser.uid}`);
-  set(_myPresenceRef, { online: true, lastSeen: Date.now() }).catch(() => {});
   set(_myTypingRef, false).catch(() => {});
-  onDisconnect(_myPresenceRef).set({ online: false, lastSeen: rtdbServerTimestamp() });
   onDisconnect(_myTypingRef).remove();
 }
 
@@ -446,9 +544,6 @@ function detachListener() {
   if (_myTypingRef) {
     set(_myTypingRef, false).catch(() => {});
   }
-  if (_myPresenceRef) {
-    set(_myPresenceRef, { online: false, lastSeen: Date.now() }).catch(() => {});
-  }
   for (const roomRef of _activeRefs) {
     off(roomRef);
   }
@@ -457,8 +552,9 @@ function detachListener() {
   _activePartnerUid = null;
   _activePartnerBaseLabel = null;
   _myTypingRef = null;
-  _myPresenceRef = null;
   _partnerOnline = false;
+  _partnerInActiveRoom = false;
+  updateGlobalPresenceRoom();
 }
 
 // ── Render a message bubble ───────────────────────────────────────────────────
@@ -542,7 +638,7 @@ async function sendMessage() {
 
     const now = Date.now();
     const lastNotifAt = _notificationLastSentAt.get(_activeRoomId) || 0;
-    if (!_partnerOnline && now - lastNotifAt >= NOTIFICATION_COOLDOWN_MS) {
+    if (!_partnerInActiveRoom && now - lastNotifAt >= NOTIFICATION_COOLDOWN_MS) {
       _notificationLastSentAt.set(_activeRoomId, now);
       await addDoc(collection(db, "messages"), {
         to: _activePartnerUid,
@@ -642,4 +738,18 @@ chatInput?.addEventListener("input", () => {
 
 chatInput?.addEventListener("blur", () => {
   if (_myTypingRef) set(_myTypingRef, false).catch(() => {});
+});
+
+window.addEventListener("beforeunload", () => {
+  if (_presenceHeartbeatTimer) {
+    clearInterval(_presenceHeartbeatTimer);
+    _presenceHeartbeatTimer = null;
+  }
+  if (_myGlobalPresenceRef) {
+    set(_myGlobalPresenceRef, {
+      online: false,
+      lastSeen: Date.now(),
+      currentRoom: null,
+    }).catch(() => {});
+  }
 });
