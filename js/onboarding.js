@@ -224,7 +224,6 @@ function showSuccessAndClose(name, uid) {
 
   setTimeout(() => {
     hideOnboarding();
-    _setupJitOnboarding(uid);
     _showToast("✨ Tips will appear as you explore new features.");
   }, 1600);
 }
@@ -1012,7 +1011,10 @@ function _buildContextSteps(featureIds) {
         console.warn("[Onboarding] Step prepare failed:", err);
       }
       const selector = stepDef.attachTo?.element;
-      if (selector && !document.querySelector(selector)) continue;
+      if (selector && !document.querySelector(selector)) {
+        console.warn("[Onboarding] Skipping step; target not found:", selector, stepDef.id || stepDef.featureId);
+        continue;
+      }
       defs.push({ ...stepDef, featureId });
     }
   }
@@ -1027,6 +1029,7 @@ function _buildContextSteps(featureIds) {
 
     return {
       id: `${stepDef.id || stepDef.featureId}-${idx + 1}`,
+      _featureId: stepDef.featureId,
       title: stepDef.title || "Tip",
       text: _stepContent({
         icon: stepDef.icon || "✨",
@@ -1056,7 +1059,6 @@ function _buildContextSteps(featureIds) {
 
 async function _startTour(uid, context = "full", options = {}) {
   if (!uid) return false;
-  _setupJitOnboarding(uid);
 
   try {
     if (_onboardTour) return false;
@@ -1078,7 +1080,7 @@ async function _startTour(uid, context = "full", options = {}) {
     _tourUid = uid;
     _tourContext = context;
     _tourAwardCredits = !!options.awardCredits;
-    _activeFeatureIds = [...new Set(pendingFeatures)];
+    _activeFeatureIds = [...new Set(steps.map((step) => step._featureId).filter(Boolean))];
 
     _onboardTour = _createTourInstance(TourCtor);
     steps.forEach((step) => _onboardTour.addStep(step));
@@ -1092,8 +1094,8 @@ async function _startTour(uid, context = "full", options = {}) {
   }
 }
 
-async function _triggerFeatureTour(featureId, preferredUid = null) {
-  const uid = preferredUid || auth.currentUser?.uid;
+async function _triggerFeatureTour(featureId) {
+  const uid = auth.currentUser?.uid;
   if (!uid || !featureId) return false;
   if (_onboardTour) return false;
 
@@ -1113,7 +1115,7 @@ async function _triggerFeatureTour(featureId, preferredUid = null) {
   }
 }
 
-function _setupJitOnboarding(preferredUid = null) {
+function _setupJitOnboarding() {
   if (_jitListenersBound) return;
   _jitListenersBound = true;
 
@@ -1122,7 +1124,7 @@ function _setupJitOnboarding(preferredUid = null) {
       try {
         const target = e.target?.closest?.(selector);
         if (!target) return;
-        await _triggerFeatureTour(featureId, preferredUid);
+        await _triggerFeatureTour(featureId);
       } catch (err) {
         console.warn("[Onboarding] Event-driven tour handler failed:", err);
       }
@@ -1181,7 +1183,6 @@ async function _handleTourEnd(completed) {
 /** Public: start guided tutorial for existing users (+30 credits on completion). */
 export function startTourForExistingUser(uid) {
   if (!uid) return false;
-  _setupJitOnboarding(uid);
   _startTour(uid, "full", { awardCredits: true });
   return true;
 }
