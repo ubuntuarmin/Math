@@ -1800,7 +1800,7 @@
       cleanupInteractionListeners();
     };
 
-    const onFirstInteraction = () => runNonCriticalEnhancements();
+    const onFirstInteraction = () => kick();
     interactionEvents.forEach((evt) => {
       window.addEventListener(evt, onFirstInteraction, { once: true, passive: true });
     });
@@ -1811,7 +1811,12 @@
       setTimeout(kick, NON_CRITICAL_FALLBACK_DELAY_MS);
     }
 
-    document.addEventListener("visibilitychange", kick, { once: true });
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      kick();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
   }
 
   function init() {
