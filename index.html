@@ -1497,7 +1497,7 @@
 (function () {
   "use strict";
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const NON_CRITICAL_FALLBACK_DELAY_MS = 220; // Small fallback delay chosen to let first render settle on browsers without requestIdleCallback.
+  const IDLE_CALLBACK_POLYFILL_DELAY_MS = 220; // Small fallback delay chosen to let first render settle on browsers without requestIdleCallback.
   const NON_CRITICAL_IDLE_TIMEOUT_MS = 800; // Ensures enhancements still start promptly when the main thread stays busy.
   let _nonCriticalStarted = false;
   let _pageVisible = !document.hidden;
@@ -1789,6 +1789,7 @@
 
   function scheduleNonCriticalEnhancements() {
     const interactionEvents = ["pointerdown", "keydown", "touchstart"];
+    let onVisibilityChange = null;
     const cleanupInteractionListeners = () => {
       interactionEvents.forEach((evt) => {
         window.removeEventListener(evt, onFirstInteraction, { passive: true });
@@ -1798,23 +1799,25 @@
       if (document.visibilityState === "hidden") return;
       runNonCriticalEnhancements();
       cleanupInteractionListeners();
+      if (onVisibilityChange) {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
     };
 
     const onFirstInteraction = () => kick();
     interactionEvents.forEach((evt) => {
-      window.addEventListener(evt, onFirstInteraction, { once: true, passive: true });
+      window.addEventListener(evt, onFirstInteraction, { passive: true });
     });
 
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(kick, { timeout: NON_CRITICAL_IDLE_TIMEOUT_MS });
     } else {
-      setTimeout(kick, NON_CRITICAL_FALLBACK_DELAY_MS);
+      setTimeout(kick, IDLE_CALLBACK_POLYFILL_DELAY_MS);
     }
 
-    const onVisibilityChange = () => {
+    onVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
       kick();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
   }
