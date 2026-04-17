@@ -6,13 +6,13 @@
   <title>Math Katy — Community Game Site Sharing</title>
 
   <link rel="preconnect" href="https://cdn.tailwindcss.com" />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
 
   <!-- OnboardJS guided tour library (local copy for reliable availability) -->
-  <link rel="preload" href="./js/vendor/onboard.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+  <link rel="preload" href="./js/vendor/onboard.css" as="style" onload="this.onload=null;this.rel='stylesheet'" onerror="this.onerror=null;this.rel='stylesheet'" />
   <noscript><link rel="stylesheet" href="./js/vendor/onboard.css" /></noscript>
   <script src="./js/vendor/onboard.umd.min.js" defer></script>
 
@@ -1497,7 +1497,12 @@
 (function () {
   "use strict";
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const NON_CRITICAL_FALLBACK_DELAY_MS = 220; // Keep post-paint startup delay short on browsers without requestIdleCallback.
   let _nonCriticalStarted = false;
+  let _pageVisible = !document.hidden;
+  document.addEventListener("visibilitychange", () => {
+    _pageVisible = !document.hidden;
+  });
 
   /* ────────────────────────────────────────────────────────
      1. ANIMATED CANVAS BACKGROUND  (aurora nebula effect)
@@ -1573,7 +1578,7 @@
     const FRAME_INTERVAL = 1000 / 30; // target 30fps (~33.33ms per frame) to conserve CPU
     function loop(ts) {
       // Pause background animation while the iframe modal is open to free CPU/GPU for games
-      if (!window._bgPaused && !document.hidden && ts - lastFrame > FRAME_INTERVAL) {
+      if (!window._bgPaused && _pageVisible && ts - lastFrame > FRAME_INTERVAL) {
         lastFrame = ts;
         draw();
       }
@@ -1794,7 +1799,7 @@
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(kick, { timeout: 1500 });
     } else {
-      setTimeout(kick, 220);
+      setTimeout(kick, NON_CRITICAL_FALLBACK_DELAY_MS);
     }
 
     document.addEventListener("visibilitychange", kick, { once: true });
