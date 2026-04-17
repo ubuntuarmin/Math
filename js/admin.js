@@ -79,6 +79,8 @@ export async function renderAdminHub(userData) {
         runDuplicateLinkCleanupPass({
             isAdmin: true,
             adminUid: auth.currentUser?.uid || "",
+        }).finally(() => {
+            _duplicateCleanupStarted = false;
         }).catch(err => {
             console.warn("[Admin] Duplicate cleanup pass failed:", err);
         });

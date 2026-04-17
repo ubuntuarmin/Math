@@ -131,11 +131,13 @@ export async function runDuplicateLinkCleanupPass({
 
           const firstLinkId = String(idx.firstLinkId || "");
           const firstCreatedMs = toMillis(idx.firstCreatedAt);
-          const currentIsOlder = !!firstLinkId && (
-            firstCreatedMs === 0 ||
-            createdMs < firstCreatedMs ||
-            (createdMs === firstCreatedMs && linkDoc.id < firstLinkId)
-          );
+          const currentIsOlder = !!firstLinkId
+            && createdMs > 0
+            && firstCreatedMs > 0
+            && (
+              createdMs < firstCreatedMs ||
+              (createdMs === firstCreatedMs && linkDoc.id < firstLinkId)
+            );
 
           if (firstLinkId && firstLinkId !== linkDoc.id) {
             if (currentIsOlder) {

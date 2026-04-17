@@ -41,8 +41,8 @@ export function normalizeUrlForDedup(rawUrl) {
   const kept = [];
   parsed.searchParams.forEach((value, key) => {
     const k = key.toLowerCase();
-    const tracking = TRACKING_PARAM_PREFIXES.some(prefix => k.startsWith(prefix)) || TRACKING_PARAM_KEYS.has(k);
-    if (!tracking) kept.push([key, value]);
+    const isTrackingParam = TRACKING_PARAM_PREFIXES.some(prefix => k.startsWith(prefix)) || TRACKING_PARAM_KEYS.has(k);
+    if (!isTrackingParam) kept.push([key, value]);
   });
 
   kept.sort(([ka, va], [kb, vb]) => {
