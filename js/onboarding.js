@@ -857,7 +857,7 @@ const TOUR_MANAGER = {
       attachTo: { element: "#linksSearch", on: "bottom" },
       prepare() { _switchTab("links"); },
       whenShow() { setTimeout(() => document.getElementById("linksSearch")?.focus(), 120); },
-      instr: "Click search and type a keyword to continue.",
+      instr: "Focus Search and type a keyword to continue.",
       advanceOn: { selector: "#linksSearch", event: "input" },
     },
     {
@@ -986,8 +986,7 @@ const TOUR_MANAGER = {
       body: "Short, clear questions usually get the fastest responses from the community.",
       attachTo: { element: "#chatTabContent", on: "top" },
       prepare() { _switchTab("chat"); },
-      instr: "Place your cursor in chat input to continue.",
-      advanceOn: { selector: "#chatTabContent", event: "click" },
+      instr: "Focus the chat area and try opening a conversation.",
     },
   ],
   [TOUR_FEATURES.ACCOUNT]: [
