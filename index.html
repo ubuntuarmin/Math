@@ -982,32 +982,46 @@
           class="absolute inset-0 w-full h-full pointer-events-none"
           aria-hidden="true"></canvas>
   <div class="modal-glass panel rounded-3xl relative z-10
-              p-8 w-full max-w-sm mx-4 shadow-2xl">
-    <div class="text-center mb-6">
-      <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-600
-                  rounded-2xl flex items-center justify-center text-2xl mx-auto mb-3">
-        🎮
+              p-8 w-full max-w-md mx-4 shadow-2xl border border-sky-500/20">
+    <div class="mb-6">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide
+                  text-sky-200 bg-sky-500/10 border border-sky-400/25 mb-3">
+        <span>WELCOME</span>
+        <span class="opacity-60">•</span>
+        <span>30s setup</span>
       </div>
-      <h2 class="text-xl font-black text-white">Quick Setup</h2>
-      <p class="text-gray-400 text-xs mt-1">Just a few details to personalise your profile.</p>
+      <div class="flex items-start gap-3">
+        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600
+                    rounded-2xl flex items-center justify-center text-xl shrink-0">
+          🎓
+        </div>
+        <div>
+          <h2 class="text-xl font-black text-white leading-tight">Set up your learning profile</h2>
+          <p class="text-gray-300 text-sm mt-1">We use this to personalize your experience and keep your progress accurate.</p>
+        </div>
+      </div>
+      <ul class="mt-4 space-y-1.5 text-[11px] text-slate-300">
+        <li>Professional profile setup used across rankings, rewards, and account history</li>
+        <li>Your details stay private and can be updated later in Account settings</li>
+      </ul>
     </div>
-    <div class="space-y-3">
+    <div class="space-y-3.5">
       <div>
-        <label class="block text-xs text-gray-400 mb-1">First Name *</label>
+        <label class="block text-xs text-gray-300 mb-1.5 font-semibold">First Name <span class="text-red-400">*</span></label>
         <input id="onboardFirst" type="text" placeholder="e.g. Alex"
-               class="w-full bg-gray-800 border border-gray-700 rounded-xl
-                      px-3 py-2.5 text-sm text-white outline-none
-                      focus:border-blue-500 transition" />
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl
+                       px-3 py-2.5 text-sm text-white outline-none
+                       focus:border-blue-500 transition" maxlength="20" autocomplete="given-name" />
       </div>
       <div>
-        <label class="block text-xs text-gray-400 mb-1">Last Name (optional)</label>
+        <label class="block text-xs text-gray-300 mb-1.5 font-semibold">Last Name <span class="text-slate-500">(optional)</span></label>
         <input id="onboardLast" type="text" placeholder="e.g. Smith"
-               class="w-full bg-gray-800 border border-gray-700 rounded-xl
-                      px-3 py-2.5 text-sm text-white outline-none
-                      focus:border-blue-500 transition" />
+                class="w-full bg-gray-800 border border-gray-700 rounded-xl
+                       px-3 py-2.5 text-sm text-white outline-none
+                       focus:border-blue-500 transition" maxlength="30" autocomplete="family-name" />
       </div>
       <div>
-        <label class="block text-xs text-gray-400 mb-1">Grade *</label>
+        <label class="block text-xs text-gray-300 mb-1.5 font-semibold">Grade <span class="text-red-400">*</span></label>
         <select id="onboardGrade"
                 class="w-full bg-gray-800 border border-gray-700 rounded-xl
                        px-3 py-2.5 text-sm text-white outline-none
@@ -1023,11 +1037,12 @@
         </select>
       </div>
     </div>
-    <div id="onboardError" class="text-xs text-red-400 mt-3 min-h-[1rem]"></div>
+    <p class="text-[11px] text-slate-400 mt-3">Fields marked with <span class="text-red-400">*</span> are required.</p>
+    <div id="onboardError" class="text-xs text-red-400 mt-2 min-h-[1rem]" aria-live="polite"></div>
     <button id="onboardSave"
-            class="mt-5 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500
+            class="mt-4 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500
                    text-white font-bold text-sm transition-colors shadow-lg active:scale-95">
-      Save & Continue
+      Continue to Dashboard
     </button>
   </div>
 </div>

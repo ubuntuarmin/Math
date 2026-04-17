@@ -12,14 +12,19 @@ const lastInput    = document.getElementById("onboardLast");
 const gradeSelect  = document.getElementById("onboardGrade");
 const saveBtn      = document.getElementById("onboardSave");
 const errorEl      = document.getElementById("onboardError");
+const _NAME_PATTERN = /^[\p{L}][\p{L}\s'-]*$/u;
 
 let _isSaving = false;
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+}
 
 function setSavingState(on) {
   _isSaving = !!on;
   if (saveBtn) {
     saveBtn.disabled    = _isSaving;
-    saveBtn.textContent = _isSaving ? "Saving\u2026" : "Save & Continue";
+    saveBtn.textContent = _isSaving ? "Saving\u2026" : "Continue to Dashboard";
   }
 }
 
@@ -33,11 +38,11 @@ export function showOnboarding() {
   // Load Three.js lazily so it doesn't add startup main-thread work.
   requestAnimationFrame(async () => {
     try {
-      await _ensureThreeLib(THREE_LOAD_MAX_MS);
+      if (!prefersReducedMotion()) await _ensureThreeLib(THREE_LOAD_MAX_MS);
     } catch (err) {
       console.warn("[Onboarding] Three.js load failed:", err);
     }
-    _initOnboardScene();
+    if (!prefersReducedMotion()) _initOnboardScene();
   });
 }
 
@@ -224,7 +229,7 @@ function showSuccessAndClose(name, uid) {
   const nameEl = document.getElementById("onboardSuccessName");
   if (nameEl) nameEl.textContent = safeName;
 
-  if (typeof gsap !== "undefined") {
+  if (typeof gsap !== "undefined" && !prefersReducedMotion()) {
     gsap.to("#onboardSuccessCheck", { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)" });
     gsap.to("#onboardSuccessTitle", { opacity: 1, y: 0, duration: 0.4, delay: 0.25, ease: "power3.out" });
     gsap.to("#onboardSuccessBody",  { opacity: 1, duration: 0.4, delay: 0.45, ease: "power2.out" });
@@ -256,6 +261,18 @@ async function handleSave() {
     if (errorEl) errorEl.textContent = "First name is too long (max 20 characters).";
     firstInput?.focus(); return;
   }
+  if (!_NAME_PATTERN.test(first)) {
+    if (errorEl) errorEl.textContent = "First name must start with a letter and can only include letters, spaces, apostrophes, and hyphens.";
+    firstInput?.focus(); return;
+  }
+  if (last && last.length > 30) {
+    if (errorEl) errorEl.textContent = "Last name is too long (max 30 characters).";
+    lastInput?.focus(); return;
+  }
+  if (last && !_NAME_PATTERN.test(last)) {
+    if (errorEl) errorEl.textContent = "Last name must start with a letter and can only include letters, spaces, apostrophes, and hyphens.";
+    lastInput?.focus(); return;
+  }
   if (!grade) {
     if (errorEl) errorEl.textContent = "Please select your grade.";
     gradeSelect?.focus(); return;
@@ -277,6 +294,12 @@ async function handleSave() {
 saveBtn?.addEventListener("click", (e) => { e.preventDefault(); handleSave(); });
 [firstInput, lastInput].forEach(el => {
   el?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); handleSave(); } });
+  el?.addEventListener("input", () => {
+    if (errorEl?.textContent) errorEl.textContent = "";
+  });
+});
+gradeSelect?.addEventListener("change", () => {
+  if (errorEl?.textContent) errorEl.textContent = "";
 });
 
 // ══════════════════════════════════════════════════════════
@@ -381,7 +404,7 @@ function _stepContent({ icon, body, chips, tip, instr, step, total }) {
 
 // GSAP entrance animation on tooltip element
 function _animateIn(el) {
-  if (typeof gsap === "undefined" || !el) return;
+  if (typeof gsap === "undefined" || !el || prefersReducedMotion()) return;
   gsap.fromTo(el,
     { opacity: 0, y: 14, scale: 0.96 },
     { opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "back.out(1.7)", clearProps: "all" }
@@ -390,7 +413,7 @@ function _animateIn(el) {
 
 // GSAP dramatic ring-pulse on a target element to draw attention
 function _pulseTarget(selector) {
-  if (typeof gsap === "undefined" || !selector) return;
+  if (typeof gsap === "undefined" || !selector || prefersReducedMotion()) return;
   const el = document.querySelector(selector);
   if (!el) return;
   gsap.timeline({ repeat: 1, yoyo: true })
@@ -433,10 +456,17 @@ class NativeOnboardTour {
     this.card = null;
     this.currentTarget = null;
     this.cleanupAdvance = null;
+    this.repositionRaf = null;
     this.boundEsc = (e) => {
       if (e.key === "Escape" && this.options.exitOnEsc) this.cancel();
     };
-    this.boundReposition = () => this._repositionCurrent();
+    this.boundReposition = () => {
+      if (this.repositionRaf) cancelAnimationFrame(this.repositionRaf);
+      this.repositionRaf = requestAnimationFrame(() => {
+        this.repositionRaf = null;
+        this._repositionCurrent();
+      });
+    };
   }
 
   addStep(step) {
@@ -509,6 +539,10 @@ class NativeOnboardTour {
     if (this.cleanupAdvance) { this.cleanupAdvance(); this.cleanupAdvance = null; }
     if (this.currentTarget) this.currentTarget.classList.remove(NATIVE_TOUR_CLS);
     this.currentTarget = null;
+    if (this.repositionRaf) {
+      cancelAnimationFrame(this.repositionRaf);
+      this.repositionRaf = null;
+    }
     document.removeEventListener("keydown", this.boundEsc);
     window.removeEventListener("resize", this.boundReposition);
     window.removeEventListener("scroll", this.boundReposition);
@@ -540,10 +574,11 @@ class NativeOnboardTour {
     `;
 
     // Direction-aware slide-in animation
-    if (typeof gsap !== "undefined") {
+    if (typeof gsap !== "undefined" && !prefersReducedMotion()) {
+      // Keep transform styles so position transforms (especially centered placement) are preserved.
       gsap.fromTo(this.card,
         { x: this._direction * 26, opacity: 0 },
-        { x: 0, opacity: 1, duration: 0.30, ease: "power2.out", clearProps: "transform" }
+        { x: 0, opacity: 1, duration: 0.30, ease: "power2.out" }
       );
     }
 
@@ -569,7 +604,10 @@ class NativeOnboardTour {
       this.currentTarget = target;
       target.classList.add(NATIVE_TOUR_CLS);
       if (this.options.defaultStepOptions?.scrollTo) {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        target.scrollIntoView({
+          behavior: prefersReducedMotion() ? "auto" : "smooth",
+          block: "center",
+        });
       }
       this._positionNear(target, step.attachTo?.on || "bottom");
     } else {
@@ -617,25 +655,41 @@ class NativeOnboardTour {
     const rect = target.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const cardW = Math.min(420, Math.max(300, vw - 24));
-    const cardH = Number.isFinite(vh)
-      ? Math.min(Math.max(FALLBACK_CARD_MIN_HEIGHT, vh * 0.8), FALLBACK_CARD_MAX_HEIGHT)
-      : FALLBACK_CARD_HEIGHT;
+    const cardW = Math.min(420, Math.max(270, vw - 24));
+    this.card.style.width = `${cardW}px`;
+    const measured = this.card.getBoundingClientRect();
+    const cardH = Math.min(
+      measured?.height || FALLBACK_CARD_HEIGHT,
+      Number.isFinite(vh)
+        ? Math.min(Math.max(FALLBACK_CARD_MIN_HEIGHT, vh * 0.8), FALLBACK_CARD_MAX_HEIGHT)
+        : FALLBACK_CARD_MAX_HEIGHT
+    );
     const gap = 14;
+    let placement = on;
+
+    if (placement === "bottom" && rect.bottom + gap + cardH > vh - 12 && rect.top - gap - cardH >= 12) {
+      placement = "top";
+    } else if (placement === "top" && rect.top - gap - cardH < 12 && rect.bottom + gap + cardH <= vh - 12) {
+      placement = "bottom";
+    } else if (placement === "right" && rect.right + gap + cardW > vw - 12 && rect.left - gap - cardW >= 12) {
+      placement = "left";
+    } else if (placement === "left" && rect.left - gap - cardW < 12 && rect.right + gap + cardW <= vw - 12) {
+      placement = "right";
+    }
 
     let left = rect.left + rect.width / 2 - cardW / 2;
-    let top = on === "top" ? rect.top - gap : rect.bottom + gap;
-    if (on === "left") { left = rect.left - cardW - gap; top = rect.top; }
-    if (on === "right") { left = rect.right + gap; top = rect.top; }
+    let top = placement === "top" ? rect.top - cardH - gap : rect.bottom + gap;
+    if (placement === "left") { left = rect.left - cardW - gap; top = rect.top; }
+    if (placement === "right") { left = rect.right + gap; top = rect.top; }
 
     if (top + cardH + 20 > vh) top = Math.max(20, vh - cardH - 20);
     if (top < 20) top = 20;
     left = Math.max(12, Math.min(vw - cardW - 12, left));
 
-    this.card.style.width = `${cardW}px`;
     this.card.style.left = `${left}px`;
     this.card.style.top = `${top}px`;
     this.card.style.transform = "none";
+    this.card.dataset.placement = placement;
   }
 }
 
@@ -778,6 +832,7 @@ async function _waitForOnboardLib(timeoutMs = TOUR_LIB_LOAD_MAX_MS) {
 // ── JIT micro-tour orchestration ───────────────────────────────────────
 function _microQuestBurst() {
   try {
+    if (prefersReducedMotion()) return;
     _onboardThree?.burst?.();
     const shell = document.body;
     if (!shell || typeof gsap === "undefined") return;
@@ -1121,7 +1176,7 @@ function _createTourInstance(TourCtor) {
     keyboardNavigation: true,
     defaultStepOptions: {
       classes: "onboard-math-tour",
-      scrollTo: { behavior: "smooth", block: "center" },
+      scrollTo: { behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" },
       cancelIcon: { enabled: true },
       modalOverlayOpeningPadding: 8,
       modalOverlayOpeningRadius: 10,
