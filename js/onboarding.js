@@ -1,5 +1,5 @@
 import { auth, db } from "./firebase.js";
-import { doc, updateDoc, getDoc, increment } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, updateDoc, getDoc, increment, arrayUnion } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { TIER_CONFIG, FREE_SESSION_MINUTES, SESSION_TOPUP_COST } from "./tier.js";
 
 // ══════════════════════════════════════════════════════════
@@ -134,6 +134,36 @@ function _initOnboardScene() {
   window.addEventListener("resize", _onResize);
 
   _onboardThree = {
+    burst() {
+      try {
+        const originalPointColor = ptMat.color.clone();
+        const originalLineColor = lineMat.color.clone();
+        const originalPointOpacity = ptMat.opacity;
+        const originalLineOpacity = lineMat.opacity;
+
+        ptMat.color.set(0x22d3ee);
+        lineMat.color.set(0x60a5fa);
+        ptMat.opacity = Math.min(1, originalPointOpacity + 0.1);
+        lineMat.opacity = Math.min(0.5, originalLineOpacity + 0.1);
+
+        if (typeof gsap !== "undefined") {
+          gsap.fromTo(ptMat, { size: 4.2 }, { size: 2.5, duration: 0.8, ease: "power2.out" });
+          gsap.to(ptMat.color, { r: originalPointColor.r, g: originalPointColor.g, b: originalPointColor.b, duration: 0.9 });
+          gsap.to(lineMat.color, { r: originalLineColor.r, g: originalLineColor.g, b: originalLineColor.b, duration: 0.9 });
+          gsap.to(ptMat, { opacity: originalPointOpacity, duration: 0.9 });
+          gsap.to(lineMat, { opacity: originalLineOpacity, duration: 0.9 });
+        } else {
+          setTimeout(() => {
+            ptMat.color.copy(originalPointColor);
+            lineMat.color.copy(originalLineColor);
+            ptMat.opacity = originalPointOpacity;
+            lineMat.opacity = originalLineOpacity;
+          }, 900);
+        }
+      } catch (err) {
+        console.warn("[Onboarding] Particle burst failed:", err);
+      }
+    },
     destroy() {
       cancelAnimationFrame(state.raf);
       window.removeEventListener("resize", _onResize);
@@ -148,6 +178,8 @@ function _initOnboardScene() {
 function _destroyOnboardScene() {
   if (_onboardThree) _onboardThree.destroy();
 }
+
+async function finalizeOnboarding(uid, firstName) {
   try {
     const snap      = await getDoc(doc(db, "users", uid));
     const freshData = snap.data() || {};
@@ -192,7 +224,7 @@ function showSuccessAndClose(name, uid) {
 
   setTimeout(() => {
     hideOnboarding();
-    _startTour(uid, false);
+    _showToast("✨ Tips will appear as you explore new features.");
   }, 1600);
 }
 
@@ -245,9 +277,14 @@ saveBtn?.addEventListener("click", (e) => { e.preventDefault(); handleSave(); })
 
 let _tourUid          = null;
 let _tourAwardCredits = false;
+let _tourContext      = null;
+let _activeFeatureIds = [];
 let _onboardTour      = null;
 let _tourLibLoadPromise = null;
 let _onboardThree     = null;  // Three.js particle scene state
+let _jitListenersBound = false;
+const _visitedFeaturesByUid = new Map();
+const _featureToursInFlight = new Set();
 
 const TOUR_LIB_SOURCE_TIMEOUT_MS = 4500;
 const TOUR_LIB_LOAD_MAX_MS = 12000;
@@ -698,23 +735,255 @@ async function _waitForOnboardLib(timeoutMs = TOUR_LIB_LOAD_MAX_MS) {
   return _getOnboardLib();
 }
 
-// ── Build and start the OnboardJS tour ───────────────────────────────
-async function _startTour(uid, awardCredits) {
-  _tourUid          = uid;
-  _tourAwardCredits = !!awardCredits;
-
-  const OnboardLib = await _waitForOnboardLib();
-  const TourCtor = OnboardLib?.Tour || NativeOnboardTour;
-  const usingNativeFallback = !OnboardLib?.Tour;
-  if (usingNativeFallback) _showToast("ℹ️ Using built-in onboarding (external library unavailable).");
-
-  if (_onboardTour) {
-    try { _onboardTour.complete(); } catch (_) {}
+// ── JIT micro-tour orchestration ───────────────────────────────────────
+function _microQuestBurst() {
+  try {
+    _onboardThree?.burst?.();
+    const shell = document.body;
+    if (!shell || typeof gsap === "undefined") return;
+    gsap.fromTo(shell, { boxShadow: "inset 0 0 0 rgba(34,211,238,0)" }, {
+      boxShadow: "inset 0 0 120px rgba(34,211,238,0.14)",
+      duration: 0.28,
+      yoyo: true,
+      repeat: 1,
+      ease: "power1.inOut",
+      clearProps: "boxShadow",
+    });
+  } catch (err) {
+    console.warn("[Onboarding] Micro-quest burst failed:", err);
   }
+}
 
-  const TOTAL = 15;
+const TOUR_FEATURES = Object.freeze({
+  WELCOME: "WELCOME_TOUR",
+  LINKS: "LINKS_TOUR",
+  SEARCH: "SEARCH_TOUR",
+  SHARE: "SHARE_TOUR",
+  CREDIT: "CREDIT_TOUR",
+  SESSION: "SESSION_TOUR",
+  STREAK: "STREAK_TOUR",
+  LEADERBOARD: "LEADERBOARD_TOUR",
+  CHAT: "CHAT_TOUR",
+  ACCOUNT: "ACCOUNT_TOUR",
+  NEWS: "NEWS_TOUR",
+});
 
-  _onboardTour = new TourCtor({
+const TOUR_CONTEXTS = Object.freeze({
+  welcome: [TOUR_FEATURES.WELCOME],
+  sharing: [TOUR_FEATURES.SHARE, TOUR_FEATURES.CREDIT, TOUR_FEATURES.SESSION],
+  full: [
+    TOUR_FEATURES.WELCOME,
+    TOUR_FEATURES.LINKS,
+    TOUR_FEATURES.SEARCH,
+    TOUR_FEATURES.SHARE,
+    TOUR_FEATURES.CREDIT,
+    TOUR_FEATURES.SESSION,
+    TOUR_FEATURES.STREAK,
+    TOUR_FEATURES.LEADERBOARD,
+    TOUR_FEATURES.CHAT,
+    TOUR_FEATURES.ACCOUNT,
+    TOUR_FEATURES.NEWS,
+  ],
+});
+
+const TOUR_EVENT_TRIGGERS = [
+  { event: "click", selector: "#tourTabLinks", featureId: TOUR_FEATURES.LINKS },
+  { event: "focusin", selector: "#linksSearch", featureId: TOUR_FEATURES.SEARCH },
+  { event: "click", selector: "#tourShareBtn, a[href='share.html']", featureId: TOUR_FEATURES.SHARE },
+  { event: "click", selector: "#tourCreditsPill", featureId: TOUR_FEATURES.CREDIT },
+  { event: "click", selector: "#navSessionTime", featureId: TOUR_FEATURES.SESSION },
+  { event: "click", selector: "#tourTabDaily, #dailyTracker .day-card", featureId: TOUR_FEATURES.STREAK },
+  { event: "click", selector: "#tourTabLeaderboard", featureId: TOUR_FEATURES.LEADERBOARD },
+  { event: "click", selector: "#tourTabChat", featureId: TOUR_FEATURES.CHAT },
+  { event: "click", selector: "#tourTabAccount", featureId: TOUR_FEATURES.ACCOUNT },
+  { event: "click", selector: "#tourTabNews", featureId: TOUR_FEATURES.NEWS },
+];
+
+const TOUR_MANAGER = {
+  [TOUR_FEATURES.WELCOME]: [
+    {
+      id: "jit-welcome",
+      icon: "🎮",
+      title: "Math Katy reacts to what you explore",
+      body: "You’ll now get short, contextual tips only when you use a feature for the first time.",
+      chips: [{ label: "No forced 15-step lecture", type: "green" }],
+      tip: "Explore naturally — each feature will explain itself once.",
+    },
+  ],
+  [TOUR_FEATURES.LINKS]: [
+    {
+      id: "jit-links",
+      icon: "🔗",
+      title: "Links Feed",
+      body: "This feed is the core hub. Open cards, rate sites after use, and report unsafe links.",
+      chips: [
+        { label: "Upvote = +10 ��", type: "green" },
+        { label: "3 reports = auto-remove", type: "" },
+      ],
+      attachTo: { element: "#linksGrid", on: "top" },
+      prepare() { _switchTab("links"); },
+    },
+  ],
+  [TOUR_FEATURES.SEARCH]: [
+    {
+      id: "jit-search",
+      icon: "🔍",
+      title: "Search & Sort",
+      body: "Filter instantly by title, tags, or keywords, then sort by newest, votes, or rating.",
+      tip: "Use Highest Rated to quickly find trusted picks.",
+      attachTo: { element: "#linksSearch", on: "bottom" },
+      prepare() { _switchTab("links"); },
+      whenShow() { setTimeout(() => document.getElementById("linksSearch")?.focus(), 120); },
+    },
+  ],
+  [TOUR_FEATURES.SHARE]: [
+    {
+      id: "jit-share",
+      icon: "➕",
+      title: "Sharing earns the biggest ongoing rewards",
+      body: "Submit useful links to earn +50 credits instantly and +10 for each community upvote.",
+      chips: [
+        { label: "Share = +50 🪙", type: "green" },
+        { label: "Per upvote = +10 🪙", type: "green" },
+      ],
+      attachTo: { element: "#tourShareBtn", on: "bottom" },
+    },
+  ],
+  [TOUR_FEATURES.CREDIT]: [
+    {
+      id: "jit-credit",
+      icon: "🪙",
+      title: "Credits = currency + reputation",
+      body: "Credits track both value and status. More earned credits unlock higher tiers and stronger top-ups.",
+      chips: [
+        { label: "Basic / Silver / Gold / VIP", type: "purple" },
+        { label: "Top-up cost stays fixed", type: "" },
+      ],
+      attachTo: { element: "#tourCreditsPill", on: "bottom" },
+    },
+  ],
+  [TOUR_FEATURES.SESSION]: [
+    {
+      id: "jit-session",
+      icon: "⏱️",
+      title: "Session timer control",
+      body: `You start with ${FREE_SESSION_MINUTES} free minutes. Each refill costs ${SESSION_TOPUP_COST} credits, and tier affects refill size.`,
+      chips: _tierTopupChips(),
+      attachTo: { element: "#navSessionTime", on: "bottom" },
+    },
+  ],
+  [TOUR_FEATURES.STREAK]: [
+    {
+      id: "jit-daily",
+      icon: "🔥",
+      title: "Daily streak rewards",
+      body: "Claim daily to build your streak and increase your reward pace over time.",
+      tip: "Missing claims resets streak momentum.",
+      attachTo: { element: "#tourTabDaily", on: "bottom" },
+      prepare() { _switchTab("daily"); },
+    },
+    {
+      id: "jit-daily-grid",
+      icon: "📆",
+      title: "How streak milestones pay out",
+      body: "Most days grant +10 credits, while milestone days can spike rewards dramatically.",
+      chips: [
+        { label: "24h claim cadence", type: "" },
+        { label: "Milestones = bonus bursts", type: "green" },
+      ],
+      attachTo: { element: "#dailyTracker", on: "top" },
+      prepare() { _switchTab("daily"); },
+    },
+  ],
+  [TOUR_FEATURES.LEADERBOARD]: [
+    {
+      id: "jit-leaderboard",
+      icon: "🏆",
+      title: "Leaderboard seasons",
+      body: "Leaderboard ranks live performance; top players secure seasonal credit prizes.",
+      chips: [{ label: "Top 10 rewarded", type: "green" }],
+      attachTo: { element: "#tourTabLeaderboard", on: "bottom" },
+    },
+  ],
+  [TOUR_FEATURES.CHAT]: [
+    {
+      id: "jit-chat",
+      icon: "💬",
+      title: "Community chat",
+      body: "Use chat for live help, collaboration, and social coordination with moderated safety.",
+      chips: [{ label: "Real-time + moderated", type: "" }],
+      attachTo: { element: "#tourTabChat", on: "bottom" },
+    },
+  ],
+  [TOUR_FEATURES.ACCOUNT]: [
+    {
+      id: "jit-account",
+      icon: "👤",
+      title: "Account center",
+      body: "Track your profile, rank progress, referrals, and tutorial reward status in one place.",
+      chips: [{ label: "Referral = +150 🪙", type: "green" }],
+      attachTo: { element: "#tourTabAccount", on: "bottom" },
+    },
+  ],
+  [TOUR_FEATURES.NEWS]: [
+    {
+      id: "jit-news",
+      icon: "📰",
+      title: "News & updates",
+      body: "Use News for feature rollouts, policy changes, and event announcements so you never miss platform shifts.",
+      attachTo: { element: "#tourTabNews", on: "bottom" },
+      prepare() {
+        const moreBtn = document.getElementById("navMoreBtn");
+        if (moreBtn?.getAttribute("aria-expanded") !== "true") moreBtn.click();
+      },
+    },
+  ],
+};
+
+function _resolveContextFeatures(context) {
+  if (Array.isArray(context)) return context.filter(Boolean);
+  if (!context) return [];
+  if (TOUR_CONTEXTS[context]) return [...TOUR_CONTEXTS[context]];
+  if (TOUR_MANAGER[context]) return [context];
+  return [];
+}
+
+async function _getVisitedFeatures(uid) {
+  if (!uid) return new Set();
+  const cached = _visitedFeaturesByUid.get(uid);
+  if (cached) return new Set(cached);
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    const visited = Array.isArray(snap.data()?.visitedFeatures) ? snap.data().visitedFeatures : [];
+    const nextSet = new Set(visited);
+    _visitedFeaturesByUid.set(uid, nextSet);
+    return new Set(nextSet);
+  } catch (err) {
+    console.warn("[Onboarding] Failed to load visited features:", err);
+    return new Set();
+  }
+}
+
+function _cacheVisitedFeatures(uid, featureIds = []) {
+  if (!uid) return;
+  const set = _visitedFeaturesByUid.get(uid) || new Set();
+  featureIds.forEach((id) => set.add(id));
+  _visitedFeaturesByUid.set(uid, set);
+}
+
+async function _markFeaturesVisited(uid, featureIds = []) {
+  const unique = [...new Set(featureIds.filter(Boolean))];
+  if (!uid || !unique.length) return;
+  try {
+    await updateDoc(doc(db, "users", uid), { visitedFeatures: arrayUnion(...unique) });
+    _cacheVisitedFeatures(uid, unique);
+  } catch (err) {
+    console.warn("[Onboarding] Failed to persist visited features:", err);
+  }
+}
+
+function _createTourInstance(TourCtor) {
+  const tour = new TourCtor({
     useModalOverlay: true,
     exitOnEsc: true,
     keyboardNavigation: true,
@@ -724,431 +993,198 @@ async function _startTour(uid, awardCredits) {
       cancelIcon: { enabled: true },
       modalOverlayOpeningPadding: 8,
       modalOverlayOpeningRadius: 10,
-      popperOptions: {
-        modifiers: [{ name: "offset", options: { offset: [0, 14] } }],
-      },
+      popperOptions: { modifiers: [{ name: "offset", options: { offset: [0, 14] } }] },
     },
   });
-
-  _addGsapHooks(_onboardTour);
-
-  /* ── Shared button factories ── */
-  const backBtn  = { text: "\u2190 Back", action() { this.back(); }, classes: "onboard-button-secondary" };
-  const nextBtn  = (label = "Next \u2192") => ({ text: label, action() { this.next(); } });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 1 — Welcome splash (centred, no attachment)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "welcome",
-    title: `\uD83C\uDFAE Welcome to <span class="mt-hl">Math Katy</span>!`,
-    text: _stepContent({
-      icon: "\uD83C\uDFAE", step: 1, total: TOTAL,
-      body: `Your <strong style="color:#f1f5f9">community hub</strong> for discovering and sharing
-             the best game &amp; study sites. This interactive tour walks you through every
-             feature — interact with real UI elements and learn by doing! \uD83D\uDE80`,
-      tip: "Returning users can retake this tour from the \uD83D\uDC64 Account tab to earn +30 credits!",
-    }),
-    buttons: [ nextBtn("Start Tour \u2192") ],
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 2 — Navigation bar overview (with mini-diagram)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "navbar",
-    title: `Your <span class="mt-hl">Navigation Bar</span>`,
-    text: _stepContent({
-      icon: "\uD83E\uDDED", step: 2, total: TOTAL,
-      body: `The nav bar at the top is how you move around Math Katy. Five primary tabs are
-             always visible; the <strong style="color:#f1f5f9">More \u25BE</strong> dropdown
-             reveals extra pages. Tap any tab below \u2014 it works right now!`,
-    }) + `<div class="mt-nav-diagram">
-        <span class="mt-nav-tab active">\uD83D\uDD17 Links</span>
-        <span class="mt-nav-tab">\uD83D\uDD25 Daily</span>
-        <span class="mt-nav-tab">\uD83C\uDFC6 Top</span>
-        <span class="mt-nav-tab">\uD83D\uDCAC Chat</span>
-        <span class="mt-nav-tab">\uD83D\uDC64 Account</span>
-        <span class="mt-nav-tab purple">More \u25BE</span>
-      </div>`,
-    attachTo: { element: "#tourNavTabs", on: "bottom" },
-    buttons: [ backBtn, nextBtn() ],
-    when: { show() { _pulseTarget("#tourNavTabs"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 3 — Links tab (click-to-advance)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "links-tab",
-    title: `The <span class="mt-hl">Links</span> Tab`,
-    text: _stepContent({
-      icon: "\uD83D\uDD17", step: 3, total: TOTAL,
-      body: `Browse game and study sites shared by your classmates. Each card shows the
-             site name, sharer, and community rating. Click a card to open the site
-             <strong style="color:#f1f5f9">right inside Math Katy</strong> — no new tab needed!`,
-      chips: [
-        { label: "Upvote = +10 \uD83E\uDE99", type: "green" },
-        { label: "3 reports = auto-remove", type: "" },
-        { label: "Rate 1\u20135 \u2B50 after viewing", type: "" },
-      ],
-      instr: "\uD83D\uDC46 Click the <strong>\uD83D\uDD17 Links</strong> tab to continue",
-    }),
-    attachTo: { element: "#tourTabLinks", on: "bottom" },
-    advanceOn: { selector: "#tourTabLinks", event: "click" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: { show() { _switchTab("links"); _pulseTarget("#tourTabLinks"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 4 — Search & filter (input-to-advance)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "search",
-    title: `<span class="mt-hl">Search</span> &amp; Filter`,
-    text: _stepContent({
-      icon: "\uD83D\uDD0D", step: 4, total: TOTAL,
-      body: `Instantly filter links by typing a name, tag, or keyword. The
-             <strong style="color:#f1f5f9">Sort dropdown</strong> lets you order by
-             Newest, Most Upvoted, or Highest Rated so you always surface the best content.`,
-      tip: "Sort by <strong>Highest Rated</strong> to discover the community\u2019s top picks!",
-      instr: "\u2328\uFE0F Type anything in the <strong>search bar</strong> to continue",
-    }),
-    attachTo: { element: "#linksSearch", on: "bottom" },
-    advanceOn: { selector: "#linksSearch", event: "input" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: {
-      show() {
-        _switchTab("links");
-        const el = document.getElementById("linksSearch");
-        if (el) el.value = "";
-        setTimeout(() => document.getElementById("linksSearch")?.focus(), 180);
-      },
-    },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 5 — Opening links & session context
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "open-link",
-    title: `Opening Links &amp; <span class="mt-hl">Session Time</span>`,
-    text: _stepContent({
-      icon: "\u25B6\uFE0F", step: 5, total: TOTAL,
-      body: `Click any link card\u2019s <strong style="color:#f1f5f9">\u25B6 Open</strong>
-             button to load the site in Math Katy\u2019s built-in viewer. Your session timer
-             only counts down while the viewer is actually open \u2014 browsing the feed is
-             always free!`,
-      chips: [
-        { label: "Built-in viewer", type: "" },
-        { label: "Timer runs only when open", type: "green" },
-        { label: "Rate after viewing", type: "" },
-      ],
-      tip: "Open and close links as many times as you like \u2014 the timer pauses instantly when you close the viewer.",
-    }),
-    attachTo: { element: "#linksGrid", on: "top" },
-    buttons: [ backBtn, nextBtn() ],
-    when: { show() { _switchTab("links"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 6 — Share button (click-to-advance)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "share",
-    title: `Share Links &amp; <span class="mt-hl">Earn Credits</span>`,
-    text: _stepContent({
-      icon: "\u2795", step: 6, total: TOTAL,
-      body: `Found a great site? Hit <strong style="color:#f1f5f9">+ Share</strong> to
-             submit it. You earn <strong style="color:#34d399">+50 credits instantly</strong>,
-             plus <strong style="color:#34d399">+10 more</strong> for every upvote your
-             link receives from the community!`,
-      chips: [
-        { label: "Share = +50 \uD83E\uDE99", type: "green" },
-        { label: "Per upvote = +10 \uD83E\uDE99", type: "green" },
-        { label: "Quality bonus = +50 \uD83E\uDE99/mo", type: "purple" },
-      ],
-      instr: "\uD83D\uDC46 Click the <strong>+ Share</strong> button to continue",
-    }),
-    attachTo: { element: "#tourShareBtn", on: "bottom" },
-    advanceOn: { selector: "#tourShareBtn", event: "click" },
-    buttons: [ backBtn, nextBtn() ],
-    when: { show() { _pulseTarget("#tourShareBtn"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 7 — Credits & rank system
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "credits",
-    title: `Credits, <span class="mt-hl">Pricing</span> &amp; Rank System`,
-    text: _stepContent({
-      icon: "\uD83E\uDE99", step: 7, total: TOTAL,
-      body: `Your credits are your <strong style="color:#f1f5f9">platform currency and
-             reputation score</strong>. Accumulate them to unlock higher tiers with better
-             perks \u2014 each tier increases your session top-up bonus and shows your status
-             to the community. Every top-up always costs
-             <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong> \u2014 only the
-             minutes gained change by tier.`,
-      chips: [
-        { label: "Basic", type: "" },
-        { label: "Silver", type: "" },
-        { label: "Gold", type: "purple" },
-        { label: "VIP \u2B50", type: "purple" },
-        { label: `${SESSION_TOPUP_COST} \uD83E\uDE99 per top-up`, type: "green" },
-      ],
-      tip: "Refer a friend and earn <strong>+150 credits</strong> \u2014 the fastest single way to rank up!",
-    }),
-    attachTo: { element: "#tourCreditsPill", on: "bottom" },
-    buttons: [ backBtn, nextBtn() ],
-    when: { show() { _pulseTarget("#tourCreditsPill"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 8 — Session timer
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "session-timer",
-    title: `Session Timer &amp; <span class="mt-hl">Top-up Pricing</span>`,
-    text: _stepContent({
-      icon: "\u23F1\uFE0F", step: 8, total: TOTAL,
-      body: `Every new browser session gives you <strong style="color:#f1f5f9">${FREE_SESSION_MINUTES} free
-             minutes</strong> across all links. When time is low, click this button to
-             top up for <strong style="color:#fde047">${SESSION_TOPUP_COST} credits</strong>.
-             Higher rank = more minutes per refill, so ranking up gives
-             <strong style="color:#34d399">better value per top-up</strong>.`,
-      chips: _tierTopupChips(),
-    }),
-    attachTo: { element: "#navSessionTime", on: "bottom" },
-    buttons: [ backBtn, nextBtn() ],
-    when: { show() { _pulseTarget("#navSessionTime"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 9 — Daily streak (click-to-advance)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "daily",
-    title: `Daily <span class="mt-hl">Streak</span> Rewards`,
-    text: _stepContent({
-      icon: "\uD83D\uDD25", step: 9, total: TOTAL,
-      body: `Visit Math Katy every day and claim your daily reward to build a streak.
-             Each consecutive day increases your payout multiplier \u2014 miss a day and
-             it resets to zero! Even a 2-day streak gives a meaningful bonus.`,
-      tip: "Claim as soon as you log in each day \u2014 it only takes one click!",
-      instr: "\uD83D\uDC46 Click the <strong>\uD83D\uDD25 Daily</strong> tab to continue",
-    }),
-    attachTo: { element: "#tourTabDaily", on: "bottom" },
-    advanceOn: { selector: "#tourTabDaily", event: "click" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: { show() { _pulseTarget("#tourTabDaily"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 10 — Daily streak mechanics (real interaction)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "daily-mechanics",
-    title: `How <span class="mt-hl">Streaks</span> &amp; Bonuses Work`,
-    text: _stepContent({
-      icon: "📆", step: 10, total: TOTAL,
-      body: `Your streak increases by 1 each time you claim the next day in order.
-             Most days give <strong style="color:#34d399">+10 credits</strong>, while
-             <strong style="color:#fde047">Day 15 gives +100 credits</strong>. Claims are
-             spaced by 24 hours, and if you disappear too long your streak can reset,
-             so consistency is how you stack big rewards.`,
-      chips: [
-        { label: "24h between claims", type: "" },
-        { label: "Day 15 = +100 🪙", type: "green" },
-        { label: "Most days = +10 🪙", type: "" },
-      ],
-      instr: "👉 Click any day card in the streak grid to continue",
-    }),
-    attachTo: { element: "#dailyTracker", on: "top" },
-    advanceOn: { selector: "#dailyTracker .day-card", event: "click" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: {
-      show() {
-        _switchTab("daily");
-        _pulseTarget("#dailyTracker");
-      },
-    },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 11 — Leaderboard (click-to-advance)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "leaderboard",
-    title: `<span class="mt-hl">Leaderboard</span> &amp; Prizes`,
-    text: _stepContent({
-      icon: "\uD83C\uDFC6", step: 11, total: TOTAL,
-      body: `The leaderboard ranks every player by total platform time each bi-monthly season.
-             The <strong style="color:#f1f5f9">top 10</strong> earn credit prizes when the
-             season resets \u2014 the higher you climb, the bigger your reward. Rankings
-             update in real time!`,
-      chips: [
-        { label: "Top 10 earn credit prizes", type: "green" },
-        { label: "Bi-monthly seasons", type: "" },
-        { label: "Real-time rankings", type: "" },
-      ],
-      instr: "\uD83D\uDC46 Click the <strong>\uD83C\uDFC6 Top</strong> tab to continue",
-    }),
-    attachTo: { element: "#tourTabLeaderboard", on: "bottom" },
-    advanceOn: { selector: "#tourTabLeaderboard", event: "click" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: { show() { _pulseTarget("#tourTabLeaderboard"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 12 — Chat tab (click-to-advance)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "chat",
-    title: `Community <span class="mt-hl">Chat</span>`,
-    text: _stepContent({
-      icon: "\uD83D\uDCAC", step: 12, total: TOTAL,
-      body: `The Chat tab is your real-time community space. Share tips, react to
-             messages with emojis, and stay connected with the Math Katy community.
-             All messages are moderated \u2014 keep it friendly!`,
-      chips: [
-        { label: "Real-time messaging", type: "" },
-        { label: "Emoji reactions", type: "green" },
-        { label: "Moderated community", type: "" },
-      ],
-      instr: "\uD83D\uDC46 Click the <strong>\uD83D\uDCAC Chat</strong> tab to continue",
-    }),
-    attachTo: { element: "#tourTabChat", on: "bottom" },
-    advanceOn: { selector: "#tourTabChat", event: "click" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: { show() { _pulseTarget("#tourTabChat"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 13 — Account & referrals (click-to-advance)
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "account",
-    title: `Your <span class="mt-hl">Account</span> &amp; Referrals`,
-    text: _stepContent({
-      icon: "\uD83D\uDC64", step: 13, total: TOTAL,
-      body: `Your Account tab shows your full profile: credit balance, tier progress,
-             shared links, and your unique <strong style="color:#f1f5f9">referral code</strong>.
-             Share your code with friends \u2014 earn
-             <strong style="color:#34d399">+150 credits</strong> for every sign-up!
-             Customise your avatar colour and bio here too.`,
-      chips: [
-        { label: "Referral = +150 \uD83E\uDE99 each", type: "green" },
-        { label: "Avatar & bio", type: "" },
-        { label: "Tier progress bar", type: "purple" },
-      ],
-      instr: "\uD83D\uDC46 Click the <strong>\uD83D\uDC64 Account</strong> tab to continue",
-    }),
-    attachTo: { element: "#tourTabAccount", on: "bottom" },
-    advanceOn: { selector: "#tourTabAccount", event: "click" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: { show() { _pulseTarget("#tourTabAccount"); } },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 14 — News and update feed
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "news",
-    title: `<span class="mt-hl">News</span> &amp; Product Updates`,
-    text: _stepContent({
-      icon: "📰", step: 14, total: TOTAL,
-      body: `The News tab is where we post feature drops, policy updates, and
-             important announcements. Checking it keeps you ahead of ranking
-             changes, new tools, and community events.`,
-      chips: [
-        { label: "Feature release notes", type: "" },
-        { label: "Event announcements", type: "green" },
-        { label: "Rules and policy updates", type: "" },
-      ],
-      instr: "👉 Open <strong>More ▾</strong>, then click <strong>📰 News</strong> to continue",
-    }),
-    attachTo: { element: "#navMoreBtn", on: "bottom" },
-    advanceOn: { selector: "#tourTabNews", event: "click" },
-    buttons: [ backBtn, nextBtn("Continue \u2192") ],
-    when: {
-      show() {
-        const moreBtn = document.getElementById("navMoreBtn");
-        if (moreBtn?.getAttribute("aria-expanded") !== "true") moreBtn?.click();
-        _pulseTarget("#navMoreBtn");
-      },
-    },
-  });
-
-  /* ══════════════════════════════════════════════════════
-     STEP 15 — Finale
-  ══════════════════════════════════════════════════════ */
-  _onboardTour.addStep({
-    id: "finale",
-    title: "Tour Complete!",
-    text: `<div class="mt-finale-text">
-      <span class="mt-finale-emoji" style="opacity:0;transform:scale(0.4)">\uD83C\uDF89</span>
-      <div class="mt-finale-title">You're all set!</div>
-      <p class="mt-finale-body">
-        You now know everything about <strong style="color:#f1f5f9">Math Katy</strong>.
-        Explore links, earn credits, climb the leaderboard, and invite friends with your
-        referral code. Good luck! \uD83D\uDE80
-      </p>
-      ${_progressBar(TOTAL, TOTAL)}
-    </div>`,
-    buttons: [
-      backBtn,
-      { text: "Let's Go! \uD83D\uDE80", action() { this.complete(); } },
-    ],
-    when: {
-      show() {
-        if (typeof gsap !== "undefined") {
-          requestAnimationFrame(() => {
-            const emoji = document.querySelector(".mt-finale-emoji");
-            if (emoji) {
-              gsap.to(emoji, {
-                opacity: 1, scale: 1, duration: 0.65,
-                ease: "back.out(2.5)", delay: 0.15,
-              });
-            }
-          });
-        }
-      },
-    },
-  });
-
-  /* ── Tour lifecycle handlers ── */
-  _onboardTour.on("complete", _handleTourEnd);
-  _onboardTour.on("cancel",   _handleTourEnd);
-
-  _onboardTour.start();
+  _addGsapHooks(tour);
+  return tour;
 }
 
-async function _handleTourEnd() {
+function _buildContextSteps(featureIds) {
+  const defs = [];
+  for (const featureId of featureIds) {
+    const microTour = TOUR_MANAGER[featureId] || [];
+    for (const stepDef of microTour) {
+      try {
+        if (typeof stepDef.prepare === "function") stepDef.prepare();
+      } catch (err) {
+        console.warn("[Onboarding] Step prepare failed:", err);
+      }
+      const selector = stepDef.attachTo?.element;
+      if (selector && !document.querySelector(selector)) {
+        console.warn("[Onboarding] Skipping step; target not found:", selector, stepDef.id || stepDef.featureId);
+        continue;
+      }
+      defs.push({ ...stepDef, featureId });
+    }
+  }
+
+  const total = defs.length;
+  return defs.map((stepDef, idx) => {
+    const backBtn = { text: "← Back", action() { this.back(); }, classes: "onboard-button-secondary" };
+    const last = idx === total - 1;
+    const actionBtn = last
+      ? { text: "Done ✓", action() { this.complete(); } }
+      : { text: "Next →", action() { this.next(); } };
+
+    return {
+      id: `${stepDef.id || stepDef.featureId}-${idx + 1}`,
+      _featureId: stepDef.featureId,
+      title: stepDef.title || "Tip",
+      text: _stepContent({
+        icon: stepDef.icon || "✨",
+        step: idx + 1,
+        total,
+        body: stepDef.body || "",
+        chips: stepDef.chips || [],
+        tip: stepDef.tip || "",
+        instr: stepDef.instr || "",
+      }),
+      attachTo: stepDef.attachTo,
+      advanceOn: stepDef.advanceOn,
+      buttons: idx === 0 ? [actionBtn] : [backBtn, actionBtn],
+      when: {
+        show() {
+          try {
+            if (typeof stepDef.whenShow === "function") stepDef.whenShow();
+          } catch (err) {
+            console.warn("[Onboarding] Step show hook failed:", err);
+          }
+          if (stepDef.attachTo?.element) _pulseTarget(stepDef.attachTo.element);
+        },
+      },
+    };
+  });
+}
+
+async function _startTour(uid, context = "full", options = {}) {
+  if (!uid) return false;
+
   try {
-    if (_tourAwardCredits && _tourUid) {
-      await updateDoc(doc(db, "users", _tourUid), {
-        credits:               increment(30),
-        totalEarned:           increment(30),
+    if (_onboardTour) return false;
+
+    const featureIds = _resolveContextFeatures(context);
+    if (!featureIds.length) return false;
+
+    const OnboardLib = await _waitForOnboardLib();
+    const TourCtor = OnboardLib?.Tour || NativeOnboardTour;
+    if (!OnboardLib?.Tour) _showToast("ℹ️ Using built-in onboarding (external library unavailable).");
+
+    const visited = await _getVisitedFeatures(uid);
+    const pendingFeatures = featureIds.filter((featureId) => !visited.has(featureId));
+    if (!pendingFeatures.length) return false;
+
+    const steps = _buildContextSteps(pendingFeatures);
+    if (!steps.length) return false;
+
+    _tourUid = uid;
+    _tourContext = context;
+    _tourAwardCredits = !!options.awardCredits;
+    _activeFeatureIds = [...new Set(steps.map((step) => step._featureId).filter(Boolean))];
+
+    _onboardTour = _createTourInstance(TourCtor);
+    steps.forEach((step) => _onboardTour.addStep(step));
+    _onboardTour.on("complete", () => _handleTourEnd(true));
+    _onboardTour.on("cancel", () => _handleTourEnd(false));
+    _onboardTour.start();
+    return true;
+  } catch (err) {
+    console.warn("[Onboarding] Failed to start context tour:", context, err);
+    return false;
+  }
+}
+
+async function _triggerFeatureTour(featureId) {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !featureId) return false;
+  if (_onboardTour) return false;
+
+  const guardKey = `${uid}:${featureId}`;
+  if (_featureToursInFlight.has(guardKey)) return false;
+  _featureToursInFlight.add(guardKey);
+
+  try {
+    const visited = await _getVisitedFeatures(uid);
+    if (visited.has(featureId)) return false;
+    return await _startTour(uid, featureId, { awardCredits: false });
+  } catch (err) {
+    console.warn("[Onboarding] Feature trigger failed:", featureId, err);
+    return false;
+  } finally {
+    _featureToursInFlight.delete(guardKey);
+  }
+}
+
+function _setupJitOnboarding() {
+  if (_jitListenersBound) return;
+  _jitListenersBound = true;
+
+  TOUR_EVENT_TRIGGERS.forEach(({ event, selector, featureId }) => {
+    document.addEventListener(event, async (e) => {
+      try {
+        const target = e.target?.closest?.(selector);
+        if (!target) return;
+        await _triggerFeatureTour(featureId);
+      } catch (err) {
+        console.warn("[Onboarding] Event-driven tour handler failed:", err);
+      }
+    }, true);
+  });
+
+  window.addEventListener("userProfileUpdated", (e) => {
+    const uid = auth.currentUser?.uid;
+    const visited = Array.isArray(e.detail?.visitedFeatures) ? e.detail.visitedFeatures : null;
+    if (uid && visited) _visitedFeaturesByUid.set(uid, new Set(visited));
+  });
+}
+
+async function _handleTourEnd(completed) {
+  const uid = _tourUid;
+  const awardCredits = _tourAwardCredits;
+  const context = _tourContext;
+  const featureIds = [..._activeFeatureIds];
+  _onboardTour = null;
+  _tourUid = null;
+  _tourContext = null;
+  _tourAwardCredits = false;
+  _activeFeatureIds = [];
+
+  if (!uid) return;
+
+  try {
+    if (completed && featureIds.length) {
+      await _markFeaturesVisited(uid, featureIds);
+      _microQuestBurst();
+    }
+
+    if (completed && awardCredits) {
+      await updateDoc(doc(db, "users", uid), {
+        credits: increment(30),
+        totalEarned: increment(30),
         tutorialCreditClaimed: true,
-        tourComplete:          true,
+        tourComplete: true,
       });
-      _showToast("\uD83C\uDF89 +30 credits earned for completing the tutorial!");
-      const snap = await getDoc(doc(db, "users", _tourUid));
+      _showToast("🎉 +30 credits earned for completing the tutorial!");
+      const snap = await getDoc(doc(db, "users", uid));
       if (snap.exists()) {
         window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: snap.data() }));
       }
-    } else if (_tourUid) {
-      await updateDoc(doc(db, "users", _tourUid), { tourComplete: true });
+      return;
+    }
+
+    if (completed && context === "full") {
+      await updateDoc(doc(db, "users", uid), { tourComplete: true });
     }
   } catch (e) {
     console.warn("Tour end write failed:", e);
   }
 }
 
-/** Public: start guided tour for existing users — awards +30 credits on completion. */
+/** Public: start guided tutorial for existing users (+30 credits on completion). */
 export function startTourForExistingUser(uid) {
   if (!uid) return false;
-  _startTour(uid, true);
+  _startTour(uid, "full", { awardCredits: true });
   return true;
 }
+
+_setupJitOnboarding();
