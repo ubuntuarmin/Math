@@ -1499,12 +1499,12 @@
     _pageVisible = document.visibilityState === "visible";
   });
 
-  function loadScriptOnce(src, timeoutMs = 9000) {
+  function ensureScriptLoaded(src, timeoutMs = 9000) {
     const existingPromise = _scriptLoadPromises.get(src);
     if (existingPromise) return existingPromise;
     const promise = new Promise((resolve, reject) => {
       const existing = document.querySelector(`script[src="${src}"]`);
-      if (existing && (existing.dataset.loaded === "1" || existing.readyState === "complete")) {
+      if (existing && existing.dataset.loaded === "1") {
         resolve();
         return;
       }
@@ -1551,7 +1551,7 @@
   async function ensureGsapLoaded() {
     if (typeof gsap !== "undefined") return true;
     try {
-      await loadScriptOnce(GSAP_SRC);
+      await ensureScriptLoaded(GSAP_SRC);
     } catch (err) {
       console.warn("[Perf] GSAP failed to load:", err);
       return false;
@@ -1562,7 +1562,7 @@
   async function ensureScrollTriggerLoaded() {
     if (typeof ScrollTrigger !== "undefined") return true;
     try {
-      await loadScriptOnce(SCROLL_TRIGGER_SRC);
+      await ensureScriptLoaded(SCROLL_TRIGGER_SRC);
     } catch (err) {
       console.warn("[Perf] ScrollTrigger failed to load:", err);
       return false;
