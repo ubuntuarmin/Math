@@ -131,7 +131,7 @@ export async function runDuplicateLinkCleanupPass({
 
           const firstLinkId = String(idx.firstLinkId || "");
           const firstCreatedMs = toMillis(idx.firstCreatedAt);
-          const currentIsOlder = !!firstLinkId
+          const currentLinkIsOlder = !!firstLinkId
             && createdMs > 0
             && firstCreatedMs > 0
             && (
@@ -140,7 +140,7 @@ export async function runDuplicateLinkCleanupPass({
             );
 
           if (firstLinkId && firstLinkId !== linkDoc.id) {
-            if (currentIsOlder) {
+            if (currentLinkIsOlder) {
               batch.delete(doc(db, "sharedLinks", firstLinkId));
               batch.set(indexRef, {
                 firstLinkId:    linkDoc.id,

@@ -106,7 +106,7 @@ service cloud.firestore {
       allow create: if isAuthenticated()
                     && linkRateLimitOk()
                     && (
-                      request.resource.data.get('type', 'url') != 'url'
+                      request.resource.data.get('type', '') != 'url'
                       || (
                         request.resource.data.get('canonicalUrl', null) is string
                         && request.resource.data.get('canonicalUrl', '').size() > 0
