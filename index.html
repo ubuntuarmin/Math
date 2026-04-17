@@ -1846,11 +1846,11 @@
     addRippleToNavBtns();
 
     const gsapReady = await ensureGsapLoaded();
-    if (gsapReady) {
-      await ensureScrollTriggerLoaded();
-    }
-    if (typeof gsap !== "undefined" && typeof ScrollTrigger !== "undefined") {
-      gsap.registerPlugin(ScrollTrigger);
+    if (gsapReady && typeof gsap !== "undefined") {
+      const scrollTriggerReady = await ensureScrollTriggerLoaded();
+      if (scrollTriggerReady && typeof ScrollTrigger !== "undefined") {
+        gsap.registerPlugin(ScrollTrigger);
+      }
     }
     initGSAP();
     observeCards();
