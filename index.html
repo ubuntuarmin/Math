@@ -5,12 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Math Katy — Community Game Site Sharing</title>
 
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="style.css" />
 
   <!-- OnboardJS guided tour library (local copy for reliable availability) -->
-  <link rel="stylesheet" href="./js/vendor/onboard.css" />
-  <script src="./js/vendor/onboard.umd.min.js"></script>
+  <link rel="preload" href="./js/vendor/onboard.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link rel="stylesheet" href="./js/vendor/onboard.css" /></noscript>
+  <script src="./js/vendor/onboard.umd.min.js" defer></script>
 
   <!-- Three.js — 3D rendering engine for tour background animations -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.min.js"
@@ -1492,11 +1496,14 @@
 <script>
 (function () {
   "use strict";
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let _nonCriticalStarted = false;
 
   /* ────────────────────────────────────────────────────────
      1. ANIMATED CANVAS BACKGROUND  (aurora nebula effect)
   ──────────────────────────────────────────────────────── */
-  (function initBgCanvas() {
+  function initBgCanvas() {
+    if (prefersReducedMotion) return;
     const canvas = document.getElementById("bgCanvas");
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -1566,14 +1573,14 @@
     const FRAME_INTERVAL = 1000 / 30; // target 30fps (~33.33ms per frame) to conserve CPU
     function loop(ts) {
       // Pause background animation while the iframe modal is open to free CPU/GPU for games
-      if (!window._bgPaused && ts - lastFrame > FRAME_INTERVAL) {
+      if (!window._bgPaused && !document.hidden && ts - lastFrame > FRAME_INTERVAL) {
         lastFrame = ts;
         draw();
       }
       requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);
-  })();
+  }
 
   /* ────────────────────────────────────────────────────────
      2. LOGIN MODAL PARTICLES  (mini starfield inside card)
@@ -1614,7 +1621,7 @@
      3. GSAP ANIMATIONS  (login modal, hero, page elements)
   ──────────────────────────────────────────────────────── */
   function initGSAP() {
-    if (typeof gsap === "undefined") return;
+    if (prefersReducedMotion || typeof gsap === "undefined") return;
 
     // ── Login modal entrance (triggered by MutationObserver) ──
     const loginModal = document.getElementById("loginModal");
@@ -1713,7 +1720,7 @@
      7. STAGGER CARD ANIMATIONS  (link cards entrance)
   ──────────────────────────────────────────────────────── */
   function observeCards() {
-    if (typeof gsap === "undefined") return;
+    if (prefersReducedMotion || typeof gsap === "undefined") return;
     const grid = document.getElementById("linksGrid");
     if (!grid) return;
 
@@ -1757,18 +1764,44 @@
   /* ────────────────────────────────────────────────────────
      INIT ALL
   ──────────────────────────────────────────────────────── */
-  function init() {
-    // GSAP deferred scripts execute before DOMContentLoaded per HTML spec,
-    // so gsap is guaranteed to be available here.
-    if (typeof gsap !== "undefined") {
-      gsap.registerPlugin(ScrollTrigger);
-      initGSAP();
-    }
+  function runNonCriticalEnhancements() {
+    if (_nonCriticalStarted) return;
+    _nonCriticalStarted = true;
 
+    initBgCanvas();
     initRipple();
     initMagnetic();
     addRippleToNavBtns();
+
+    if (typeof gsap !== "undefined" && typeof ScrollTrigger !== "undefined") {
+      gsap.registerPlugin(ScrollTrigger);
+    }
+    initGSAP();
     observeCards();
+  }
+
+  function scheduleNonCriticalEnhancements() {
+    const kick = () => {
+      if (document.visibilityState === "hidden") return;
+      runNonCriticalEnhancements();
+    };
+
+    const onFirstInteraction = () => runNonCriticalEnhancements();
+    ["pointerdown", "keydown", "touchstart"].forEach((evt) => {
+      window.addEventListener(evt, onFirstInteraction, { once: true, passive: true });
+    });
+
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(kick, { timeout: 1500 });
+    } else {
+      setTimeout(kick, 220);
+    }
+
+    document.addEventListener("visibilitychange", kick, { once: true });
+  }
+
+  function init() {
+    scheduleNonCriticalEnhancements();
   }
 
   // Inline scripts at the bottom of <body> always run with readyState='loading'.
