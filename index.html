@@ -1499,7 +1499,7 @@
     _pageVisible = document.visibilityState === "visible";
   });
 
-  function ensureScriptLoaded(src, timeoutMs = 9000) {
+  function loadScriptWithTimeout(src, timeoutMs = 9000) {
     const existingPromise = _scriptLoadPromises.get(src);
     if (existingPromise) return existingPromise;
     const promise = new Promise((resolve, reject) => {
@@ -1551,7 +1551,7 @@
   async function ensureGsapLoaded() {
     if (typeof gsap !== "undefined") return true;
     try {
-      await ensureScriptLoaded(GSAP_SRC);
+      await loadScriptWithTimeout(GSAP_SRC);
     } catch (err) {
       console.warn("[Perf] GSAP failed to load:", err);
       return false;
@@ -1562,7 +1562,7 @@
   async function ensureScrollTriggerLoaded() {
     if (typeof ScrollTrigger !== "undefined") return true;
     try {
-      await ensureScriptLoaded(SCROLL_TRIGGER_SRC);
+      await loadScriptWithTimeout(SCROLL_TRIGGER_SRC);
     } catch (err) {
       console.warn("[Perf] ScrollTrigger failed to load:", err);
       return false;
@@ -1846,9 +1846,9 @@
     addRippleToNavBtns();
 
     const gsapReady = await ensureGsapLoaded();
-    if (gsapReady && typeof gsap !== "undefined") {
+    if (gsapReady) {
       const scrollTriggerReady = await ensureScrollTriggerLoaded();
-      if (scrollTriggerReady && typeof ScrollTrigger !== "undefined") {
+      if (scrollTriggerReady) {
         gsap.registerPlugin(ScrollTrigger);
       }
     }
