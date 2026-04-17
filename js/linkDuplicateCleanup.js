@@ -18,6 +18,7 @@ import { buildCanonicalUrlKey, normalizeUrlForDedup } from "./urlDedup.js";
 
 const CLEANUP_STATE_PATH = ["maintenance", "linkDuplicateCleanup"];
 const LOCK_DURATION_MS = 10 * 60 * 1000;
+const MAX_BATCH_OPERATIONS = 420;
 
 function toMillis(ts) {
   return typeof ts?.toMillis === "function" ? ts.toMillis() : 0;
@@ -161,7 +162,7 @@ export async function runDuplicateLinkCleanupPass({
           backfilled++;
         }
 
-        if (ops >= 420) {
+        if (ops >= MAX_BATCH_OPERATIONS) {
           await batch.commit();
           batch = writeBatch(db);
           ops = 0;

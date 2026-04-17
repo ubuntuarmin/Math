@@ -227,7 +227,6 @@ async function handleSubmit(e) {
     }
 
     const userRef = doc(db, "users", user.uid);
-    const displayNameFallback = "Anonymous";
 
     if (submissionType === "url") {
       const [exactMatchSnap, canonicalMatchSnap] = await Promise.all([
@@ -257,7 +256,7 @@ async function handleSubmit(e) {
       }
 
       const displayName =
-        [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || displayNameFallback;
+        [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
 
       const newLinkRef = doc(collection(db, "sharedLinks"));
       const linkDoc = {
