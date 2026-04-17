@@ -1499,7 +1499,7 @@
     _pageVisible = document.visibilityState === "visible";
   });
 
-  function loadScriptWithTimeout(src, timeoutMs = 9000) {
+  function _loadScriptWithTimeout(src, timeoutMs = 9000) {
     const existingPromise = _scriptLoadPromises.get(src);
     if (existingPromise) return existingPromise;
     const promise = new Promise((resolve, reject) => {
@@ -1551,23 +1551,23 @@
   async function ensureGsapLoaded() {
     if (typeof gsap !== "undefined") return true;
     try {
-      await loadScriptWithTimeout(GSAP_SRC);
+      await _loadScriptWithTimeout(GSAP_SRC);
     } catch (err) {
       console.warn("[Perf] GSAP failed to load:", err);
       return false;
     }
-    return typeof gsap !== "undefined";
+    return true;
   }
 
   async function ensureScrollTriggerLoaded() {
     if (typeof ScrollTrigger !== "undefined") return true;
     try {
-      await loadScriptWithTimeout(SCROLL_TRIGGER_SRC);
+      await _loadScriptWithTimeout(SCROLL_TRIGGER_SRC);
     } catch (err) {
       console.warn("[Perf] ScrollTrigger failed to load:", err);
       return false;
     }
-    return typeof ScrollTrigger !== "undefined";
+    return true;
   }
 
   /* ────────────────────────────────────────────────────────
