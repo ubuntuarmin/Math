@@ -292,8 +292,10 @@ const NATIVE_TOUR_CLS = "mt-native-tour-target";
 const FALLBACK_CARD_HEIGHT = 280;
 const FALLBACK_CARD_MIN_HEIGHT = 260;
 const FALLBACK_CARD_MAX_HEIGHT = 680;
+const LOCAL_TOUR_LIB_SRC = "./js/vendor/onboard.umd.min.js";
 
 const _tourScriptSources = [
+  LOCAL_TOUR_LIB_SRC,
   "https://cdn.jsdelivr.net/npm/onboardjs@latest/dist/onboard.umd.min.js",
   "https://unpkg.com/onboardjs@latest/dist/onboard.umd.min.js",
   "https://cdnjs.cloudflare.com/ajax/libs/onboardjs/latest/onboard.umd.min.js",
@@ -809,8 +811,28 @@ const TOUR_MANAGER = {
       chips: [{ label: "No forced 15-step lecture", type: "green" }],
       tip: "Explore naturally — each feature will explain itself once.",
     },
+    {
+      id: "jit-welcome-interact",
+      icon: "🧭",
+      title: "Tap around to unlock quick tips",
+      body: "Open tabs like Daily, Top, and Chat. The first time you use each area, you’ll get a short guided tip.",
+      chips: [{ label: "Hands-on onboarding", type: "green" }],
+      attachTo: { element: "#tourNavTabs", on: "bottom" },
+      instr: "Try switching tabs while the tour continues.",
+      prepare() { _switchTab("links"); },
+    },
   ],
   [TOUR_FEATURES.LINKS]: [
+    {
+      id: "jit-links-tab",
+      icon: "🧩",
+      title: "Start from the Links tab",
+      body: "This is your main discovery area for useful game and study links.",
+      attachTo: { element: "#tourTabLinks", on: "bottom" },
+      instr: "Tap Links to keep this area active.",
+      prepare() { _switchTab("links"); },
+      advanceOn: { selector: "#tourTabLinks", event: "click" },
+    },
     {
       id: "jit-links",
       icon: "🔗",
@@ -822,6 +844,7 @@ const TOUR_MANAGER = {
       ],
       attachTo: { element: "#linksGrid", on: "top" },
       prepare() { _switchTab("links"); },
+      instr: "Scroll a little and preview a few cards.",
     },
   ],
   [TOUR_FEATURES.SEARCH]: [
@@ -834,6 +857,16 @@ const TOUR_MANAGER = {
       attachTo: { element: "#linksSearch", on: "bottom" },
       prepare() { _switchTab("links"); },
       whenShow() { setTimeout(() => document.getElementById("linksSearch")?.focus(), 120); },
+      instr: "Focus Search and type a keyword to continue.",
+      advanceOn: { selector: "#linksSearch", event: "input" },
+    },
+    {
+      id: "jit-search-sort",
+      icon: "⚙️",
+      title: "Sort to surface the best options",
+      body: "Switch sorting to find newer links or the most trusted highly-rated resources faster.",
+      attachTo: { element: "#linksSort", on: "bottom" },
+      prepare() { _switchTab("links"); },
     },
   ],
   [TOUR_FEATURES.SHARE]: [
@@ -848,6 +881,15 @@ const TOUR_MANAGER = {
       ],
       attachTo: { element: "#tourShareBtn", on: "bottom" },
     },
+    {
+      id: "jit-share-queue",
+      icon: "✅",
+      title: "Quality shares win long-term",
+      body: "The best gains come from links that others revisit, upvote, and save over time.",
+      chips: [{ label: "Consistent shares compound credits", type: "green" }],
+      attachTo: { element: "#linksGrid", on: "top" },
+      prepare() { _switchTab("links"); },
+    },
   ],
   [TOUR_FEATURES.CREDIT]: [
     {
@@ -861,6 +903,14 @@ const TOUR_MANAGER = {
       ],
       attachTo: { element: "#tourCreditsPill", on: "bottom" },
     },
+    {
+      id: "jit-credit-rank",
+      icon: "📈",
+      title: "Credits also track progression",
+      body: "Higher total earned credits improve your visible rank profile and unlock stronger session economy.",
+      chips: [{ label: "Earned total matters", type: "purple" }],
+      attachTo: { element: "#tierLabel", on: "bottom" },
+    },
   ],
   [TOUR_FEATURES.SESSION]: [
     {
@@ -870,6 +920,13 @@ const TOUR_MANAGER = {
       body: `You start with ${FREE_SESSION_MINUTES} free minutes. Each refill costs ${SESSION_TOPUP_COST} credits, and tier affects refill size.`,
       chips: _tierTopupChips(),
       attachTo: { element: "#navSessionTime", on: "bottom" },
+    },
+    {
+      id: "jit-session-balance",
+      icon: "🔁",
+      title: "Watch timer + credits together",
+      body: "Smart players refill only when needed and keep a reserve of credits for high-value moments.",
+      attachTo: { element: "#tourCreditsPill", on: "bottom" },
     },
   ],
   [TOUR_FEATURES.STREAK]: [
@@ -904,6 +961,14 @@ const TOUR_MANAGER = {
       chips: [{ label: "Top 10 rewarded", type: "green" }],
       attachTo: { element: "#tourTabLeaderboard", on: "bottom" },
     },
+    {
+      id: "jit-leaderboard-panel",
+      icon: "📊",
+      title: "Track your climb in real time",
+      body: "Check your position often to decide when to push for milestone placements.",
+      attachTo: { element: "#leaderboard", on: "top" },
+      prepare() { _switchTab("leaderboard"); },
+    },
   ],
   [TOUR_FEATURES.CHAT]: [
     {
@@ -914,6 +979,15 @@ const TOUR_MANAGER = {
       chips: [{ label: "Real-time + moderated", type: "" }],
       attachTo: { element: "#tourTabChat", on: "bottom" },
     },
+    {
+      id: "jit-chat-compose",
+      icon: "✍️",
+      title: "Ask quick questions in chat",
+      body: "Short, clear questions usually get the fastest responses from the community.",
+      attachTo: { element: "#chatTabContent", on: "top" },
+      prepare() { _switchTab("chat"); },
+      instr: "Focus the chat area and try opening a conversation.",
+    },
   ],
   [TOUR_FEATURES.ACCOUNT]: [
     {
@@ -923,6 +997,14 @@ const TOUR_MANAGER = {
       body: "Track your profile, rank progress, referrals, and tutorial reward status in one place.",
       chips: [{ label: "Referral = +150 🪙", type: "green" }],
       attachTo: { element: "#tourTabAccount", on: "bottom" },
+    },
+    {
+      id: "jit-account-referral",
+      icon: "🎁",
+      title: "Use referrals to accelerate growth",
+      body: "Invite friends with your referral code to earn bonus credits and grow your standing faster.",
+      attachTo: { element: "#referralArea", on: "top" },
+      prepare() { _switchTab("account"); },
     },
   ],
   [TOUR_FEATURES.NEWS]: [
@@ -935,6 +1017,18 @@ const TOUR_MANAGER = {
       prepare() {
         const moreBtn = document.getElementById("navMoreBtn");
         if (moreBtn?.getAttribute("aria-expanded") !== "true") moreBtn.click();
+      },
+    },
+    {
+      id: "jit-news-feed",
+      icon: "📣",
+      title: "News keeps your strategy current",
+      body: "Use updates to adapt early when rewards, rules, or events change.",
+      attachTo: { element: "#tab-news", on: "top" },
+      prepare() {
+        const moreBtn = document.getElementById("navMoreBtn");
+        if (moreBtn?.getAttribute("aria-expanded") !== "true") moreBtn.click();
+        _switchTab("news");
       },
     },
   ],
