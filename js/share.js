@@ -2,14 +2,17 @@ import { auth, db } from "./firebase.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 import {
   doc,
-  getDoc,
-  setDoc,
+  getDocs,
   collection,
   increment,
   serverTimestamp,
-  writeBatch,
   addDoc,
+  query,
+  where,
+  limit,
+  runTransaction,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { normalizeUrlForDedup, buildCanonicalUrlKey } from "./urlDedup.js";
 
 const LINK_BONUS = 50;
 const MIN_HTML_LENGTH = 100; // minimum chars for a meaningful HTML submission
@@ -185,6 +188,8 @@ async function handleSubmit(e) {
   // Type-specific validation
   let url        = "";
   let htmlContent = "";
+  let canonicalUrl = "";
+  let canonicalUrlKey = "";
 
   if (submissionType === "url") {
     url = (urlInput?.value || "").trim();
@@ -193,6 +198,13 @@ async function handleSubmit(e) {
       urlInput?.focus();
       return;
     }
+    canonicalUrl = normalizeUrlForDedup(url);
+    if (!canonicalUrl) {
+      showError("Please enter a valid URL.");
+      urlInput?.focus();
+      return;
+    }
+    canonicalUrlKey = await buildCanonicalUrlKey(canonicalUrl);
   } else {
     htmlContent = (htmlInput?.value || "").trim();
     if (htmlContent.length < MIN_HTML_LENGTH) {
@@ -215,72 +227,96 @@ async function handleSubmit(e) {
     }
 
     const userRef = doc(db, "users", user.uid);
-    const snap    = await getDoc(userRef);
-    let data      = snap.exists() ? snap.data() : null;
-
-    if (!data) {
-      const fallback = {
-        uid:        user.uid,
-        email:      user.email || "",
-        firstName:  "",
-        lastName:   "",
-        credits:    0,
-        totalEarned: 0,
-      };
-      await setDoc(userRef, fallback, { merge: true });
-      data = fallback;
-    }
-
-    const displayName =
-      [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || "Anonymous";
-
-    const batch      = writeBatch(db);
-    const newLinkRef = doc(collection(db, "sharedLinks"));
-
-    const linkDoc = {
-      title,
-      description:     desc,
-      hashtags,
-      submittedBy:     user.uid,
-      submittedByName: displayName,
-      status:          "active",
-      reportCount:     0,
-      reports:         [],
-      upvotes:         [],
-      upvoteCount:     0,
-      rewardGiven:     true,
-      creditsAwarded:  LINK_BONUS,
-      creditsReversed: false,
-      createdAt:       serverTimestamp(),
-      type:            submissionType,
-    };
+    const displayNameFallback = "Anonymous";
 
     if (submissionType === "url") {
-      linkDoc.url = url;
-    } else {
-      linkDoc.htmlContent = htmlContent;
-      // Store a placeholder URL for backwards compat
-      linkDoc.url = "";
+      const [exactMatchSnap, canonicalMatchSnap] = await Promise.all([
+        getDocs(query(collection(db, "sharedLinks"), where("url", "==", url), limit(1))),
+        getDocs(query(collection(db, "sharedLinks"), where("canonicalUrl", "==", canonicalUrl), limit(1))),
+      ]);
+      if (!exactMatchSnap.empty || !canonicalMatchSnap.empty) {
+        throw Object.assign(new Error("DUPLICATE_LINK"), { code: "duplicate-link" });
+      }
     }
 
-    batch.set(newLinkRef, linkDoc);
+    await runTransaction(db, async (tx) => {
+      const userSnap = await tx.get(userRef);
+      let data = userSnap.exists() ? userSnap.data() : null;
 
-    // Determine rate-limit window update for the server-enforced hourly limit.
-    // The Firestore rule reads these fields BEFORE the batch commits.
-    const now = Date.now();
-    const windowStart    = data.hourlyLinkWindowStart || 0;
-    const isNewWindow    = (now - windowStart) > 3600000;
-    const hourlyUpdate   = isNewWindow
-      ? { hourlyLinkWindowStart: now, hourlyLinkCount: 1 }
-      : { hourlyLinkCount: increment(1) };
+      if (!data) {
+        const fallback = {
+          uid:         user.uid,
+          email:       user.email || "",
+          firstName:   "",
+          lastName:    "",
+          credits:     0,
+          totalEarned: 0,
+        };
+        tx.set(userRef, fallback, { merge: true });
+        data = fallback;
+      }
 
-    batch.set(userRef, {
-      credits:     increment(LINK_BONUS),
-      totalEarned: increment(LINK_BONUS),
-      ...hourlyUpdate,
-    }, { merge: true });
+      const displayName =
+        [data.firstName, data.lastName].filter(Boolean).join(" ").trim() || displayNameFallback;
 
-    await batch.commit();
+      const newLinkRef = doc(collection(db, "sharedLinks"));
+      const linkDoc = {
+        title,
+        description:     desc,
+        hashtags,
+        submittedBy:     user.uid,
+        submittedByName: displayName,
+        status:          "active",
+        reportCount:     0,
+        reports:         [],
+        upvotes:         [],
+        upvoteCount:     0,
+        rewardGiven:     true,
+        creditsAwarded:  LINK_BONUS,
+        creditsReversed: false,
+        createdAt:       serverTimestamp(),
+        type:            submissionType,
+      };
+
+      if (submissionType === "url") {
+        const idxRef = doc(db, "sharedLinkCanonicalIndex", canonicalUrlKey);
+        const idxSnap = await tx.get(idxRef);
+        if (idxSnap.exists()) {
+          throw Object.assign(new Error("DUPLICATE_LINK"), { code: "duplicate-link" });
+        }
+
+        linkDoc.url = url;
+        linkDoc.canonicalUrl = canonicalUrl;
+
+        tx.set(idxRef, {
+          canonicalUrl,
+          firstLinkId:   newLinkRef.id,
+          firstCreatedAt: serverTimestamp(),
+          submittedBy:   user.uid,
+          createdAt:     serverTimestamp(),
+          updatedAt:     serverTimestamp(),
+        }, { merge: false });
+      } else {
+        linkDoc.htmlContent = htmlContent;
+        // Store a placeholder URL for backwards compat
+        linkDoc.url = "";
+      }
+
+      tx.set(newLinkRef, linkDoc);
+
+      const now = Date.now();
+      const windowStart  = data.hourlyLinkWindowStart || 0;
+      const isNewWindow  = (now - windowStart) > 3600000;
+      const hourlyUpdate = isNewWindow
+        ? { hourlyLinkWindowStart: now, hourlyLinkCount: 1 }
+        : { hourlyLinkCount: increment(1) };
+
+      tx.set(userRef, {
+        credits:     increment(LINK_BONUS),
+        totalEarned: increment(LINK_BONUS),
+        ...hourlyUpdate,
+      }, { merge: true });
+    });
 
     // Record the submission locally so the client-side guard is immediately accurate
     recordLinkSubmit();
@@ -305,7 +341,11 @@ async function handleSubmit(e) {
 
   } catch (err) {
     console.error("Share error:", err);
-    showError("Failed to share. Please check your connection and try again.");
+    if (err?.code === "duplicate-link" || err?.message === "DUPLICATE_LINK") {
+      showError("This link has already been shared. Please submit a different link.");
+    } else {
+      showError("Failed to share. Please check your connection and try again.");
+    }
   } finally {
     if (!submitted && submitBtn) {
       submitBtn.disabled    = false;

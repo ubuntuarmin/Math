@@ -8,6 +8,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isAuthenticated()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true;
+    }
+
     // Anti-hack: how much a numeric field is increasing in this write.
     // Returns 0 when the field is unchanged or decreasing.
     function fieldDelta(field) {
@@ -98,9 +103,39 @@ service cloud.firestore {
     // Link creation is rate-limited to 3 per hour per user.
     match /sharedLinks/{linkId} {
       allow read:   if isAuthenticated();
-      allow create: if isAuthenticated() && linkRateLimitOk();
+      allow create: if isAuthenticated()
+                    && linkRateLimitOk()
+                    && (
+                      request.resource.data.get('type', 'url') != 'url'
+                      || (
+                        request.resource.data.get('canonicalUrl', null) is string
+                        && request.resource.data.get('canonicalUrl', '').size() > 0
+                      )
+                    );
       allow update: if isAuthenticated(); // upvotes, reports, status changes, activeSessions
-      allow delete: if isAuthenticated() && resource.data.submittedBy == request.auth.uid;
+      allow delete: if isAuthenticated()
+                    && (resource.data.submittedBy == request.auth.uid || isAdmin());
+    }
+
+    // Canonical URL index used for duplicate-link prevention and cleanup.
+    match /sharedLinkCanonicalIndex/{indexId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin()
+                    || (
+                      isAuthenticated()
+                      && !exists(/databases/$(database)/documents/sharedLinkCanonicalIndex/$(indexId))
+                      && request.resource.data.get('canonicalUrl', null) is string
+                      && request.resource.data.get('canonicalUrl', '').size() > 0
+                      && request.resource.data.get('firstLinkId', null) is string
+                      && request.resource.data.get('firstLinkId', '').size() > 0
+                      && request.resource.data.get('submittedBy', '') == request.auth.uid
+                    );
+      allow update, delete: if isAdmin();
+    }
+
+    // Maintenance cursors and cleanup job state are admin-only.
+    match /maintenance/{taskId} {
+      allow read, write: if isAdmin();
     }
 
     // ─── Messages / inbox ────────────────────────────────────────────────────
