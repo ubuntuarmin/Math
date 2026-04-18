@@ -2348,11 +2348,17 @@ h3 {
 }
 
 h1 {
+  color: #f8fafc;
+}
+
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  h1 {
   background: linear-gradient(120deg, #f8fafc, #f5d38c 45%, #c4b5fd 100%);
   color: transparent;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  }
 }
 
 ::-webkit-scrollbar {
