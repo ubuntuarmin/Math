@@ -607,20 +607,20 @@ function renderLinkCard(id, data, currentUid) {
   card.appendChild(shimmer);
 
   // ── 3D tilt + shimmer cursor tracking ──
-  const TILT_STRENGTH  = 10;  // degrees max
+  const TILT_STRENGTH = 10;  // degrees max
   const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (!prefersReduced) {
     card.addEventListener("mousemove", (e) => {
       const rect = card.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width  - 0.5;  // -0.5 → 0.5
-      const y = (e.clientY - rect.top)  / rect.height - 0.5;
-      const rx =  y * -TILT_STRENGTH;
-      const ry =  x *  TILT_STRENGTH;
+      const x = (e.clientX - rect.left) / rect.width - 0.5;  // -0.5 → 0.5
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      const rx = y * -TILT_STRENGTH;
+      const ry = x * TILT_STRENGTH;
       card.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(6px)`;
       // Update shimmer position
-      const pctX = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1) + "%";
-      const pctY = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1) + "%";
+      const pctX = ((e.clientX - rect.left) / rect.width * 100).toFixed(1) + "%";
+      const pctY = ((e.clientY - rect.top) / rect.height * 100).toFixed(1) + "%";
       card.style.setProperty("--mx", pctX);
       card.style.setProperty("--my", pctY);
     });
