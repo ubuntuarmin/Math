@@ -2340,8 +2340,9 @@ h3 {
 
 h1 {
   background: linear-gradient(120deg, #f8fafc, #f5d38c 45%, #c4b5fd 100%);
-  -webkit-background-clip: text;
   background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
   -webkit-text-fill-color: transparent;
 }
 
