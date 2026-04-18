@@ -62,110 +62,160 @@ function AccountInfoPanel({
     });
   }, [uid]);
 
+  const stats = [
+    { value: data.totalEarned || 0, label: "Lifetime 🪙", color: "#34d399", glow: "rgba(52,211,153,0.22)" },
+    { value: `${data.totalMinutes || 0}m`, label: "Playtime", color: "#60a5fa", glow: "rgba(96,165,250,0.22)" },
+    { value: data.streak || 0, label: "🔥 Streak", color: "#fb923c", glow: "rgba(251,146,60,0.22)" },
+    { value: (data.referrals || []).length, label: "👥 Referrals", color: "#c084fc", glow: "rgba(192,132,252,0.22)" },
+  ];
+
   return h(React.Fragment, null,
-    // Cover + avatar
-    h("div", { className: "relative mb-8" },
+    // ── Cover + avatar ──────────────────────────────────────────────────────
+    h("div", { className: "relative mb-10" },
+      // Cover band with gradient
       h("div", {
-        className: "h-24 rounded-2xl mb-0",
-        style: { background: avatarGradient, opacity: 0.3 },
-      }),
-      h("div", {
-        className: "h-24 rounded-2xl absolute inset-0",
-        style: { background: avatarGradient, opacity: 0.15 },
-      }),
-      h("div", { className: "absolute -bottom-8 left-6" },
+        className: "h-28 rounded-2xl overflow-hidden relative",
+        style: { background: avatarGradient },
+      },
         h("div", {
-          className: "w-20 h-20 rounded-2xl border-4 border-gray-950 flex items-center justify-center text-4xl font-black text-white shadow-2xl",
-          style: { background: avatarGradient },
-        }, (data.firstName || "?")[0].toUpperCase())
+          className: "absolute inset-0",
+          style: { background: "linear-gradient(135deg, rgba(0,0,0,0.2), transparent 60%)" },
+        }),
+        // Shimmer stripe
+        h("div", {
+          className: "absolute inset-0",
+          style: {
+            background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.14) 50%, transparent 60%)",
+          },
+        })
+      ),
+      // Avatar circle
+      h("div", {
+        className: "absolute -bottom-10 left-6",
+      },
+        h("div", {
+          className: "w-20 h-20 rounded-2xl border-4 flex items-center justify-center text-4xl font-black text-white shadow-2xl relative overflow-hidden",
+          style: {
+            background: avatarGradient,
+            borderColor: "rgba(14,18,38,1)",
+            boxShadow: `0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.12)`,
+          },
+        },
+          h("span", {
+            className: "absolute inset-0 rounded-xl",
+            style: { background: "linear-gradient(135deg, rgba(255,255,255,0.18), transparent 55%)" },
+          }),
+          h("span", { style: { position: "relative", zIndex: 1 } },
+            (data.firstName || "?")[0].toUpperCase()
+          )
+        )
       )
     ),
 
-    // Name + tier row
-    h("div", { className: "mt-10 mb-4 flex flex-wrap items-start justify-between gap-3" },
+    // ── Name + tier row ──────────────────────────────────────────────────────
+    h("div", { className: "mt-4 mb-5 flex flex-wrap items-start justify-between gap-3" },
       h("div", null,
         h("div", { className: "text-2xl font-black text-white leading-tight" },
           `${data.firstName || "Student"} ${data.lastName || ""}`
         ),
         h("div", { className: "flex items-center gap-2 mt-1 flex-wrap" },
           h("span", {
-            className: "text-xs px-2 py-0.5 rounded-full font-bold border",
-            style: { color: displayColor, borderColor: `${displayColor}44` },
+            className: "text-xs px-2.5 py-0.5 rounded-full font-bold",
+            style: {
+              color: displayColor,
+              background: `${displayColor}22`,
+              border: `1px solid ${displayColor}44`,
+            },
           }, displayName),
           h("span", { className: "text-xs text-gray-500" }, `Grade ${data.grade || "—"}`),
           h("span", { className: "text-xs text-gray-600" }, `· Joined ${joinDate}`)
         )
       ),
       h("div", {
-        className: "flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-300 text-sm font-bold",
+        className: "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black",
+        style: {
+          background: "rgba(245,211,140,0.10)",
+          border: "1px solid rgba(245,211,140,0.30)",
+          color: "#f5d38c",
+          boxShadow: "0 0 18px rgba(245,211,140,0.12)",
+        },
       }, `🪙 ${data.credits || 0}`)
     ),
 
-    // Bio
+    // ── Bio ──────────────────────────────────────────────────────────────────
     bio
-      ? h("p", { className: "text-gray-400 text-sm leading-relaxed mb-5 max-w-lg" }, bio)
-      : h("p", { className: "text-gray-600 text-sm italic mb-5" },
+      ? h("p", { className: "text-gray-400 text-sm leading-relaxed mb-6 max-w-lg" }, bio)
+      : h("p", { className: "text-gray-600 text-sm italic mb-6" },
           "No bio yet — add one to tell the community about yourself!"
         ),
 
-    // Stats grid
+    // ── Stats grid ───────────────────────────────────────────────────────────
     h("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" },
-      h("div", { className: "bg-gray-900/60 border border-gray-700/60 rounded-xl p-3 text-center hover:border-emerald-500/40 transition-colors" },
-        h("div", { className: "text-lg font-black text-emerald-400" }, data.totalEarned || 0),
-        h("div", { className: "text-[10px] text-gray-500 uppercase font-bold mt-0.5" }, "Lifetime 🪙")
-      ),
-      h("div", { className: "bg-gray-900/60 border border-gray-700/60 rounded-xl p-3 text-center hover:border-blue-500/40 transition-colors" },
-        h("div", { className: "text-lg font-black text-blue-400" }, `${data.totalMinutes || 0}m`),
-        h("div", { className: "text-[10px] text-gray-500 uppercase font-bold mt-0.5" }, "Playtime")
-      ),
-      h("div", { className: "bg-gray-900/60 border border-gray-700/60 rounded-xl p-3 text-center hover:border-orange-500/40 transition-colors" },
-        h("div", { className: "text-lg font-black text-orange-400" }, data.streak || 0),
-        h("div", { className: "text-[10px] text-gray-500 uppercase font-bold mt-0.5" }, "🔥 Streak")
-      ),
-      h("div", { className: "bg-gray-900/60 border border-gray-700/60 rounded-xl p-3 text-center hover:border-purple-500/40 transition-colors" },
-        h("div", { className: "text-lg font-black text-purple-400" }, (data.referrals || []).length),
-        h("div", { className: "text-[10px] text-gray-500 uppercase font-bold mt-0.5" }, "👥 Referrals")
+      ...stats.map(({ value, label, color, glow }) =>
+        h("div", {
+          className: "account-stat-glass p-3 text-center",
+          style: { boxShadow: "none" },
+        },
+          h("div", {
+            className: "text-lg font-black mb-0.5",
+            style: { color, textShadow: `0 0 16px ${glow}` },
+          }, value),
+          h("div", { className: "text-[10px] text-gray-500 uppercase font-bold tracking-widest" }, label)
+        )
       )
     ),
 
-    // Tier progress
-    h("div", { className: "bg-gray-900/80 p-5 rounded-2xl border border-gray-700 shadow-xl mb-2" },
-      h("div", { className: "flex justify-between items-end mb-3" },
+    // ── Tier progress ────────────────────────────────────────────────────────
+    h("div", {
+      className: "luxury-glass-panel p-5 mb-5",
+    },
+      h("div", { className: "flex justify-between items-end mb-4" },
         h("div", null,
           h("div", { className: "text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1" }, "Current Rank"),
-          h("div", { className: "text-xl font-black", style: { color: displayColor } }, displayName)
+          h("div", {
+            className: "text-xl font-black",
+            style: { color: displayColor, textShadow: `0 0 20px ${displayColor}66` },
+          }, displayName)
         ),
         h("div", { className: "text-right" },
           h("div", { className: "text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1" }, "Session Limit"),
           h("div", { className: "text-lg text-white font-bold" }, `${tier.limitMinutes}m`)
         )
       ),
-      h("div", { className: "w-full bg-gray-800 h-3 rounded-full overflow-hidden border border-gray-700 shadow-inner" },
+      h("div", { className: "luxury-progress-track" },
         h("div", {
-          className: "h-full transition-all duration-1000 ease-out",
-          style: {
-            width: `${progressPct}%`,
-            backgroundColor: displayColor,
-            boxShadow: `0 0 15px ${displayColor}88`,
-          },
+          className: "luxury-progress-fill",
+          style: { width: `${progressPct}%` },
         })
       ),
       h("div", { className: "mt-3 text-center" },
-        h("span", { className: "text-xs text-blue-400 italic font-medium" }, nextTierMessage)
+        h("span", { className: "text-xs text-gray-400 italic font-medium" }, nextTierMessage)
       )
     ),
 
-    // Chat ID with useState-driven copy button label
-    h("div", { className: "mt-4 p-4 bg-gray-900/60 border border-gray-700 rounded-2xl" },
+    // ── Chat ID ──────────────────────────────────────────────────────────────
+    h("div", {
+      className: "luxury-glass-panel p-4",
+    },
       h("div", { className: "text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-2" }, "💬 Your Chat ID"),
       h("div", { className: "flex items-center gap-2" },
         h("code", {
           id: "accountChatId",
-          className: "flex-1 text-xs font-mono text-blue-300 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/30 select-all truncate",
+          className: "flex-1 text-xs font-mono truncate select-all px-3 py-1.5 rounded-lg",
+          style: {
+            background: "rgba(124,92,255,0.10)",
+            border: "1px solid rgba(124,92,255,0.28)",
+            color: "#c4b5fd",
+          },
         }, uid),
         h("button", {
           id: "accountCopyIdBtn",
-          className: "text-xs text-gray-400 hover:text-white px-2.5 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors shrink-0 whitespace-nowrap",
+          className: "text-xs px-2.5 py-1.5 rounded-lg shrink-0 whitespace-nowrap transition-colors",
+          style: {
+            background: chatIdCopied ? "rgba(52,211,153,0.18)" : "rgba(124,92,255,0.16)",
+            border: chatIdCopied ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(124,92,255,0.32)",
+            color: chatIdCopied ? "#34d399" : "#c4b5fd",
+          },
           onClick: handleCopyId,
         }, chatIdCopied ? "✓ Copied!" : "📋 Copy")
       ),

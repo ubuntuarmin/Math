@@ -565,11 +565,9 @@ function renderLinkCard(id, data, currentUid) {
   const card = document.createElement("div");
   card.dataset.linkId = id;
   card.className =
-    "link-card relative flex flex-col gap-3 p-5 rounded-2xl " +
-    "bg-gray-900/80 border border-gray-700/60 " +
-    "hover:border-blue-500/60 transition-all duration-200 " +
-    "hover:-translate-y-1 shadow-lg";
+    "link-card relative flex flex-col gap-3 p-5 rounded-2xl border shadow-lg";
 
+  // Set HTML content first, then append the shimmer overlay
   card.innerHTML =
     '<div class="flex items-start justify-between gap-2">' +
       '<div class="flex-1 min-w-0">' +
@@ -579,13 +577,11 @@ function renderLinkCard(id, data, currentUid) {
         '</div>' +
         hashtagsHtml +
       '</div>' +
-      '<button class="open-link-btn shrink-0 px-3 py-1.5 ' +
-      (isHtml ? 'bg-purple-600/80 hover:bg-purple-500' : 'bg-blue-600/80 hover:bg-blue-500') +
-      ' text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1" ' +
+      '<button class="open-link-btn shrink-0 px-3 py-1.5 rounded-full flex items-center gap-1 text-xs" ' +
       'data-id="' + id + '">' + (isHtml ? '▶ Play' : 'Open \u2197') + '</button>' +
     '</div>' +
     (safeDesc ? '<p class="text-gray-400 text-xs leading-relaxed line-clamp-2">' + safeDesc + '</p>' : '') +
-    '<div class="flex items-center justify-between mt-auto pt-2 border-t border-gray-800">' +
+    '<div class="flex items-center justify-between mt-auto pt-2" style="border-top:1px solid rgba(124,92,255,0.14)">' +
       '<div class="card-footer-left flex items-center gap-2 text-[10px] text-gray-500 flex-wrap">' +
         '<span>Shared by</span>' +
         '<button class="view-profile-btn text-gray-400 hover:text-blue-300 transition-colors ' +
@@ -599,6 +595,74 @@ function renderLinkCard(id, data, currentUid) {
       '</div>' +
       '<div class="flex items-center gap-2">' + upvoteSection + actionSection + '</div>' +
     '</div>';
+
+  // Shimmer overlay — appended after innerHTML so it isn't clobbered
+  const shimmer = document.createElement("div");
+  shimmer.className = "link-card-shimmer";
+  card.appendChild(shimmer);
+
+  // ── 3D tilt + shimmer with smooth spring-back ──
+  const TILT_STRENGTH = 10;
+  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (!prefersReduced) {
+    const LERP_FACTOR   = 0.18; // momentum factor — higher = snappier follow
+    const TILT_PERSPECTIVE_PX = 1000; // CSS perspective depth in pixels
+    const TILT_LIFT_PX  = 8;   // translateZ lift on hover in pixels
+    const TILT_THRESHOLD = 0.01; // stop loop when rotation delta is below this (degrees)
+
+    // rAF lerp state
+    let targetRx = 0, targetRy = 0;
+    let currentRx = 0, currentRy = 0;
+    let rafId = null;
+    let isHovered = false;
+
+    function tiltLoop() {
+      currentRx += (targetRx - currentRx) * LERP_FACTOR;
+      currentRy += (targetRy - currentRy) * LERP_FACTOR;
+
+      // Stop looping when very close to rest
+      const done = !isHovered &&
+        Math.abs(currentRx) < TILT_THRESHOLD &&
+        Math.abs(currentRy) < TILT_THRESHOLD;
+
+      if (done) {
+        card.style.transform = "";
+        rafId = null;
+        return;
+      }
+
+      card.style.transform =
+        `perspective(${TILT_PERSPECTIVE_PX}px) rotateX(${currentRx.toFixed(3)}deg) rotateY(${currentRy.toFixed(3)}deg) translateZ(${TILT_LIFT_PX}px)`;
+      rafId = requestAnimationFrame(tiltLoop);
+    }
+
+    card.addEventListener("mouseenter", () => {
+      isHovered = true;
+      if (!rafId) rafId = requestAnimationFrame(tiltLoop);
+    });
+
+    card.addEventListener("mousemove", (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width  - 0.5;
+      const y = (e.clientY - rect.top)  / rect.height - 0.5;
+      targetRx = y * -TILT_STRENGTH;
+      targetRy = x *  TILT_STRENGTH;
+      // Shimmer position
+      const pctX = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1) + "%";
+      const pctY = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1) + "%";
+      card.style.setProperty("--mx", pctX);
+      card.style.setProperty("--my", pctY);
+    });
+
+    card.addEventListener("mouseleave", () => {
+      isHovered = false;
+      targetRx = 0;
+      targetRy = 0;
+      // Continue the loop to spring back smoothly
+      if (!rafId) rafId = requestAnimationFrame(tiltLoop);
+    });
+  }
 
   card.querySelector(".open-link-btn").addEventListener("click", () => {
     openIframeModal(data.url, safeTitle, id, submittedBy, data.htmlContent || null);

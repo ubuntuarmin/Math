@@ -1055,7 +1055,7 @@ footer.site-footer {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
               0 0 0 1px rgba(56, 189, 248, 0.15),
               inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-  transform: translateY(-3px) translateZ(0) !important;
+  /* No transform here — JS handles 3D tilt; fallback for no-JS only */
 }
 
 /* Surface sections — glass overlay */
@@ -2184,4 +2184,521 @@ body {
   border-color: rgba(168, 85, 247, 0.28);
   background: rgba(168, 85, 247, 0.08);
   color: #c084fc;
+}
+
+/* ══════════════════════════════════════════════════════
+   LUXURY MODERN UI REFRESH (GLOBAL)
+══════════════════════════════════════════════════════ */
+
+:root {
+  --luxury-gold: #f5d38c;
+  --luxury-gold-soft: rgba(245, 211, 140, 0.18);
+  --luxury-violet: #7c5cff;
+  --luxury-ink: #04050d;
+  --luxury-panel: rgba(10, 14, 28, 0.78);
+  --luxury-glow: 0 18px 52px rgba(4, 5, 13, 0.72), 0 0 48px rgba(124, 92, 255, 0.18);
+}
+
+body {
+  background:
+    radial-gradient(1200px 700px at 0% -10%, rgba(124, 92, 255, 0.16), transparent 62%),
+    radial-gradient(1000px 650px at 100% 0%, rgba(245, 211, 140, 0.12), transparent 60%),
+    linear-gradient(160deg, #03040a 0%, #070a17 45%, #050816 100%) !important;
+  background-size: 130% 130%, 130% 130%, 100% 100%;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 50% 120%, rgba(0, 0, 0, 0.55), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.18));
+}
+
+::selection {
+  background: rgba(124, 92, 255, 0.4);
+  color: #fff;
+}
+
+header.site-header {
+  background: linear-gradient(180deg, rgba(7, 10, 23, 0.94), rgba(6, 9, 20, 0.88));
+  border-bottom-color: rgba(245, 211, 140, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(245, 211, 140, 0.14);
+}
+
+header.site-header::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(124, 92, 255, 0.92) 28%,
+    rgba(245, 211, 140, 0.85) 50%,
+    rgba(124, 92, 255, 0.92) 72%,
+    transparent 100%
+  );
+}
+
+.surface,
+.card,
+.link-card,
+.table-wrapper {
+  background: linear-gradient(150deg, rgba(10, 14, 28, 0.9), rgba(8, 12, 23, 0.78)) !important;
+  border-color: rgba(245, 211, 140, 0.18) !important;
+  box-shadow: var(--luxury-glow) !important;
+}
+
+.surface::before,
+.card::before {
+  opacity: 0.34;
+}
+
+.card:hover,
+.link-card:hover,
+.surface:hover {
+  border-color: rgba(245, 211, 140, 0.42) !important;
+  box-shadow: 0 26px 72px rgba(4, 5, 13, 0.82), 0 0 64px rgba(245, 211, 140, 0.15) !important;
+}
+
+.navbar-tabs-group,
+.navbar-more-dropdown {
+  background: rgba(9, 13, 26, 0.82);
+  border-color: rgba(245, 211, 140, 0.17);
+}
+
+.tab-btn,
+.navbar-more-link,
+.navbar-more-tab {
+  color: #b9c3da !important;
+}
+
+.tab-btn.active,
+.navbar-tabs-group .tab-btn.active {
+  background: linear-gradient(135deg, #7c5cff, #f5d38c) !important;
+  color: #170f28 !important;
+  box-shadow: 0 8px 24px rgba(124, 92, 255, 0.45), 0 0 20px rgba(245, 211, 140, 0.2) !important;
+}
+
+.btn,
+button,
+input[type="submit"],
+input[type="button"],
+.navbar-action-btn {
+  background-image: linear-gradient(135deg, #7c5cff 0%, #9f73ff 38%, #f5d38c 100%);
+  color: #130f21;
+  box-shadow: 0 14px 32px rgba(75, 55, 173, 0.5);
+  font-weight: 700;
+}
+
+.btn:hover,
+button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover,
+.navbar-action-btn:hover {
+  box-shadow: 0 20px 44px rgba(75, 55, 173, 0.62), 0 0 20px rgba(245, 211, 140, 0.26);
+}
+
+.btn-outline,
+.navbar-signout-btn,
+.navbar-session-pill,
+.navbar-credits-pill {
+  background: rgba(9, 13, 26, 0.66) !important;
+  border-color: rgba(245, 211, 140, 0.24) !important;
+  color: #e5e7eb !important;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  background: rgba(7, 11, 24, 0.92);
+  border-color: rgba(245, 211, 140, 0.24);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(245, 211, 140, 0.72);
+  box-shadow: 0 0 0 1px rgba(245, 211, 140, 0.72), 0 14px 32px rgba(124, 92, 255, 0.3);
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+@supports (text-wrap: balance) {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    overflow-wrap: normal;
+  }
+}
+
+h1 {
+  color: #f8fafc;
+}
+
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  h1 {
+  background: linear-gradient(120deg, #f8fafc, #f5d38c 45%, #c4b5fd 100%);
+  color: #f8fafc;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.75), rgba(245, 211, 140, 0.75));
+  border-radius: 999px;
+  border: 2px solid rgba(7, 11, 24, 0.75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .link-card,
+  .surface,
+  .btn,
+  button,
+  .tab-btn,
+  .navbar-action-btn {
+    transition: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   3D LINK CARDS — GSAP / THREE.JS UI OVERHAUL  (v2)
+══════════════════════════════════════════════════════ */
+
+/* Three.js background canvas */
+#threeCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* ── 3D tilt card base ────────────────────────────── */
+.link-card {
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  /* Fast follow on mouse-in, spring-like on mouse-out (toggled by JS class) */
+  transition:
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  will-change: transform;
+  position: relative;
+}
+
+/* When mouse is active on card JS adds .card-tilting to disable slow transition */
+.link-card.card-tilting {
+  transition:
+    transform 50ms linear,
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Spring-back class added on mouseleave */
+.link-card.card-spring-back {
+  transition:
+    transform 750ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Hover glow halo — JS tilt provides depth, CSS provides glow */
+.link-card:hover {
+  box-shadow:
+    0 32px 90px rgba(4, 5, 13, 0.92),
+    0 0 0 1px rgba(124, 92, 255, 0.45),
+    0 0 60px rgba(124, 92, 255, 0.28),
+    0 0 120px rgba(245, 211, 140, 0.10) !important;
+  border-color: rgba(124, 92, 255, 0.55) !important;
+}
+
+/* Shimmer radial highlight that follows the cursor */
+.link-card-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(
+    circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.13) 0%,
+    rgba(124, 92, 255, 0.05) 30%,
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.link-card:hover .link-card-shimmer {
+  opacity: 1;
+}
+
+/* Inner glass highlight layer — top-left specular */
+.link-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    transparent 42%,
+    rgba(124, 92, 255, 0.04) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Bottom edge reflection line */
+.link-card::after {
+  content: "";
+  position: absolute;
+  left: 12%; right: 12%; bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 92, 255, 0.6) 40%,
+    rgba(245, 211, 140, 0.6) 60%,
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.link-card:hover::after {
+  opacity: 1;
+}
+
+/* Content above pseudo layers — use :not() to exclude shimmer */
+.link-card > *:not(.link-card-shimmer) {
+  position: relative;
+  z-index: 2;
+}
+
+/* ── "Try New UI" banner — links tab ──────────────── */
+@keyframes new-ui-banner-border {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes new-ui-sparkle {
+  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  25%       { opacity: 0.7; transform: scale(1.2) rotate(5deg); }
+  75%       { opacity: 0.8; transform: scale(0.9) rotate(-5deg); }
+}
+
+.new-ui-banner {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    120deg,
+    rgba(124, 92, 255, 0.10) 0%,
+    rgba(10, 13, 28, 0.85) 40%,
+    rgba(245, 211, 140, 0.08) 100%
+  );
+  border-radius: 20px;
+  padding: 1px; /* border via gradient wrapper trick */
+}
+
+.new-ui-banner-inner {
+  background: linear-gradient(
+    120deg,
+    rgba(8, 11, 26, 0.94) 0%,
+    rgba(10, 14, 30, 0.90) 100%
+  );
+  border-radius: 19px;
+  padding: 0.85rem 1rem;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  position: relative;
+  overflow: hidden;
+}
+
+.new-ui-banner-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.03) 50%,
+    transparent 80%
+  );
+  pointer-events: none;
+}
+
+/* Animated gradient border */
+.new-ui-banner-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: linear-gradient(
+    270deg,
+    #7c5cff, #f5d38c, #38bdf8, #7c5cff
+  );
+  background-size: 400% 400%;
+  animation: new-ui-banner-border 4s ease-in-out infinite;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: destination-out;
+  padding: 1px;
+  pointer-events: none;
+}
+
+.new-ui-sparkle {
+  animation: new-ui-sparkle 2.8s ease-in-out infinite;
+}
+
+/* ── Account Tab — New UI Panel ───────────────────── */
+.account-luxury-banner {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(124, 92, 255, 0.14) 0%,
+    rgba(16, 20, 40, 0.82) 50%,
+    rgba(245, 211, 140, 0.08) 100%
+  );
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: 22px;
+  padding: 1.5rem 1.5rem 1.4rem;
+  margin-bottom: 1.5rem;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 12px 40px rgba(4, 5, 13, 0.45), 0 0 40px rgba(124, 92, 255, 0.12);
+}
+
+.account-luxury-banner::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 12%; right: 12%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 92, 255, 0.85) 30%,
+    rgba(245, 211, 140, 0.85) 70%,
+    transparent
+  );
+}
+
+@keyframes luxury-badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 92, 255, 0); }
+}
+
+.luxury-new-badge {
+  animation: luxury-badge-pulse 2.2s ease-in-out infinite;
+}
+
+/* ── Premium account stat cards ───────────────────── */
+.account-stat-glass {
+  background: linear-gradient(150deg, rgba(16, 22, 44, 0.88), rgba(10, 14, 30, 0.80));
+  border: 1px solid rgba(124, 92, 255, 0.18);
+  border-radius: 18px;
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: default;
+}
+
+.account-stat-glass:hover {
+  border-color: rgba(245, 211, 140, 0.42);
+  box-shadow: 0 12px 36px rgba(124, 92, 255, 0.22), 0 0 28px rgba(245, 211, 140, 0.10);
+  transform: translateY(-4px);
+}
+
+/* ── Premium tier progress bar ────────────────────── */
+.luxury-progress-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.luxury-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c5cff, #f5d38c);
+  box-shadow: 0 0 14px rgba(124, 92, 255, 0.55);
+  transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Glass panel (re-usable) ───────────────────────── */
+.luxury-glass-panel {
+  background: linear-gradient(150deg, rgba(14, 18, 38, 0.88), rgba(8, 12, 24, 0.82));
+  border: 1px solid rgba(124, 92, 255, 0.20);
+  border-radius: 18px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 28px rgba(4, 5, 13, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── Open link button — premium neon look ─────────── */
+@keyframes open-link-glow {
+  0%, 100% { box-shadow: 0 6px 20px rgba(124, 92, 255, 0.5), 0 0 0 0 rgba(124, 92, 255, 0); }
+  50%       { box-shadow: 0 8px 28px rgba(124, 92, 255, 0.65), 0 0 0 4px rgba(124, 92, 255, 0); }
+}
+
+.open-link-btn {
+  background: linear-gradient(135deg, #7c5cff 0%, #9f73ff 55%, #38bdf8 100%) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+  border: none !important;
+  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.50) !important;
+  transition: filter 160ms ease, transform 160ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 160ms ease !important;
+  animation: open-link-glow 3s ease-in-out infinite;
+}
+
+.open-link-btn:hover {
+  filter: brightness(1.18) !important;
+  transform: translateY(-2px) scale(1.06) !important;
+  box-shadow: 0 12px 36px rgba(124, 92, 255, 0.70) !important;
+  animation: none !important;
+}
+
+.open-link-btn:active {
+  transform: scale(0.94) !important;
+}
+
+/* ── GSAP tab transition helpers ──────────────────── */
+.tab-content.tab-exit {
+  opacity: 0;
+  transform: translateY(10px) scale(0.99);
+  filter: blur(2px);
+}
+
+.tab-content.tab-enter {
+  opacity: 0;
+  transform: translateY(14px) scale(0.985);
+  filter: blur(3px);
 }
