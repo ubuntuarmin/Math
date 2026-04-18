@@ -664,13 +664,19 @@ function renderLinkCard(id, data, currentUid) {
     });
   }
 
-  card.querySelector(".open-link-btn").addEventListener("click", () => {
-    openIframeModal(data.url, safeTitle, id, submittedBy, data.htmlContent || null);
-  });
+  const openLinkBtn = card.querySelector(".open-link-btn");
+  if (openLinkBtn) {
+    openLinkBtn.addEventListener("click", () => {
+      openIframeModal(data.url, safeTitle, id, submittedBy, data.htmlContent || null);
+    });
+  }
 
-  card.querySelector(".view-profile-btn").addEventListener("click", () => {
-    openProfileModal(submittedBy, safeName);
-  });
+  const viewProfileBtn = card.querySelector(".view-profile-btn");
+  if (viewProfileBtn) {
+    viewProfileBtn.addEventListener("click", () => {
+      openProfileModal(submittedBy, safeName);
+    });
+  }
 
   card.querySelectorAll(".hashtag-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1877,11 +1883,14 @@ function renderRemovedCard(id, data, container) {
       '</button>' +
     '</div>';
 
-  card.querySelector(".appeal-btn").addEventListener("click", async () => {
-    const btn = card.querySelector(".appeal-btn");
-    if (btn) { btn.disabled = true; btn.textContent = "Submitting\u2026"; }
-    await handleAppeal(id, data, card);
-  });
+  const appealBtn = card.querySelector(".appeal-btn");
+  if (appealBtn) {
+    appealBtn.addEventListener("click", async () => {
+      appealBtn.disabled = true;
+      appealBtn.textContent = "Submitting\u2026";
+      await handleAppeal(id, data, card);
+    });
+  }
 
   container.appendChild(card);
 }
