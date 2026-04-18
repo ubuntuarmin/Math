@@ -2335,14 +2335,23 @@ h1,
 h2,
 h3 {
   letter-spacing: 0.01em;
-  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+@supports (text-wrap: balance) {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    overflow-wrap: normal;
+  }
 }
 
 h1 {
   background: linear-gradient(120deg, #f8fafc, #f5d38c 45%, #c4b5fd 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
   color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
