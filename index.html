@@ -1945,10 +1945,10 @@
   const THREE_SRC = "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.min.js";
 
   // Global mouse position normalised -1…1 (updated by mousemove)
-  let _mx3 = 0, _my3 = 0;
+  let globalMouseX = 0, globalMouseY = 0;
   window.addEventListener("mousemove", (e) => {
-    _mx3 = (e.clientX / window.innerWidth  - 0.5) * 2;
-    _my3 = (e.clientY / window.innerHeight - 0.5) * 2;
+    globalMouseX = (e.clientX / window.innerWidth  - 0.5) * 2;
+    globalMouseY = (e.clientY / window.innerHeight - 0.5) * 2;
   }, { passive: true });
 
   async function initThreeJS() {
@@ -2028,6 +2028,11 @@
     }, { passive: true });
 
     // ── Render loop ────────────────────────────────────
+    // Camera parallax constants
+    const CAM_PARALLAX_X = 0.55;  // horizontal camera travel range (world units)
+    const CAM_PARALLAX_Y = 0.30;  // vertical camera travel range (world units)
+    const CAM_LERP       = 0.030; // lerp factor per frame (~60 fps) — lower = more lag
+
     let camTargetX = 0, camTargetY = 0;
 
     function animateThree() {
@@ -2037,8 +2042,8 @@
       const t = Date.now() * 0.001;
 
       // Camera mouse parallax — lazy lerp so it feels weightless
-      camTargetX += (_mx3 * 0.55 - camTargetX) * 0.030;
-      camTargetY += (-_my3 * 0.30 - camTargetY) * 0.030;
+      camTargetX += (globalMouseX * CAM_PARALLAX_X - camTargetX) * CAM_LERP;
+      camTargetY += (-globalMouseY * CAM_PARALLAX_Y - camTargetY) * CAM_LERP;
       camera.position.x = camTargetX;
       camera.position.y = camTargetY;
       camera.lookAt(0, 0, 0);

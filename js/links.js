@@ -606,6 +606,11 @@ function renderLinkCard(id, data, currentUid) {
   const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (!prefersReduced) {
+    const LERP_FACTOR   = 0.18; // momentum factor — higher = snappier follow
+    const TILT_PERSPECTIVE_PX = 1000; // CSS perspective depth in pixels
+    const TILT_LIFT_PX  = 8;   // translateZ lift on hover in pixels
+    const TILT_THRESHOLD = 0.01; // stop loop when rotation delta is below this (degrees)
+
     // rAF lerp state
     let targetRx = 0, targetRy = 0;
     let currentRx = 0, currentRy = 0;
@@ -613,13 +618,13 @@ function renderLinkCard(id, data, currentUid) {
     let isHovered = false;
 
     function tiltLoop() {
-      currentRx += (targetRx - currentRx) * 0.18;
-      currentRy += (targetRy - currentRy) * 0.18;
+      currentRx += (targetRx - currentRx) * LERP_FACTOR;
+      currentRy += (targetRy - currentRy) * LERP_FACTOR;
 
       // Stop looping when very close to rest
       const done = !isHovered &&
-        Math.abs(currentRx) < 0.01 &&
-        Math.abs(currentRy) < 0.01;
+        Math.abs(currentRx) < TILT_THRESHOLD &&
+        Math.abs(currentRy) < TILT_THRESHOLD;
 
       if (done) {
         card.style.transform = "";
@@ -628,7 +633,7 @@ function renderLinkCard(id, data, currentUid) {
       }
 
       card.style.transform =
-        `perspective(1000px) rotateX(${currentRx.toFixed(3)}deg) rotateY(${currentRy.toFixed(3)}deg) translateZ(8px)`;
+        `perspective(${TILT_PERSPECTIVE_PX}px) rotateX(${currentRx.toFixed(3)}deg) rotateY(${currentRy.toFixed(3)}deg) translateZ(${TILT_LIFT_PX}px)`;
       rafId = requestAnimationFrame(tiltLoop);
     }
 
