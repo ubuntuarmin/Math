@@ -75,7 +75,7 @@ function AccountInfoPanel({
       // Cover band with gradient
       h("div", {
         className: "h-28 rounded-2xl overflow-hidden relative",
-        style: { background: `linear-gradient(135deg, ${avatarGradient.replace("linear-gradient(135deg,", "").replace(")", "")} )` },
+        style: { background: avatarGradient },
       },
         h("div", {
           className: "absolute inset-0",

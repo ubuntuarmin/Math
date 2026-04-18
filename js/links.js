@@ -572,12 +572,8 @@ function renderLinkCard(id, data, currentUid) {
     "background:linear-gradient(150deg,rgba(12,16,32,0.88),rgba(8,12,24,0.82));" +
     "border-color:rgba(124,92,255,0.22);";
 
-  // Shimmer overlay element (tracks pointer position)
-  const shimmer = document.createElement("div");
-  shimmer.className = "link-card-shimmer";
-  card.appendChild(shimmer);
-
-  card.innerHTML +=
+  // Set HTML content first, then append the shimmer overlay
+  card.innerHTML =
     '<div class="flex items-start justify-between gap-2">' +
       '<div class="flex-1 min-w-0">' +
         '<div class="flex items-center gap-1 flex-wrap">' +
@@ -604,6 +600,11 @@ function renderLinkCard(id, data, currentUid) {
       '</div>' +
       '<div class="flex items-center gap-2">' + upvoteSection + actionSection + '</div>' +
     '</div>';
+
+  // Shimmer overlay element (tracks pointer position) — appended after innerHTML is set
+  const shimmer = document.createElement("div");
+  shimmer.className = "link-card-shimmer";
+  card.appendChild(shimmer);
 
   // ── 3D tilt + shimmer cursor tracking ──
   const TILT_STRENGTH  = 10;  // degrees max
