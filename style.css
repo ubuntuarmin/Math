@@ -1055,7 +1055,7 @@ footer.site-footer {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5),
               0 0 0 1px rgba(56, 189, 248, 0.15),
               inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-  transform: translateY(-3px) translateZ(0) !important;
+  /* No transform here — JS handles 3D tilt; fallback for no-JS only */
 }
 
 /* Surface sections — glass overlay */
@@ -2383,7 +2383,7 @@ h1 {
 }
 
 /* ══════════════════════════════════════════════════════
-   3D LINK CARDS — GSAP / THREE.JS UI OVERHAUL
+   3D LINK CARDS — GSAP / THREE.JS UI OVERHAUL  (v2)
 ══════════════════════════════════════════════════════ */
 
 /* Three.js background canvas */
@@ -2392,36 +2392,48 @@ h1 {
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
-/* ── 3D tilt card wrapper ──────────────────────────── */
-.link-card-3d-wrap {
-  perspective: 900px;
-}
-
-/* Link card 3D transform base */
+/* ── 3D tilt card base ────────────────────────────── */
 .link-card {
   transform-origin: center center;
   transform-style: preserve-3d;
+  /* Fast follow on mouse-in, spring-like on mouse-out (toggled by JS class) */
   transition:
-    transform 60ms linear,
-    box-shadow 220ms ease,
-    border-color 220ms ease !important;
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
   will-change: transform;
   position: relative;
 }
 
-/* Hover glow halo */
-.link-card:hover {
-  box-shadow:
-    0 28px 80px rgba(4, 5, 13, 0.9),
-    0 0 0 1px rgba(245, 211, 140, 0.30),
-    0 0 56px rgba(124, 92, 255, 0.22),
-    0 0 100px rgba(245, 211, 140, 0.08) !important;
+/* When mouse is active on card JS adds .card-tilting to disable slow transition */
+.link-card.card-tilting {
+  transition:
+    transform 50ms linear,
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-/* Shimmer radial highlight that follows the cursor (controlled by JS CSS vars) */
+/* Spring-back class added on mouseleave */
+.link-card.card-spring-back {
+  transition:
+    transform 750ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Hover glow halo — JS tilt provides depth, CSS provides glow */
+.link-card:hover {
+  box-shadow:
+    0 32px 90px rgba(4, 5, 13, 0.92),
+    0 0 0 1px rgba(124, 92, 255, 0.45),
+    0 0 60px rgba(124, 92, 255, 0.28),
+    0 0 120px rgba(245, 211, 140, 0.10) !important;
+  border-color: rgba(124, 92, 255, 0.55) !important;
+}
+
+/* Shimmer radial highlight that follows the cursor */
 .link-card-shimmer {
   position: absolute;
   inset: 0;
@@ -2430,18 +2442,19 @@ h1 {
   z-index: 1;
   background: radial-gradient(
     circle at var(--mx, 50%) var(--my, 50%),
-    rgba(255, 255, 255, 0.10) 0%,
-    transparent 55%
+    rgba(255, 255, 255, 0.13) 0%,
+    rgba(124, 92, 255, 0.05) 30%,
+    transparent 60%
   );
   opacity: 0;
-  transition: opacity 250ms ease;
+  transition: opacity 320ms ease;
 }
 
 .link-card:hover .link-card-shimmer {
   opacity: 1;
 }
 
-/* Inner glass highlight layer */
+/* Inner glass highlight layer — top-left specular */
 .link-card::before {
   content: "";
   position: absolute;
@@ -2449,18 +2462,118 @@ h1 {
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.055) 0%,
-    transparent 50%,
-    rgba(124, 92, 255, 0.03) 100%
+    rgba(255, 255, 255, 0.07) 0%,
+    transparent 42%,
+    rgba(124, 92, 255, 0.04) 100%
   );
   pointer-events: none;
   z-index: 0;
 }
 
-/* All card inner content above pseudo layers */
-.link-card > * {
+/* Bottom edge reflection line */
+.link-card::after {
+  content: "";
+  position: absolute;
+  left: 12%; right: 12%; bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 92, 255, 0.6) 40%,
+    rgba(245, 211, 140, 0.6) 60%,
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.link-card:hover::after {
+  opacity: 1;
+}
+
+/* Content above pseudo layers — use :not() to exclude shimmer */
+.link-card > *:not(.link-card-shimmer) {
   position: relative;
   z-index: 2;
+}
+
+/* ── "Try New UI" banner — links tab ──────────────── */
+@keyframes new-ui-banner-border {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes new-ui-sparkle {
+  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  25%       { opacity: 0.7; transform: scale(1.2) rotate(5deg); }
+  75%       { opacity: 0.8; transform: scale(0.9) rotate(-5deg); }
+}
+
+.new-ui-banner {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    120deg,
+    rgba(124, 92, 255, 0.10) 0%,
+    rgba(10, 13, 28, 0.85) 40%,
+    rgba(245, 211, 140, 0.08) 100%
+  );
+  border-radius: 20px;
+  padding: 1px; /* border via gradient wrapper trick */
+}
+
+.new-ui-banner-inner {
+  background: linear-gradient(
+    120deg,
+    rgba(8, 11, 26, 0.94) 0%,
+    rgba(10, 14, 30, 0.90) 100%
+  );
+  border-radius: 19px;
+  padding: 0.85rem 1rem;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  position: relative;
+  overflow: hidden;
+}
+
+.new-ui-banner-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.03) 50%,
+    transparent 80%
+  );
+  pointer-events: none;
+}
+
+/* Animated gradient border */
+.new-ui-banner-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: linear-gradient(
+    270deg,
+    #7c5cff, #f5d38c, #38bdf8, #7c5cff
+  );
+  background-size: 400% 400%;
+  animation: new-ui-banner-border 4s ease-in-out infinite;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: xor;
+  -webkit-mask-composite: xor;
+  padding: 1px;
+  pointer-events: none;
+}
+
+.new-ui-sparkle {
+  animation: new-ui-sparkle 2.8s ease-in-out infinite;
 }
 
 /* ── Account Tab — New UI Panel ───────────────────── */
@@ -2549,34 +2662,43 @@ h1 {
   box-shadow: 0 8px 28px rgba(4, 5, 13, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* ── GSAP tab fade transition ─────────────────────── */
+/* ── Open link button — premium neon look ─────────── */
+@keyframes open-link-glow {
+  0%, 100% { box-shadow: 0 6px 20px rgba(124, 92, 255, 0.5), 0 0 0 0 rgba(124, 92, 255, 0); }
+  50%       { box-shadow: 0 8px 28px rgba(124, 92, 255, 0.65), 0 0 0 4px rgba(124, 92, 255, 0); }
+}
+
+.open-link-btn {
+  background: linear-gradient(135deg, #7c5cff 0%, #9f73ff 55%, #38bdf8 100%) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+  border: none !important;
+  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.50) !important;
+  transition: filter 160ms ease, transform 160ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 160ms ease !important;
+  animation: open-link-glow 3s ease-in-out infinite;
+}
+
+.open-link-btn:hover {
+  filter: brightness(1.18) !important;
+  transform: translateY(-2px) scale(1.06) !important;
+  box-shadow: 0 12px 36px rgba(124, 92, 255, 0.70) !important;
+  animation: none !important;
+}
+
+.open-link-btn:active {
+  transform: scale(0.94) !important;
+}
+
+/* ── GSAP tab transition helpers ──────────────────── */
 .tab-content.tab-exit {
   opacity: 0;
   transform: translateY(10px) scale(0.99);
+  filter: blur(2px);
 }
 
 .tab-content.tab-enter {
   opacity: 0;
-  transform: translateY(12px) scale(0.99);
-}
-
-/* ── Open link button — premium look ─────────────── */
-.open-link-btn {
-  background: linear-gradient(135deg, #7c5cff 0%, #9f73ff 60%, #38bdf8 100%) !important;
-  color: #fff !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.03em;
-  border: none !important;
-  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.45) !important;
-  transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease !important;
-}
-
-.open-link-btn:hover {
-  filter: brightness(1.15) !important;
-  transform: translateY(-2px) scale(1.03) !important;
-  box-shadow: 0 10px 30px rgba(124, 92, 255, 0.62) !important;
-}
-
-.open-link-btn:active {
-  transform: scale(0.96) !important;
+  transform: translateY(14px) scale(0.985);
+  filter: blur(3px);
 }

@@ -565,12 +565,7 @@ function renderLinkCard(id, data, currentUid) {
   const card = document.createElement("div");
   card.dataset.linkId = id;
   card.className =
-    "link-card relative flex flex-col gap-3 p-5 rounded-2xl " +
-    "border shadow-lg";
-  // Premium glass style override
-  card.style.cssText =
-    "background:linear-gradient(150deg,rgba(12,16,32,0.88),rgba(8,12,24,0.82));" +
-    "border-color:rgba(124,92,255,0.22);";
+    "link-card relative flex flex-col gap-3 p-5 rounded-2xl border shadow-lg";
 
   // Set HTML content first, then append the shimmer overlay
   card.innerHTML =
@@ -601,32 +596,66 @@ function renderLinkCard(id, data, currentUid) {
       '<div class="flex items-center gap-2">' + upvoteSection + actionSection + '</div>' +
     '</div>';
 
-  // Shimmer overlay element (tracks pointer position) — appended after innerHTML is set
+  // Shimmer overlay — appended after innerHTML so it isn't clobbered
   const shimmer = document.createElement("div");
   shimmer.className = "link-card-shimmer";
   card.appendChild(shimmer);
 
-  // ── 3D tilt + shimmer cursor tracking ──
-  const TILT_STRENGTH = 10;  // degrees max
+  // ── 3D tilt + shimmer with smooth spring-back ──
+  const TILT_STRENGTH = 10;
   const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   if (!prefersReduced) {
+    // rAF lerp state
+    let targetRx = 0, targetRy = 0;
+    let currentRx = 0, currentRy = 0;
+    let rafId = null;
+    let isHovered = false;
+
+    function tiltLoop() {
+      currentRx += (targetRx - currentRx) * 0.18;
+      currentRy += (targetRy - currentRy) * 0.18;
+
+      // Stop looping when very close to rest
+      const done = !isHovered &&
+        Math.abs(currentRx) < 0.01 &&
+        Math.abs(currentRy) < 0.01;
+
+      if (done) {
+        card.style.transform = "";
+        rafId = null;
+        return;
+      }
+
+      card.style.transform =
+        `perspective(1000px) rotateX(${currentRx.toFixed(3)}deg) rotateY(${currentRy.toFixed(3)}deg) translateZ(8px)`;
+      rafId = requestAnimationFrame(tiltLoop);
+    }
+
+    card.addEventListener("mouseenter", () => {
+      isHovered = true;
+      if (!rafId) rafId = requestAnimationFrame(tiltLoop);
+    });
+
     card.addEventListener("mousemove", (e) => {
       const rect = card.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;  // -0.5 → 0.5
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      const rx = y * -TILT_STRENGTH;
-      const ry = x * TILT_STRENGTH;
-      card.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(6px)`;
-      // Update shimmer position
-      const pctX = ((e.clientX - rect.left) / rect.width * 100).toFixed(1) + "%";
-      const pctY = ((e.clientY - rect.top) / rect.height * 100).toFixed(1) + "%";
+      const x = (e.clientX - rect.left) / rect.width  - 0.5;
+      const y = (e.clientY - rect.top)  / rect.height - 0.5;
+      targetRx = y * -TILT_STRENGTH;
+      targetRy = x *  TILT_STRENGTH;
+      // Shimmer position
+      const pctX = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1) + "%";
+      const pctY = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1) + "%";
       card.style.setProperty("--mx", pctX);
       card.style.setProperty("--my", pctY);
     });
 
     card.addEventListener("mouseleave", () => {
-      card.style.transform = "";
+      isHovered = false;
+      targetRx = 0;
+      targetRy = 0;
+      // Continue the loop to spring back smoothly
+      if (!rafId) rafId = requestAnimationFrame(tiltLoop);
     });
   }
 
