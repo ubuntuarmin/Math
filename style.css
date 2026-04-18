@@ -2199,18 +2199,12 @@ body {
   --luxury-glow: 0 18px 52px rgba(4, 5, 13, 0.72), 0 0 48px rgba(124, 92, 255, 0.18);
 }
 
-@keyframes luxury-bg-flow {
-  0%, 100% { background-position: 0% 0%, 100% 0%, 50% 50%; }
-  50% { background-position: 100% 100%, 0% 100%, 50% 50%; }
-}
-
 body {
   background:
     radial-gradient(1200px 700px at 0% -10%, rgba(124, 92, 255, 0.16), transparent 62%),
     radial-gradient(1000px 650px at 100% 0%, rgba(245, 211, 140, 0.12), transparent 60%),
     linear-gradient(160deg, #03040a 0%, #070a17 45%, #050816 100%) !important;
-  background-size: 150% 150%, 150% 150%, 100% 100%;
-  animation: luxury-bg-flow 32s ease-in-out infinite;
+  background-size: 130% 130%, 130% 130%, 100% 100%;
 }
 
 body::after {
@@ -2354,7 +2348,7 @@ h1 {
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   h1 {
   background: linear-gradient(120deg, #f8fafc, #f5d38c 45%, #c4b5fd 100%);
-  color: transparent;
+  color: #f8fafc;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -2377,10 +2371,6 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body {
-    animation: none;
-  }
-
   .card,
   .link-card,
   .surface,
