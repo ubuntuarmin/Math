@@ -566,11 +566,18 @@ function renderLinkCard(id, data, currentUid) {
   card.dataset.linkId = id;
   card.className =
     "link-card relative flex flex-col gap-3 p-5 rounded-2xl " +
-    "bg-gray-900/80 border border-gray-700/60 " +
-    "hover:border-blue-500/60 transition-all duration-200 " +
-    "hover:-translate-y-1 shadow-lg";
+    "border shadow-lg";
+  // Premium glass style override
+  card.style.cssText =
+    "background:linear-gradient(150deg,rgba(12,16,32,0.88),rgba(8,12,24,0.82));" +
+    "border-color:rgba(124,92,255,0.22);";
 
-  card.innerHTML =
+  // Shimmer overlay element (tracks pointer position)
+  const shimmer = document.createElement("div");
+  shimmer.className = "link-card-shimmer";
+  card.appendChild(shimmer);
+
+  card.innerHTML +=
     '<div class="flex items-start justify-between gap-2">' +
       '<div class="flex-1 min-w-0">' +
         '<div class="flex items-center gap-1 flex-wrap">' +
@@ -579,13 +586,11 @@ function renderLinkCard(id, data, currentUid) {
         '</div>' +
         hashtagsHtml +
       '</div>' +
-      '<button class="open-link-btn shrink-0 px-3 py-1.5 ' +
-      (isHtml ? 'bg-purple-600/80 hover:bg-purple-500' : 'bg-blue-600/80 hover:bg-blue-500') +
-      ' text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1" ' +
+      '<button class="open-link-btn shrink-0 px-3 py-1.5 rounded-full flex items-center gap-1 text-xs" ' +
       'data-id="' + id + '">' + (isHtml ? '▶ Play' : 'Open \u2197') + '</button>' +
     '</div>' +
     (safeDesc ? '<p class="text-gray-400 text-xs leading-relaxed line-clamp-2">' + safeDesc + '</p>' : '') +
-    '<div class="flex items-center justify-between mt-auto pt-2 border-t border-gray-800">' +
+    '<div class="flex items-center justify-between mt-auto pt-2" style="border-top:1px solid rgba(124,92,255,0.14)">' +
       '<div class="card-footer-left flex items-center gap-2 text-[10px] text-gray-500 flex-wrap">' +
         '<span>Shared by</span>' +
         '<button class="view-profile-btn text-gray-400 hover:text-blue-300 transition-colors ' +
@@ -599,6 +604,30 @@ function renderLinkCard(id, data, currentUid) {
       '</div>' +
       '<div class="flex items-center gap-2">' + upvoteSection + actionSection + '</div>' +
     '</div>';
+
+  // ── 3D tilt + shimmer cursor tracking ──
+  const TILT_STRENGTH  = 10;  // degrees max
+  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  if (!prefersReduced) {
+    card.addEventListener("mousemove", (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width  - 0.5;  // -0.5 → 0.5
+      const y = (e.clientY - rect.top)  / rect.height - 0.5;
+      const rx =  y * -TILT_STRENGTH;
+      const ry =  x *  TILT_STRENGTH;
+      card.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(6px)`;
+      // Update shimmer position
+      const pctX = ((e.clientX - rect.left) / rect.width  * 100).toFixed(1) + "%";
+      const pctY = ((e.clientY - rect.top)  / rect.height * 100).toFixed(1) + "%";
+      card.style.setProperty("--mx", pctX);
+      card.style.setProperty("--my", pctY);
+    });
+
+    card.addEventListener("mouseleave", () => {
+      card.style.transform = "";
+    });
+  }
 
   card.querySelector(".open-link-btn").addEventListener("click", () => {
     openIframeModal(data.url, safeTitle, id, submittedBy, data.htmlContent || null);

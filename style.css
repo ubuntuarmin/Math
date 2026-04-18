@@ -2381,3 +2381,202 @@ h1 {
     transition: none !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════
+   3D LINK CARDS — GSAP / THREE.JS UI OVERHAUL
+══════════════════════════════════════════════════════ */
+
+/* Three.js background canvas */
+#threeCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* ── 3D tilt card wrapper ──────────────────────────── */
+.link-card-3d-wrap {
+  perspective: 900px;
+}
+
+/* Link card 3D transform base */
+.link-card {
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  transition:
+    transform 60ms linear,
+    box-shadow 220ms ease,
+    border-color 220ms ease !important;
+  will-change: transform;
+  position: relative;
+}
+
+/* Hover glow halo */
+.link-card:hover {
+  box-shadow:
+    0 28px 80px rgba(4, 5, 13, 0.9),
+    0 0 0 1px rgba(245, 211, 140, 0.30),
+    0 0 56px rgba(124, 92, 255, 0.22),
+    0 0 100px rgba(245, 211, 140, 0.08) !important;
+}
+
+/* Shimmer radial highlight that follows the cursor (controlled by JS CSS vars) */
+.link-card-shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(
+    circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.10) 0%,
+    transparent 55%
+  );
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+
+.link-card:hover .link-card-shimmer {
+  opacity: 1;
+}
+
+/* Inner glass highlight layer */
+.link-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.055) 0%,
+    transparent 50%,
+    rgba(124, 92, 255, 0.03) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* All card inner content above pseudo layers */
+.link-card > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* ── Account Tab — New UI Panel ───────────────────── */
+.account-luxury-banner {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(124, 92, 255, 0.14) 0%,
+    rgba(16, 20, 40, 0.82) 50%,
+    rgba(245, 211, 140, 0.08) 100%
+  );
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: 22px;
+  padding: 1.5rem 1.5rem 1.4rem;
+  margin-bottom: 1.5rem;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 12px 40px rgba(4, 5, 13, 0.45), 0 0 40px rgba(124, 92, 255, 0.12);
+}
+
+.account-luxury-banner::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 12%; right: 12%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 92, 255, 0.85) 30%,
+    rgba(245, 211, 140, 0.85) 70%,
+    transparent
+  );
+}
+
+@keyframes luxury-badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(124, 92, 255, 0); }
+}
+
+.luxury-new-badge {
+  animation: luxury-badge-pulse 2.2s ease-in-out infinite;
+}
+
+/* ── Premium account stat cards ───────────────────── */
+.account-stat-glass {
+  background: linear-gradient(150deg, rgba(16, 22, 44, 0.88), rgba(10, 14, 30, 0.80));
+  border: 1px solid rgba(124, 92, 255, 0.18);
+  border-radius: 18px;
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: default;
+}
+
+.account-stat-glass:hover {
+  border-color: rgba(245, 211, 140, 0.42);
+  box-shadow: 0 12px 36px rgba(124, 92, 255, 0.22), 0 0 28px rgba(245, 211, 140, 0.10);
+  transform: translateY(-4px);
+}
+
+/* ── Premium tier progress bar ────────────────────── */
+.luxury-progress-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.luxury-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c5cff, #f5d38c);
+  box-shadow: 0 0 14px rgba(124, 92, 255, 0.55);
+  transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Glass panel (re-usable) ───────────────────────── */
+.luxury-glass-panel {
+  background: linear-gradient(150deg, rgba(14, 18, 38, 0.88), rgba(8, 12, 24, 0.82));
+  border: 1px solid rgba(124, 92, 255, 0.20);
+  border-radius: 18px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 28px rgba(4, 5, 13, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── GSAP tab fade transition ─────────────────────── */
+.tab-content.tab-exit {
+  opacity: 0;
+  transform: translateY(10px) scale(0.99);
+}
+
+.tab-content.tab-enter {
+  opacity: 0;
+  transform: translateY(12px) scale(0.99);
+}
+
+/* ── Open link button — premium look ─────────────── */
+.open-link-btn {
+  background: linear-gradient(135deg, #7c5cff 0%, #9f73ff 60%, #38bdf8 100%) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em;
+  border: none !important;
+  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.45) !important;
+  transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease !important;
+}
+
+.open-link-btn:hover {
+  filter: brightness(1.15) !important;
+  transform: translateY(-2px) scale(1.03) !important;
+  box-shadow: 0 10px 30px rgba(124, 92, 255, 0.62) !important;
+}
+
+.open-link-btn:active {
+  transform: scale(0.96) !important;
+}
