@@ -2356,6 +2356,21 @@ body[data-ui-mode="liquidGoldGlass"] .navbar-credits-pill {
   color: #e5e7eb !important;
 }
 
+/* Ghost icon buttons (dismiss ✕, close, skip) — exempt from gold treatment */
+body[data-ui-mode="liquidGoldGlass"] .btn-ghost {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: #6b7280 !important;
+  font-weight: 400 !important;
+}
+
+body[data-ui-mode="liquidGoldGlass"] .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+  color: #e5e7eb !important;
+}
+
 body[data-ui-mode="liquidGoldGlass"] input[type="text"],
 body[data-ui-mode="liquidGoldGlass"] input[type="number"],
 body[data-ui-mode="liquidGoldGlass"] input[type="email"],
@@ -2589,6 +2604,20 @@ body[data-ui-mode="liquidGoldGlass"] .link-card::after {
 .link-card > *:not(.link-card-shimmer) {
   position: relative;
   z-index: 2;
+}
+
+/* ── "Try New UI" banner — entrance animation (§6.A: slide/fade from top) ── */
+@keyframes new-ui-banner-enter {
+  from { opacity: 0; transform: translateY(-18px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+.new-ui-banner-animate-in {
+  animation: new-ui-banner-enter 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .new-ui-banner-animate-in { animation: none; }
 }
 
 /* ── "Try New UI" banner — links tab ──────────────── */
@@ -3105,5 +3134,41 @@ body[data-ui-mode="liquidGoldGlass"] .ui-input-error-shake {
   .ui-input-error-shake {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PHASE 7 — RESPONSIVE: SMALL LAPTOP (1280×720 / height < 780)
+   §7: Limit glass blur and shadow spread at narrow heights
+   to preserve readability. Shader quality is reduced in JS.
+══════════════════════════════════════════════════════ */
+@media (max-height: 780px) {
+  /* Reduce blur intensity on LGG glass panels for performance and legibility */
+  body[data-ui-mode="liquidGoldGlass"] .surface,
+  body[data-ui-mode="liquidGoldGlass"] .card,
+  body[data-ui-mode="liquidGoldGlass"] .link-card,
+  body[data-ui-mode="liquidGoldGlass"] .table-wrapper,
+  body[data-ui-mode="liquidGoldGlass"] .modal-glass,
+  body[data-ui-mode="liquidGoldGlass"] header.site-header {
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+  }
+
+  /* Tighten shadow spread to save GPU compositing bandwidth */
+  body[data-ui-mode="liquidGoldGlass"] .surface,
+  body[data-ui-mode="liquidGoldGlass"] .card,
+  body[data-ui-mode="liquidGoldGlass"] .link-card {
+    box-shadow: 0 8px 24px rgba(4, 5, 13, 0.65) !important;
+  }
+
+  /* Clamp card max-height to avoid fold overflow (§7) */
+  body[data-ui-mode="liquidGoldGlass"] .link-card {
+    max-height: 340px;
+    overflow: hidden;
+  }
+
+  /* Compact spacing: tighter section padding */
+  body[data-ui-mode="liquidGoldGlass"] .surface {
+    padding: 1rem !important;
   }
 }

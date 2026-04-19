@@ -333,7 +333,7 @@
               View My Account →
             </button>
             <button id="dismissNewUiBanner"
-                    class="text-gray-600 hover:text-gray-300 transition-colors p-1 rounded-lg
+                    class="btn-ghost text-gray-600 hover:text-gray-300 transition-colors p-1 rounded-lg
                            hover:bg-white/5 text-sm leading-none" title="Dismiss" aria-label="Dismiss new UI banner">
               ✕
             </button>
@@ -362,7 +362,7 @@
             + Share Now
           </a>
           <button id="dismissShareBanner"
-                  class="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded-lg
+                  class="btn-ghost text-gray-500 hover:text-gray-300 transition-colors p-1 rounded-lg
                          hover:bg-white/5 text-base leading-none" title="Dismiss">
             ✕
           </button>
@@ -506,6 +506,9 @@
 
       <!-- ✨ New UI Update Banner -->
       <div class="account-luxury-banner mb-6" id="accountNewUiBanner">
+        <button id="dismissAccountNewUiBanner"
+                class="btn-ghost absolute top-3 right-3 text-gray-600 hover:text-gray-300 transition-colors p-1 rounded-lg hover:bg-white/5 text-sm leading-none"
+                title="Dismiss" aria-label="Dismiss new UI banner" style="line-height:1">✕</button>
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div class="flex items-center gap-4">
             <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 luxury-new-badge"
@@ -643,6 +646,8 @@
           Switch between the classic interface and the premium Liquid Gold Glass experience.
         </p>
         <div id="uiModeToggleArea" class="flex flex-wrap gap-2"></div>
+        <!-- Show New UI banner again (§6.A — visible only after the banner is dismissed) -->
+        <div id="showBannerAgainArea" class="mt-3"></div>
       </div>
     </div>
 
@@ -1220,7 +1225,7 @@
         ⭐ Rate
       </button>
       <button onclick="closeIframeModal()"
-              class="text-gray-400 hover:text-white transition-colors p-2 rounded-lg
+              class="btn-ghost text-gray-400 hover:text-white transition-colors p-2 rounded-lg
                      hover:bg-white/5 text-lg leading-none">
         ✕
       </button>
@@ -1275,7 +1280,7 @@
   <div class="modal-glass relative rounded-3xl
               p-6 w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
     <button onclick="closeProfileModal()"
-            class="absolute top-4 right-4 text-gray-500 hover:text-white
+            class="btn-ghost absolute top-4 right-4 text-gray-500 hover:text-white
                    transition-colors p-1 rounded-lg hover:bg-white/5 text-lg leading-none z-10">
       ✕
     </button>
@@ -2107,25 +2112,119 @@
 
   /* ────────────────────────────────────────────────────────
      11. ENHANCED HERO ENTRANCE (upgrade of section in initGSAP)
+         + NEW UI BANNER LIFECYCLE (§6.A)
   ──────────────────────────────────────────────────────── */
+  const _BANNER_KEY         = "newUiBannerDismissed";
+  const _ACCT_BANNER_KEY    = "accountNewUiBannerDismissed";
+
+  /**
+   * Manages the links-tab "Try New UI" promotional banner (§6.A):
+   *  - Hides it instantly (without removing from DOM) if already dismissed.
+   *  - Animates it in with a slide/fade-from-top (380–480ms) if visible.
+   *  - On dismiss: GSAP collapse + fade, then hides; dispatches event for
+   *    the account-settings "Show again" button to react to.
+   */
   function initNewUiBannerDismiss() {
     const banner     = document.getElementById("newUiBanner");
     const dismissBtn = document.getElementById("dismissNewUiBanner");
     if (!banner) return;
-    if (localStorage.getItem("newUiBannerDismissed")) {
-      banner.remove();
+
+    if (localStorage.getItem(_BANNER_KEY)) {
+      // Already dismissed — hide but keep in DOM so "show again" can restore it
+      banner.hidden = true;
       return;
     }
+
+    // §6.A Entrance: slide/fade from top (CSS handles the animation via the class)
+    if (!prefersReducedMotion) {
+      banner.classList.add("new-ui-banner-animate-in");
+      banner.addEventListener("animationend", () =>
+        banner.classList.remove("new-ui-banner-animate-in"),
+      { once: true });
+    }
+
     dismissBtn?.addEventListener("click", () => {
-      localStorage.setItem("newUiBannerDismissed", "1");
-      if (typeof gsap !== "undefined") {
+      localStorage.setItem(_BANNER_KEY, "1");
+      if (!prefersReducedMotion && typeof gsap !== "undefined") {
+        // §6.A Dismiss: collapse + fade with height transition
         gsap.to(banner, {
-          height: 0, opacity: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0,
+          height: 0, opacity: 0, marginBottom: 0,
           duration: 0.42, ease: "power3.in",
-          onComplete: () => banner.remove(),
+          onComplete: () => { banner.hidden = true; },
         });
       } else {
-        banner.remove();
+        banner.hidden = true;
+      }
+      // Notify the "show again" button in account settings
+      document.dispatchEvent(new CustomEvent("newUiBannerStateChange"));
+    });
+  }
+
+  /**
+   * Manages the "Show New UI banner again" option inside account settings (§6.A).
+   * Renders a small text link when the promo banner has been dismissed, and
+   * restores it (with re-entrance animation) when clicked.
+   */
+  function initShowBannerAgain() {
+    const area = document.getElementById("showBannerAgainArea");
+    if (!area) return;
+
+    function render() {
+      if (localStorage.getItem(_BANNER_KEY)) {
+        area.innerHTML =
+          `<button id="showBannerAgainBtn"
+            class="text-xs text-gray-500 hover:text-gray-300 underline underline-offset-2 transition-colors"
+          >↩ Show "New UI" announcement again</button>`;
+        document.getElementById("showBannerAgainBtn")?.addEventListener("click", () => {
+          localStorage.removeItem(_BANNER_KEY);
+          const banner = document.getElementById("newUiBanner");
+          if (banner) {
+            banner.hidden = false;
+            // Switch to Links tab so the user can see the restored banner
+            const linksBtn = document.querySelector(".tab-btn[data-tab='links']");
+            linksBtn?.click();
+            if (!prefersReducedMotion) {
+              banner.classList.add("new-ui-banner-animate-in");
+              banner.addEventListener("animationend", () =>
+                banner.classList.remove("new-ui-banner-animate-in"),
+              { once: true });
+            }
+          }
+          render(); // clear the button once banner is shown again
+        });
+      } else {
+        area.innerHTML = "";
+      }
+    }
+
+    render();
+    document.addEventListener("newUiBannerStateChange", render);
+  }
+
+  /**
+   * Manages the account-tab "New UI Update" banner (§6.A):
+   * Hides it on dismiss (separate key), persisted to localStorage.
+   */
+  function initAccountNewUiBanner() {
+    const banner     = document.getElementById("accountNewUiBanner");
+    const dismissBtn = document.getElementById("dismissAccountNewUiBanner");
+    if (!banner) return;
+
+    if (localStorage.getItem(_ACCT_BANNER_KEY)) {
+      banner.hidden = true;
+      return;
+    }
+
+    dismissBtn?.addEventListener("click", () => {
+      localStorage.setItem(_ACCT_BANNER_KEY, "1");
+      if (!prefersReducedMotion && typeof gsap !== "undefined") {
+        gsap.to(banner, {
+          height: 0, opacity: 0, marginBottom: 0,
+          duration: 0.42, ease: "power3.in",
+          onComplete: () => { banner.hidden = true; },
+        });
+      } else {
+        banner.hidden = true;
       }
     });
   }
@@ -2265,6 +2364,8 @@
     initMagnetic();
     addRippleToNavBtns();
     initNewUiBannerDismiss();
+    initShowBannerAgain();
+    initAccountNewUiBanner();
     initCardTilt();
     initInputMicroInteractions();
     initScrollParallax();

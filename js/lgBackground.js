@@ -351,12 +351,16 @@ export function startLgBackground() {
     _uMouse           = _gl.getUniformLocation(_prog, "uMouse");
     _uQuality         = _gl.getUniformLocation(_prog, "uQuality");
 
+    // §7: Start at medium quality (tier 1) on small laptop screens (viewport height < 780).
+    // The FPS monitor can only lower quality further, never raise it, so this sets a safe ceiling.
+    _qualityTier = (window.innerHeight < 780) ? 1 : 2;
+
     // Static uniforms (set once)
     _gl.uniform1f(_uFlowSpeed,      _FLOW_SPEED);
     _gl.uniform1f(_uGoldIntensity,  0.82);
     _gl.uniform1f(_uContrast,       0.72);
-    // Shimmer disabled when reduced-motion is preferred (§3.C)
-    _gl.uniform1f(_uShimmerStrength, reducedMotion ? 0.0 : 0.85);
+    // Shimmer: disabled when reduced-motion is preferred (§3.C) or quality is below high (§7)
+    _gl.uniform1f(_uShimmerStrength, (reducedMotion || _qualityTier < 2) ? 0.0 : 0.85);
     _gl.uniform1i(_uQuality,        _qualityTier);
 
     _resize();
@@ -374,14 +378,13 @@ export function startLgBackground() {
     document.addEventListener("visibilitychange", _onVis);
     window.addEventListener("resize",             _onResize,    { passive: true });
 
-    // Reset FPS monitoring state
+    // Reset FPS monitoring state (quality tier already set above)
     _running       = true;
     _startTime     = performance.now();
     _lastTs        = _startTime;
     _fpsCheckDone  = false;
     _fpsCheckStart = 0;
     _fpsSamples    = [];
-    _qualityTier   = 2;
 
     _rafId = requestAnimationFrame(_frame);
 }
