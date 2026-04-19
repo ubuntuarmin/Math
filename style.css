@@ -34,7 +34,7 @@
   --z-nav-dropdown:150;  /* nav dropdowns (within header)   */
   --z-modal:       400;  /* dialogs / login modal           */
   --z-toast:       500;  /* toast notifications             */
-  --z-tour:      10100;  /* onboarding tour tooltips        */
+  --z-tour:      10100;  /* onboarding tour — must stay above vendor onboard.css (10000/10001) */
 }
 
 /* If you have a light-mode option later, you can override the vars here */

@@ -184,13 +184,15 @@ Why overlap occurs:
 - Main content lacks explicit stacking isolation boundaries.
 
 Structural fixes:
-1. Introduce global z-index tokens:
-   - `--z-bg: 0`
-   - `--z-content: 10`
-   - `--z-nav: 200`
-   - `--z-dropdown: 260`
-   - `--z-modal: 400`
-   - `--z-toast: 500`
+1. Introduce global z-index tokens (actual implemented values):
+   - `--z-bg: -2` (fixed background canvases)
+   - `--z-orb: -1` (decorative background orbs)
+   - `--z-content: 10` (regular page content)
+   - `--z-nav: 100` (sticky header)
+   - `--z-nav-dropdown: 150` (nav dropdowns, within header stacking context)
+   - `--z-modal: 400` (dialogs / login modal)
+   - `--z-toast: 500` (toast notifications)
+   - `--z-tour: 10100` (onboarding tour tooltips — must match vendor onboard.css which uses 10000/10001)
 2. Navbar strategy:
    - Use `position: sticky; top: 0; z-index: var(--z-nav);`
    - Keep nav inside isolated app shell.
@@ -198,9 +200,8 @@ Structural fixes:
    - Body handles vertical scroll.
    - Avoid nested scroll on primary content regions unless intentional.
 4. Overflow handling:
-   - Add `isolation: isolate` on root app container.
-   - Constrain transformed card overflow to content zone.
-   - Ensure dropdowns use nav-layer z-index only.
+   - Add `isolation: isolate` on `#appContainer` to contain 3D card transforms.
+   - Ensure dropdowns use `var(--z-nav-dropdown)` only.
 
 ---
 
