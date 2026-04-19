@@ -120,7 +120,11 @@
     .login-orb-purple { animation: login-orb-drift-purple 11s ease-in-out infinite 1s; }
   </style>
 </head>
-<body class="page">
+<body class="page" data-ui-mode="classic">
+<script>
+/* Anti-FOUC: apply stored UI mode before first paint */
+(function(){var m=localStorage.getItem("mathKatyUiMode");if(m==="liquidGoldGlass")document.body.dataset.uiMode="liquidGoldGlass";})();
+</script>
 
 <!-- ════ ANIMATED BACKGROUND ════ -->
 <canvas id="threeCanvas" aria-hidden="true"></canvas>
@@ -627,6 +631,16 @@
 
         <div id="referralArea"></div>
         <div id="tutorialArea"></div>
+      </div>
+
+      <!-- Interface Style Toggle -->
+      <div class="surface mt-4">
+        <span class="badge">Appearance</span>
+        <h3 class="mt-2 mb-1 text-white text-sm font-bold">Interface Style</h3>
+        <p class="text-xs text-gray-400 max-w-sm mb-3">
+          Switch between the classic interface and the premium Liquid Gold Glass experience.
+        </p>
+        <div id="uiModeToggleArea" class="flex flex-wrap gap-2"></div>
       </div>
     </div>
 

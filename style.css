@@ -35,6 +35,28 @@
   --z-modal:       400;  /* dialogs / login modal           */
   --z-toast:       500;  /* toast notifications             */
   --z-tour:      10100;  /* onboarding tour — must stay above vendor onboard.css (10000/10001) */
+
+  /* ── Liquid Gold Glass palette (Phase 2 design tokens) ── */
+  --lg-bg-0:            #050307;   /* deep black-violet base          */
+  --lg-bg-1:            #120b08;   /* deep brown-black                */
+  --lg-bg-2:            #1e140f;   /* mid brown                       */
+  --lg-gold-0:          #7a4d1c;   /* dark molten gold                */
+  --lg-gold-1:          #b8772f;   /* amber-gold core                 */
+  --lg-gold-2:          #e7b86e;   /* highlight gold                  */
+  --lg-gold-3:          #f6dfb0;   /* specular edge                   */
+  --lg-accent-violet:   #6e56cf;   /* cool premium contrast           */
+  --lg-text-primary:    #f8f4ec;
+  --lg-text-secondary:  #bfb4a2;
+  --lg-border-glass:    rgba(255, 232, 198, 0.22);
+  --lg-shadow-deep:     rgba(0, 0, 0, 0.56);
+
+  /* Shared luxury aliases (used in existing luxury block below) */
+  --luxury-gold:        #f5d38c;
+  --luxury-gold-soft:   rgba(245, 211, 140, 0.18);
+  --luxury-violet:      #7c5cff;
+  --luxury-ink:         #04050d;
+  --luxury-panel:       rgba(10, 14, 28, 0.78);
+  --luxury-glow:        0 18px 52px rgba(4, 5, 13, 0.72), 0 0 48px rgba(124, 92, 255, 0.18);
 }
 
 /* If you have a light-mode option later, you can override the vars here */
@@ -2218,19 +2240,14 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════
-   LUXURY MODERN UI REFRESH (GLOBAL)
+   NEW UI — LIQUID GOLD GLASS MODE
+   All rules below are scoped to body[data-ui-mode="liquidGoldGlass"].
+   Classic UI (data-ui-mode="classic", the default) is unaffected.
+   The --luxury-* custom properties above remain in :root since they
+   are just variable definitions and do not affect paint on their own.
 ══════════════════════════════════════════════════════ */
 
-:root {
-  --luxury-gold: #f5d38c;
-  --luxury-gold-soft: rgba(245, 211, 140, 0.18);
-  --luxury-violet: #7c5cff;
-  --luxury-ink: #04050d;
-  --luxury-panel: rgba(10, 14, 28, 0.78);
-  --luxury-glow: 0 18px 52px rgba(4, 5, 13, 0.72), 0 0 48px rgba(124, 92, 255, 0.18);
-}
-
-body {
+body[data-ui-mode="liquidGoldGlass"] {
   background:
     radial-gradient(1200px 700px at 0% -10%, rgba(124, 92, 255, 0.16), transparent 62%),
     radial-gradient(1000px 650px at 100% 0%, rgba(245, 211, 140, 0.12), transparent 60%),
@@ -2238,7 +2255,7 @@ body {
   background-size: 130% 130%, 130% 130%, 100% 100%;
 }
 
-body::after {
+body[data-ui-mode="liquidGoldGlass"]::after {
   content: "";
   position: fixed;
   inset: 0;
@@ -2249,18 +2266,18 @@ body::after {
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.18));
 }
 
-::selection {
+body[data-ui-mode="liquidGoldGlass"] ::selection {
   background: rgba(124, 92, 255, 0.4);
   color: #fff;
 }
 
-header.site-header {
+body[data-ui-mode="liquidGoldGlass"] header.site-header {
   background: linear-gradient(180deg, rgba(7, 10, 23, 0.94), rgba(6, 9, 20, 0.88));
   border-bottom-color: rgba(245, 211, 140, 0.18);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(245, 211, 140, 0.14);
 }
 
-header.site-header::before {
+body[data-ui-mode="liquidGoldGlass"] header.site-header::before {
   background: linear-gradient(
     90deg,
     transparent 0%,
@@ -2271,144 +2288,144 @@ header.site-header::before {
   );
 }
 
-.surface,
-.card,
-.link-card,
-.table-wrapper {
+body[data-ui-mode="liquidGoldGlass"] .surface,
+body[data-ui-mode="liquidGoldGlass"] .card,
+body[data-ui-mode="liquidGoldGlass"] .link-card,
+body[data-ui-mode="liquidGoldGlass"] .table-wrapper {
   background: linear-gradient(150deg, rgba(10, 14, 28, 0.9), rgba(8, 12, 23, 0.78)) !important;
   border-color: rgba(245, 211, 140, 0.18) !important;
   box-shadow: var(--luxury-glow) !important;
 }
 
-.surface::before,
-.card::before {
+body[data-ui-mode="liquidGoldGlass"] .surface::before,
+body[data-ui-mode="liquidGoldGlass"] .card::before {
   opacity: 0.34;
 }
 
-.card:hover,
-.link-card:hover,
-.surface:hover {
+body[data-ui-mode="liquidGoldGlass"] .card:hover,
+body[data-ui-mode="liquidGoldGlass"] .link-card:hover,
+body[data-ui-mode="liquidGoldGlass"] .surface:hover {
   border-color: rgba(245, 211, 140, 0.42) !important;
   box-shadow: 0 26px 72px rgba(4, 5, 13, 0.82), 0 0 64px rgba(245, 211, 140, 0.15) !important;
 }
 
-.navbar-tabs-group,
-.navbar-more-dropdown {
+body[data-ui-mode="liquidGoldGlass"] .navbar-tabs-group,
+body[data-ui-mode="liquidGoldGlass"] .navbar-more-dropdown {
   background: rgba(9, 13, 26, 0.82);
   border-color: rgba(245, 211, 140, 0.17);
 }
 
-.tab-btn,
-.navbar-more-link,
-.navbar-more-tab {
+body[data-ui-mode="liquidGoldGlass"] .tab-btn,
+body[data-ui-mode="liquidGoldGlass"] .navbar-more-link,
+body[data-ui-mode="liquidGoldGlass"] .navbar-more-tab {
   color: #b9c3da !important;
 }
 
-.tab-btn.active,
-.navbar-tabs-group .tab-btn.active {
+body[data-ui-mode="liquidGoldGlass"] .tab-btn.active,
+body[data-ui-mode="liquidGoldGlass"] .navbar-tabs-group .tab-btn.active {
   background: linear-gradient(135deg, #7c5cff, #f5d38c) !important;
   color: #170f28 !important;
   box-shadow: 0 8px 24px rgba(124, 92, 255, 0.45), 0 0 20px rgba(245, 211, 140, 0.2) !important;
 }
 
-.btn,
-button,
-input[type="submit"],
-input[type="button"],
-.navbar-action-btn {
+body[data-ui-mode="liquidGoldGlass"] .btn,
+body[data-ui-mode="liquidGoldGlass"] button,
+body[data-ui-mode="liquidGoldGlass"] input[type="submit"],
+body[data-ui-mode="liquidGoldGlass"] input[type="button"],
+body[data-ui-mode="liquidGoldGlass"] .navbar-action-btn {
   background-image: linear-gradient(135deg, #7c5cff 0%, #9f73ff 38%, #f5d38c 100%);
   color: #130f21;
   box-shadow: 0 14px 32px rgba(75, 55, 173, 0.5);
   font-weight: 700;
 }
 
-.btn:hover,
-button:hover,
-input[type="submit"]:hover,
-input[type="button"]:hover,
-.navbar-action-btn:hover {
+body[data-ui-mode="liquidGoldGlass"] .btn:hover,
+body[data-ui-mode="liquidGoldGlass"] button:hover,
+body[data-ui-mode="liquidGoldGlass"] input[type="submit"]:hover,
+body[data-ui-mode="liquidGoldGlass"] input[type="button"]:hover,
+body[data-ui-mode="liquidGoldGlass"] .navbar-action-btn:hover {
   box-shadow: 0 20px 44px rgba(75, 55, 173, 0.62), 0 0 20px rgba(245, 211, 140, 0.26);
 }
 
-.btn-outline,
-.navbar-signout-btn,
-.navbar-session-pill,
-.navbar-credits-pill {
+body[data-ui-mode="liquidGoldGlass"] .btn-outline,
+body[data-ui-mode="liquidGoldGlass"] .navbar-signout-btn,
+body[data-ui-mode="liquidGoldGlass"] .navbar-session-pill,
+body[data-ui-mode="liquidGoldGlass"] .navbar-credits-pill {
   background: rgba(9, 13, 26, 0.66) !important;
   border-color: rgba(245, 211, 140, 0.24) !important;
   color: #e5e7eb !important;
 }
 
-input[type="text"],
-input[type="number"],
-input[type="email"],
-input[type="password"],
-textarea,
-select {
+body[data-ui-mode="liquidGoldGlass"] input[type="text"],
+body[data-ui-mode="liquidGoldGlass"] input[type="number"],
+body[data-ui-mode="liquidGoldGlass"] input[type="email"],
+body[data-ui-mode="liquidGoldGlass"] input[type="password"],
+body[data-ui-mode="liquidGoldGlass"] textarea,
+body[data-ui-mode="liquidGoldGlass"] select {
   background: rgba(7, 11, 24, 0.92);
   border-color: rgba(245, 211, 140, 0.24);
 }
 
-input:focus,
-textarea:focus,
-select:focus {
+body[data-ui-mode="liquidGoldGlass"] input:focus,
+body[data-ui-mode="liquidGoldGlass"] textarea:focus,
+body[data-ui-mode="liquidGoldGlass"] select:focus {
   border-color: rgba(245, 211, 140, 0.72);
   box-shadow: 0 0 0 1px rgba(245, 211, 140, 0.72), 0 14px 32px rgba(124, 92, 255, 0.3);
 }
 
-h1,
-h2,
-h3 {
+body[data-ui-mode="liquidGoldGlass"] h1,
+body[data-ui-mode="liquidGoldGlass"] h2,
+body[data-ui-mode="liquidGoldGlass"] h3 {
   letter-spacing: 0.01em;
   overflow-wrap: anywhere;
 }
 
 @supports (text-wrap: balance) {
-  h1,
-  h2,
-  h3 {
+  body[data-ui-mode="liquidGoldGlass"] h1,
+  body[data-ui-mode="liquidGoldGlass"] h2,
+  body[data-ui-mode="liquidGoldGlass"] h3 {
     text-wrap: balance;
     overflow-wrap: normal;
   }
 }
 
-h1 {
+body[data-ui-mode="liquidGoldGlass"] h1 {
   color: #f8fafc;
 }
 
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  h1 {
-  background: linear-gradient(120deg, #f8fafc, #f5d38c 45%, #c4b5fd 100%);
-  color: #f8fafc;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  body[data-ui-mode="liquidGoldGlass"] h1 {
+    background: linear-gradient(120deg, #f8fafc, #f5d38c 45%, #c4b5fd 100%);
+    color: #f8fafc;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 }
 
-::-webkit-scrollbar {
+body[data-ui-mode="liquidGoldGlass"] ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-::-webkit-scrollbar-track {
+body[data-ui-mode="liquidGoldGlass"] ::-webkit-scrollbar-track {
   background: rgba(15, 23, 42, 0.55);
 }
 
-::-webkit-scrollbar-thumb {
+body[data-ui-mode="liquidGoldGlass"] ::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(124, 92, 255, 0.75), rgba(245, 211, 140, 0.75));
   border-radius: 999px;
   border: 2px solid rgba(7, 11, 24, 0.75);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card,
-  .link-card,
-  .surface,
-  .btn,
-  button,
-  .tab-btn,
-  .navbar-action-btn {
+  body[data-ui-mode="liquidGoldGlass"] .card,
+  body[data-ui-mode="liquidGoldGlass"] .link-card,
+  body[data-ui-mode="liquidGoldGlass"] .surface,
+  body[data-ui-mode="liquidGoldGlass"] .btn,
+  body[data-ui-mode="liquidGoldGlass"] button,
+  body[data-ui-mode="liquidGoldGlass"] .tab-btn,
+  body[data-ui-mode="liquidGoldGlass"] .navbar-action-btn {
     transition: none !important;
   }
 }
@@ -2455,7 +2472,17 @@ h1 {
 }
 
 /* Hover glow halo — JS tilt provides depth, CSS provides glow */
+/* Classic mode: blue-cyan hover glow (default) */
 .link-card:hover {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(56, 189, 248, 0.22),
+    0 0 30px rgba(56, 189, 248, 0.12) !important;
+  border-color: rgba(56, 189, 248, 0.45) !important;
+}
+
+/* New UI override: luxury purple/gold glow */
+body[data-ui-mode="liquidGoldGlass"] .link-card:hover {
   box-shadow:
     0 32px 90px rgba(4, 5, 13, 0.92),
     0 0 0 1px rgba(124, 92, 255, 0.45),
@@ -2471,14 +2498,25 @@ h1 {
   border-radius: inherit;
   pointer-events: none;
   z-index: 1;
+  /* Classic: white-only shimmer */
+  background: radial-gradient(
+    circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(56, 189, 248, 0.04) 30%,
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+/* New UI shimmer: adds luxury violet tint */
+body[data-ui-mode="liquidGoldGlass"] .link-card-shimmer {
   background: radial-gradient(
     circle at var(--mx, 50%) var(--my, 50%),
     rgba(255, 255, 255, 0.13) 0%,
     rgba(124, 92, 255, 0.05) 30%,
     transparent 60%
   );
-  opacity: 0;
-  transition: opacity 320ms ease;
 }
 
 .link-card:hover .link-card-shimmer {
@@ -2495,13 +2533,23 @@ h1 {
     135deg,
     rgba(255, 255, 255, 0.07) 0%,
     transparent 42%,
-    rgba(124, 92, 255, 0.04) 100%
+    rgba(56, 189, 248, 0.03) 100%
   );
   pointer-events: none;
   z-index: 0;
 }
 
-/* Bottom edge reflection line */
+/* New UI specular: adds luxury violet tint */
+body[data-ui-mode="liquidGoldGlass"] .link-card::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    transparent 42%,
+    rgba(124, 92, 255, 0.04) 100%
+  );
+}
+
+/* Bottom edge reflection line — classic: subtle blue */
 .link-card::after {
   content: "";
   position: absolute;
@@ -2510,14 +2558,25 @@ h1 {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(124, 92, 255, 0.6) 40%,
-    rgba(245, 211, 140, 0.6) 60%,
+    rgba(56, 189, 248, 0.5) 40%,
+    rgba(99, 179, 237, 0.5) 60%,
     transparent
   );
   opacity: 0;
   transition: opacity 300ms ease;
   pointer-events: none;
   z-index: 0;
+}
+
+/* New UI reflection: gold/purple gradient */
+body[data-ui-mode="liquidGoldGlass"] .link-card::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 92, 255, 0.6) 40%,
+    rgba(245, 211, 140, 0.6) 60%,
+    transparent
+  );
 }
 
 .link-card:hover::after {
@@ -2699,25 +2758,43 @@ h1 {
   50%       { box-shadow: 0 8px 28px rgba(124, 92, 255, 0.65), 0 0 0 4px rgba(124, 92, 255, 0); }
 }
 
+/* Classic mode: blue-cyan open button */
 .open-link-btn {
-  background: linear-gradient(135deg, #7c5cff 0%, #9f73ff 55%, #38bdf8 100%) !important;
-  color: #fff !important;
+  background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 55%, #7dd3fc 100%) !important;
+  color: #0b1120 !important;
   font-weight: 800 !important;
   letter-spacing: 0.04em;
   border: none !important;
-  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.50) !important;
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.45) !important;
   transition: filter 160ms ease, transform 160ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 160ms ease !important;
-  animation: open-link-glow 3s ease-in-out infinite;
 }
 
 .open-link-btn:hover {
+  filter: brightness(1.12) !important;
+  transform: translateY(-2px) scale(1.06) !important;
+  box-shadow: 0 12px 36px rgba(14, 165, 233, 0.65) !important;
+}
+
+.open-link-btn:active {
+  transform: scale(0.94) !important;
+}
+
+/* New UI: luxury purple/blue gradient with animated glow */
+body[data-ui-mode="liquidGoldGlass"] .open-link-btn {
+  background: linear-gradient(135deg, #7c5cff 0%, #9f73ff 55%, #38bdf8 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 20px rgba(124, 92, 255, 0.50) !important;
+  animation: open-link-glow 3s ease-in-out infinite;
+}
+
+body[data-ui-mode="liquidGoldGlass"] .open-link-btn:hover {
   filter: brightness(1.18) !important;
   transform: translateY(-2px) scale(1.06) !important;
   box-shadow: 0 12px 36px rgba(124, 92, 255, 0.70) !important;
   animation: none !important;
 }
 
-.open-link-btn:active {
+body[data-ui-mode="liquidGoldGlass"] .open-link-btn:active {
   transform: scale(0.94) !important;
 }
 
@@ -2732,4 +2809,211 @@ h1 {
   opacity: 0;
   transform: translateY(14px) scale(0.985);
   filter: blur(3px);
+}
+
+/* ══════════════════════════════════════════════════════
+   LIQUID GOLD GLASS — SHARED PRIMITIVE COMPONENTS
+   These utility classes carry the full LGG aesthetic.
+   They may be used in any HTML but are designed for
+   and most useful within [data-ui-mode="liquidGoldGlass"].
+══════════════════════════════════════════════════════ */
+
+/* ── Tier-A glass panel (cards) ─────────────────────── */
+.lg-panel {
+  background: linear-gradient(
+    150deg,
+    rgba(30, 20, 15, 0.72) 0%,
+    rgba(18, 11, 8, 0.82) 100%
+  );
+  border: 1px solid var(--lg-border-glass);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 16px 48px var(--lg-shadow-deep),
+    inset 0 1px 0 rgba(255, 232, 198, 0.10);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Top specular edge highlight */
+.lg-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--lg-gold-2) 35%,
+    var(--lg-gold-3) 65%,
+    transparent
+  );
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ── Liquid Gold Glass button ────────────────────────── */
+.lg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.35rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--lg-bg-1);
+  background: linear-gradient(
+    135deg,
+    var(--lg-gold-1) 0%,
+    var(--lg-gold-2) 55%,
+    var(--lg-gold-3) 100%
+  );
+  border: none;
+  cursor: pointer;
+  box-shadow:
+    0 8px 24px rgba(184, 119, 47, 0.45),
+    inset 0 1px 0 rgba(246, 223, 176, 0.30);
+  transition:
+    filter 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 160ms ease;
+}
+
+.lg-btn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 36px rgba(184, 119, 47, 0.60),
+    inset 0 1px 0 rgba(246, 223, 176, 0.35);
+}
+
+.lg-btn:active {
+  transform: scale(0.96);
+  filter: brightness(0.98);
+}
+
+/* Outline variant */
+.lg-btn-outline {
+  background: rgba(18, 11, 8, 0.70);
+  color: var(--lg-gold-2);
+  border: 1px solid var(--lg-border-glass);
+  box-shadow: 0 4px 16px var(--lg-shadow-deep);
+}
+
+.lg-btn-outline:hover {
+  background: rgba(30, 20, 15, 0.80);
+  border-color: rgba(231, 184, 110, 0.45);
+  box-shadow: 0 8px 24px var(--lg-shadow-deep);
+}
+
+/* ── Liquid Gold Glass input ─────────────────────────── */
+.lg-input {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 232, 198, 0.20);
+  background: rgba(12, 7, 5, 0.80);
+  color: var(--lg-text-primary);
+  font-size: 0.92rem;
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.lg-input::placeholder {
+  color: rgba(191, 180, 162, 0.45);
+}
+
+.lg-input:focus {
+  border-color: rgba(231, 184, 110, 0.65);
+  background: rgba(18, 11, 8, 0.90);
+  box-shadow:
+    0 0 0 2px rgba(231, 184, 110, 0.18),
+    0 0 18px rgba(184, 119, 47, 0.22);
+}
+
+.lg-input.lg-input-error {
+  border-color: rgba(220, 80, 60, 0.65);
+  box-shadow: 0 0 0 2px rgba(220, 80, 60, 0.15);
+}
+
+/* ── Liquid Gold Glass badge ─────────────────────────── */
+.lg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(184, 119, 47, 0.16);
+  color: var(--lg-gold-2);
+  border: 1px solid rgba(184, 119, 47, 0.38);
+  white-space: nowrap;
+}
+
+.lg-badge-violet {
+  background: rgba(110, 86, 207, 0.16);
+  color: #c4b5fd;
+  border-color: rgba(110, 86, 207, 0.38);
+}
+
+.lg-badge-neutral {
+  background: rgba(248, 244, 236, 0.08);
+  color: var(--lg-text-secondary);
+  border-color: rgba(248, 244, 236, 0.16);
+}
+
+/* ── UI mode toggle pill (used in account settings) ─── */
+.ui-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease, transform 120ms ease;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.70);
+  color: #9ca3af;
+}
+
+.ui-mode-toggle:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+.ui-mode-toggle.active {
+  background: linear-gradient(135deg, rgba(124, 92, 255, 0.25), rgba(245, 211, 140, 0.15));
+  border-color: rgba(124, 92, 255, 0.55);
+  color: #f5d38c;
+}
+
+body[data-ui-mode="liquidGoldGlass"] .ui-mode-toggle {
+  border-color: rgba(255, 232, 198, 0.20);
+  background: rgba(12, 7, 5, 0.70);
+  color: var(--lg-text-secondary);
+}
+
+body[data-ui-mode="liquidGoldGlass"] .ui-mode-toggle:hover {
+  border-color: var(--lg-border-glass);
+  color: var(--lg-text-primary);
+}
+
+body[data-ui-mode="liquidGoldGlass"] .ui-mode-toggle.active {
+  background: linear-gradient(135deg, rgba(184, 119, 47, 0.22), rgba(110, 86, 207, 0.14));
+  border-color: rgba(231, 184, 110, 0.55);
+  color: var(--lg-gold-2);
 }

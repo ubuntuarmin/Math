@@ -14,6 +14,7 @@ import { showOnboarding } from "./onboarding.js";
 import { calculateTier, isAdminEligible, ADMIN_DEMOTION_CRITERIA } from "./tier.js";
 import { initInbox } from "./inbox.js";
 import { renderAdminHub } from "./admin.js";
+import { applyUiMode, VALID_MODES } from "./uiMode.js";
 
 const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
@@ -595,6 +596,12 @@ onAuthStateChanged(auth, async user => {
         }
 
         syncAllUI(currentUserData);
+
+        // Apply UI mode: profile takes priority over localStorage preference
+        const profileMode = currentUserData.uiMode;
+        if (profileMode && VALID_MODES.includes(profileMode)) {
+            applyUiMode(profileMode);
+        }
 
         if (sessionStorage.getItem("justSignedUp")) {
             showOnboarding();
