@@ -93,6 +93,7 @@ service cloud.firestore {
            && fieldDelta('credits')            <= 500
            && fieldDelta('totalEarned')        <= 500
            && fieldDelta('bonusMinutesBalance') <= 100
+           && request.resource.data.get('bonusMinutesBalance', 0) >= resource.data.get('bonusMinutesBalance', 0)
          )
        );
 

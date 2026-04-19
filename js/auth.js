@@ -45,6 +45,8 @@ const RAPID_CREDIT_THRESHOLD = 2000;
 const RAPID_CREDIT_WINDOW_MS  = 60 * 60 * 1000; // 1 hour
 const REFERRAL_BANNER_MAX_VIEWS = 3;
 const REFERRAL_BANNER_MS = 4000;
+const USER_COUNT_CACHE_KEY = "mathKatyUserCountCacheV1";
+const USER_COUNT_CACHE_MS = 5 * 60 * 1000;
 
 function showReferralOfferBanner(uid, userData) {
     const banner = document.getElementById("referralOfferBanner");
@@ -77,9 +79,26 @@ async function updateUserCounterWidget() {
     const widget = document.getElementById("userCountWidget");
     const valueEl = document.getElementById("userCountValue");
     if (!widget || !valueEl || !auth.currentUser) return;
+
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(USER_COUNT_CACHE_KEY) || "null");
+        if (cached && Number.isFinite(cached.value) && Number.isFinite(cached.expiresAt) && cached.expiresAt > Date.now()) {
+            valueEl.textContent = String(cached.value);
+            widget.classList.remove("hidden");
+            return;
+        }
+    } catch (_) {}
+
     try {
         const countSnap = await getCountFromServer(collection(db, "users"));
-        valueEl.textContent = String(countSnap.data().count || 0);
+        const count = Number(countSnap.data().count || 0);
+        valueEl.textContent = String(count);
+        try {
+            sessionStorage.setItem(USER_COUNT_CACHE_KEY, JSON.stringify({
+                value: count,
+                expiresAt: Date.now() + USER_COUNT_CACHE_MS,
+            }));
+        } catch (_) {}
         widget.classList.remove("hidden");
     } catch (err) {
         console.warn("User counter load failed:", err);
