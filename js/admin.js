@@ -120,7 +120,8 @@ async function renderAdminPanel(userData, container) {
                 collection(db, "adminMessages"),
                 where("toUid", "==", uid),
                 where("status", "==", "pending"),
-                orderBy("timestamp", "asc")
+                orderBy("timestamp", "asc"),
+                limit(100)
             )
         );
         snap.forEach(d => pendingMessages.push({ id: d.id, ...d.data() }));
@@ -291,7 +292,8 @@ async function loadAdminDirectory(userData, container) {
             query(
                 collection(db, "users"),
                 where("isAdmin", "==", true),
-                where("adminCheckedIn", "==", true)
+                where("adminCheckedIn", "==", true),
+                limit(100)
             )
         );
         snap.forEach(d => {
@@ -479,7 +481,8 @@ async function sendAdminMessage(fromUid, toUid, text, fromUserData, adminList) {
             where("toUid",   "==", toUid),
             where("timestamp", ">",
                 Timestamp.fromMillis(Date.now() - MS_24H)
-            )
+            ),
+            limit(1)
         )
     );
     if (!recentSnap.empty) {
@@ -577,7 +580,8 @@ async function checkEscalations() {
                 collection(db, "adminMessages"),
                 where("toUid",     "==", uid),
                 where("status",    "==", "pending"),
-                where("timestamp", "<",  cutoff)
+                where("timestamp", "<",  cutoff),
+                limit(100)
             )
         );
 
@@ -588,7 +592,8 @@ async function checkEscalations() {
             query(
                 collection(db, "users"),
                 where("isAdmin",       "==", true),
-                where("adminCheckedIn","==", true)
+                where("adminCheckedIn","==", true),
+                limit(100)
             )
         );
         const otherAdmins = [];

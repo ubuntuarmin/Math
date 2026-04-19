@@ -129,10 +129,13 @@
       collection,
       getDocs,
       doc,
+      getDoc,
       updateDoc,
       orderBy,
-      query
+      query,
+      limit
     } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 
     const app = initializeApp({
       apiKey:    "AIzaSyA32Jc5l0jcWW9iAT3q1gUEUsthN6QkY1k",
@@ -140,9 +143,11 @@
       projectId: "math-katy"
     });
     const db = getFirestore(app);
+    const auth = getAuth(app);
 
     let allEntries = [];
     let currentFilter = "all";
+    let canReview = false;
 
     const statusMsg  = document.getElementById("statusMsg");
     const listEl     = document.getElementById("entriesList");
@@ -214,6 +219,10 @@
 
     // Expose to onclick handlers on window
     window.updateStatus = async function(id, status, btn) {
+      if (!canReview) {
+        alert("Admin access required.");
+        return;
+      }
       btn.disabled = true;
       try {
         await updateDoc(doc(db, "promotions", id), { status });
@@ -238,17 +247,50 @@
       renderEntries(filtered);
     };
 
-    // Load all submissions
-    try {
-      const q = query(collection(db, "promotions"), orderBy("submittedAt", "desc"));
-      const snap = await getDocs(q);
-      allEntries = snap.docs.map(function(d){ return { id: d.id, data: d.data() }; });
-      statusMsg.textContent = allEntries.length + " submission(s) found.";
-      renderEntries(allEntries);
-    } catch (err) {
-      console.error("[281509.html] Firestore load error:", err);
-      statusMsg.textContent = "Error loading submissions: " + err.message;
+    async function loadSubmissions() {
+      try {
+        const q = query(collection(db, "promotions"), orderBy("submittedAt", "desc"), limit(200));
+        const snap = await getDocs(q);
+        allEntries = snap.docs.map(function(d){ return { id: d.id, data: d.data() }; });
+        statusMsg.textContent = allEntries.length + " submission(s) found.";
+        renderEntries(allEntries);
+      } catch (err) {
+        console.error("[281509.html] Firestore load error:", err);
+        statusMsg.textContent = "Error loading submissions: " + err.message;
+      }
     }
+
+    onAuthStateChanged(auth, async function(user) {
+      if (!user) {
+        canReview = false;
+        allEntries = [];
+        renderEntries([]);
+        statusMsg.textContent = "Sign in with an admin account to review submissions.";
+        return;
+      }
+
+      try {
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        const isAdmin = userSnap.exists() && userSnap.data()?.isAdmin === true;
+        if (!isAdmin) {
+          canReview = false;
+          allEntries = [];
+          renderEntries([]);
+          statusMsg.textContent = "Your account is not authorized for promotion review.";
+          return;
+        }
+      } catch (err) {
+        canReview = false;
+        allEntries = [];
+        renderEntries([]);
+        statusMsg.textContent = "Failed to verify admin access: " + err.message;
+        return;
+      }
+
+      canReview = true;
+      statusMsg.textContent = "Loading submissions…";
+      await loadSubmissions();
+    });
   </script>
 </body>
 </html>

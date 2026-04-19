@@ -19,6 +19,7 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
+import { normalizeUrlForDedup } from "./urlDedup.js";
 
 const linksGrid    = document.getElementById("linksGrid");
 const creditCount  = document.getElementById("creditCount");
@@ -1788,10 +1789,16 @@ async function handleEditLinkSave() {
   }
 
   let url = data.url || "";
+  let canonicalUrl = data.canonicalUrl || "";
   if (data.type !== "html") {
     url = (urlInput?.value || "").trim();
     if (!url || !/^https?:\/\//i.test(url)) {
       if (errEl) { errEl.textContent = "Please enter a valid URL starting with https://"; errEl.classList.remove("hidden"); }
+      return;
+    }
+    canonicalUrl = normalizeUrlForDedup(url);
+    if (!canonicalUrl) {
+      if (errEl) { errEl.textContent = "Please enter a valid URL."; errEl.classList.remove("hidden"); }
       return;
     }
   }
@@ -1820,6 +1827,7 @@ async function handleEditLinkSave() {
       lastEditedAt: serverTimestamp(),
     };
     if (data.type !== "html") updates.url = url;
+    if (data.type !== "html") updates.canonicalUrl = canonicalUrl;
 
     await updateDoc(linkRef, updates);
 
@@ -1829,7 +1837,10 @@ async function handleEditLinkSave() {
       entry.data.title       = title;
       entry.data.description = desc;
       entry.data.hashtags    = tags;
-      if (data.type !== "html") entry.data.url = url;
+      if (data.type !== "html") {
+        entry.data.url = url;
+        entry.data.canonicalUrl = canonicalUrl;
+      }
       entry.data.lastEditedAt = { toMillis: () => Date.now() };
     }
 
