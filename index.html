@@ -147,6 +147,24 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════
+     REFERRAL OFFER BANNER (auto pop once per load)
+════════════════════════════════════════════════════════ -->
+<div id="referralOfferBanner" class="referral-offer-banner" hidden>
+  <div class="referral-offer-banner-glow" aria-hidden="true"></div>
+  <div class="referral-offer-banner-content">
+    <div class="referral-offer-banner-icon" aria-hidden="true">🎁</div>
+    <div class="referral-offer-banner-text">
+      <p class="referral-offer-banner-title">New Referral Bonus Rule</p>
+      <p class="referral-offer-banner-sub">
+        If your referral passes <strong>200 playtime minutes this month</strong>, you both get
+        <strong>100 free minutes</strong>. Limited to the <strong>first 35 referral pairs</strong>.
+      </p>
+    </div>
+    <button id="dismissReferralOfferBanner" class="referral-offer-banner-dismiss" aria-label="Dismiss referral offer banner">✕</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
      STICKY HEADER
 ════════════════════════════════════════════════════════ -->
 <header id="header" class="site-header hidden">
@@ -1488,6 +1506,12 @@
       </button>
     </div>
   </div>
+</div>
+
+<div id="userCountWidget" class="user-count-widget hidden" aria-live="polite">
+  <span aria-hidden="true">👥</span>
+  <span>Accounts:</span>
+  <strong id="userCountValue">—</strong>
 </div>
 
 <!-- ════════════════════════════════════════════════════════

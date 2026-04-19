@@ -74,6 +74,7 @@ service cloud.firestore {
           && fieldDelta('credits')      <= 500
           && fieldDelta('totalEarned')  <= 500
           && fieldDelta('weekMinutes')  <= 500
+          && fieldDelta('monthMinutes') <= 500
           && fieldDelta('totalMinutes') <= 500
           && request.resource.data.get('weekMinutes',  0) <= 10000  // ~167 hours; prevents leaderboard abuse
           && request.resource.data.get('totalMinutes', 0) <= 999999
@@ -86,13 +87,14 @@ service cloud.firestore {
         )
         // Other users: upvotes / referral rewards may only touch these credit fields.
         || (
-          request.resource.data.diff(resource.data)
-               .affectedKeys()
-               .hasOnly(['credits', 'totalEarned', 'upvotedUsers', 'referrals'])
-          && fieldDelta('credits')     <= 500
-          && fieldDelta('totalEarned') <= 500
-        )
-      );
+           request.resource.data.diff(resource.data)
+                .affectedKeys()
+                .hasOnly(['credits', 'totalEarned', 'upvotedUsers', 'referrals', 'bonusMinutesBalance'])
+           && fieldDelta('credits')     <= 500
+           && fieldDelta('totalEarned') <= 500
+           && fieldDelta('bonusMinutesBalance') <= 100
+         )
+       );
 
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
@@ -173,7 +175,20 @@ service cloud.firestore {
     // Leaderboard reset timestamps, etc. — read-only for users.
     match /settings/{settingId} {
       allow read:  if isAuthenticated();
-      allow write: if false;
+      allow create: if isAuthenticated()
+                    && settingId == "referralOffer"
+                    && request.resource.data.keys().hasOnly(['totalAwardedPairs', 'updatedAt'])
+                    && request.resource.data.get('totalAwardedPairs', 0) is int
+                    && request.resource.data.get('totalAwardedPairs', 0) == 1;
+      allow update: if isAuthenticated()
+                    && settingId == "referralOffer"
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['totalAwardedPairs', 'updatedAt'])
+                    && request.resource.data.get('totalAwardedPairs', 0) is int
+                    && resource.data.get('totalAwardedPairs', 0) is int
+                    && resource.data.get('totalAwardedPairs', 0) < 35
+                    && request.resource.data.get('totalAwardedPairs', 0) <= 35
+                    && request.resource.data.get('totalAwardedPairs', 0) == resource.data.get('totalAwardedPairs', 0) + 1;
+      allow delete: if false;
     }
 
     // ─── Link ratings ─────────────────────────────────────────────────────────
