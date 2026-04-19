@@ -154,7 +154,7 @@ function AccountInfoPanel({
         ),
 
     // ── Stats grid ───────────────────────────────────────────────────────────
-    h("div", { className: "grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6" },
+    h("div", { className: "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6" },
       ...stats.map(({ value, label, color, glow }) =>
         h("div", {
           className: "account-stat-glass p-3 text-center",

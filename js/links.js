@@ -1434,9 +1434,11 @@ function closeIframeModal() {
         currentUserData.monthMinutesKey = currentMonthKey;
         if (currentResetMs > 0) currentUserData.weekMinutesResetAtMs = currentResetMs;
       }
+      try {
+        await tryAwardReferralPlaytimeOffer(uid);
+      } catch (_) {}
       window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: currentUserData }));
       document.dispatchEvent(new CustomEvent("weekMinutesUpdated"));
-      tryAwardReferralPlaytimeOffer(uid);
     }).catch(err => console.warn(`Failed to update session minutes (uid=${uid}, minutes=${cappedMinutes}):`, err));
   }
 }
