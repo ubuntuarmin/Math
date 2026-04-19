@@ -76,6 +76,17 @@ service cloud.firestore {
           && fieldDelta('weekMinutes')  <= 500
           && fieldDelta('monthMinutes') <= 500
           && fieldDelta('totalMinutes') <= 500
+          // Owners can only gain referral bonus minutes once (+100) when the
+          // reward flag transitions false -> true; decreases are allowed for
+          // consumption by the session timer.
+          && (
+            fieldDelta('bonusMinutesBalance') == 0
+            || (
+              fieldDelta('bonusMinutesBalance') == 100
+              && resource.data.get('referralOfferRewardGranted', false) == false
+              && request.resource.data.get('referralOfferRewardGranted', false) == true
+            )
+          )
           && request.resource.data.get('weekMinutes',  0) <= 10000  // ~167 hours; prevents leaderboard abuse
           && request.resource.data.get('totalMinutes', 0) <= 999999
           // Profile-content fields are additionally rate-limited
