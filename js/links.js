@@ -2333,7 +2333,7 @@ export async function openProfileModal(uid, displayName) {
     const isSelf     = currentUid === uid;
 
     const avgRating = (Number(data.__profileRatingCount || 0) > 0)
-      ? (Number(data.__profileRatingSum || 0) / Number(data.__profileRatingCount || 1)).toFixed(1)
+      ? (Number(data.__profileRatingSum || 0) / Number(data.__profileRatingCount)).toFixed(1)
       : null;
 
     const userLinks     = allDocs.filter(d => d.data.submittedBy === uid);
