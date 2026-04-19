@@ -449,12 +449,19 @@ async function checkMonthlyQualityBonus(uid, userData) {
     if (userData.qualityBonusMonth === currentMonth) return false;
 
     try {
-        // Fetch all link ratings received by this user (1 read per month max)
-        const ratingsSnap = await getDocs(
-            query(collection(db, "linkRatings"), where("submittedBy", "==", uid))
+        // Use per-link aggregates instead of scanning all linkRatings documents.
+        // This keeps monthly checks bounded and reduces Firestore read costs.
+        const linksSnap = await getDocs(
+            query(collection(db, "sharedLinks"), where("submittedBy", "==", uid), limit(500))
         );
 
-        const count = ratingsSnap.size;
+        let count = 0;
+        let ratingSum = 0;
+        linksSnap.forEach((s) => {
+            const d = s.data() || {};
+            count += Number(d.ratingCount || 0);
+            ratingSum += Number(d.ratingSum || 0);
+        });
         const userRef = doc(db, "users", uid);
 
         if (count <= 10) {
@@ -463,8 +470,6 @@ async function checkMonthlyQualityBonus(uid, userData) {
             return false;
         }
 
-        let ratingSum = 0;
-        ratingsSnap.forEach(s => { ratingSum += (s.data().score || 0); });
         const avg = ratingSum / count;
 
         if (avg > 4.7) {
