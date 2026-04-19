@@ -68,7 +68,7 @@ function AccountInfoPanel({
   const stats = [
     { value: data.totalEarned || 0, label: "Lifetime 🪙", color: "#34d399", glow: "rgba(52,211,153,0.22)" },
     { value: `${data.totalMinutes || 0}m`, label: "Playtime", color: "#60a5fa", glow: "rgba(96,165,250,0.22)" },
-    { value: `${data.bonusMinutesBalance || 0}m`, label: "🎁 Free Minutes", color: "#f5d38c", glow: "rgba(245,211,140,0.25)" },
+    { value: `${data.bonusMinutesBalance || 0}m`, label: "🎁 Bonus Min", color: "#f5d38c", glow: "rgba(245,211,140,0.25)" },
     { value: data.streak || 0, label: "🔥 Streak", color: "#fb923c", glow: "rgba(251,146,60,0.22)" },
     { value: (data.referrals || []).length, label: "👥 Referrals", color: "#c084fc", glow: "rgba(192,132,252,0.22)" },
   ];

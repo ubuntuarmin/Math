@@ -90,8 +90,8 @@ service cloud.firestore {
            request.resource.data.diff(resource.data)
                 .affectedKeys()
                 .hasOnly(['credits', 'totalEarned', 'upvotedUsers', 'referrals', 'bonusMinutesBalance'])
-           && fieldDelta('credits')     <= 500
-           && fieldDelta('totalEarned') <= 500
+           && fieldDelta('credits')            <= 500
+           && fieldDelta('totalEarned')        <= 500
            && fieldDelta('bonusMinutesBalance') <= 100
          )
        );
