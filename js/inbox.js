@@ -93,6 +93,7 @@ let _inboxUnsubscribe = null;
 const _seenMessageIds = new Set();
 const _messageById = new Map();
 const FIRESTORE_BATCH_CHUNK_SIZE = 450; // keep below Firestore's 500-op batch write cap
+const MAX_MARK_ALL_READ_PASSES = 50; // safety guard against unexpected endless fetch loops
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -155,24 +156,32 @@ async function markAllAsRead() {
   if (!user) return;
 
   try {
-    const qUnread = query(
-      collection(db, "messages"),
-      where("to", "==", user.uid),
-      where("read", "==", false)
-    );
-    const querySnapshot = await getDocs(qUnread);
-    const docs = querySnapshot.docs;
-    if (!docs.length) return;
+    // Read/update in bounded chunks to avoid unbounded reads on large inboxes.
+    let pass = 0;
+    while (pass < MAX_MARK_ALL_READ_PASSES) {
+      pass += 1;
+      const qUnread = query(
+        collection(db, "messages"),
+        where("to", "==", user.uid),
+        where("read", "==", false),
+        limit(FIRESTORE_BATCH_CHUNK_SIZE)
+      );
+      const querySnapshot = await getDocs(qUnread);
+      const docs = querySnapshot.docs;
+      if (!docs.length) break;
 
-    // Firestore write batches cap at 500 operations.
-    // Keep headroom for safety and commit in chunks.
-    for (let i = 0; i < docs.length; i += FIRESTORE_BATCH_CHUNK_SIZE) {
       const batch = writeBatch(db);
-      const chunk = docs.slice(i, i + FIRESTORE_BATCH_CHUNK_SIZE);
-      chunk.forEach((d) => {
+      docs.forEach((d) => {
         batch.update(d.ref, { read: true });
       });
       await batch.commit();
+
+      if (docs.length < FIRESTORE_BATCH_CHUNK_SIZE) break;
+    }
+    if (pass >= MAX_MARK_ALL_READ_PASSES) {
+      console.warn(
+        `markAllAsRead stopped after reaching max passes (${pass}, ${FIRESTORE_BATCH_CHUNK_SIZE} docs/pass max) to prevent excessive reads.`
+      );
     }
   } catch (err) {
     console.error("Error marking all read:", err);
