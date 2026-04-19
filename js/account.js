@@ -4,6 +4,7 @@ import { calculateTier, getNextTierInfo } from "./tier.js";
 import { handleDeleteAccount } from "./deleteAccount.js";
 import { startTourForExistingUser } from "./onboarding.js";
 import { applyUiMode, getCurrentUiMode, VALID_MODES } from "./uiMode.js";
+import { startLgBackground, stopLgBackground } from "./lgBackground.js";
 import React from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 
@@ -569,6 +570,13 @@ function renderUiModeToggle(userData) {
             if (!VALID_MODES.includes(selected) || selected === getCurrentUiMode()) return;
 
             applyUiMode(selected);
+
+            // Phase 3: start/stop LGG WebGL background with the mode
+            if (selected === "liquidGoldGlass") {
+                startLgBackground();
+            } else {
+                stopLgBackground();
+            }
 
             // Re-render toggle to reflect new active state
             renderUiModeToggle(userData);

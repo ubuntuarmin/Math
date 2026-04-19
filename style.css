@@ -3019,3 +3019,91 @@ body[data-ui-mode="liquidGoldGlass"] .ui-mode-toggle.active {
   border-color: rgba(231, 184, 110, 0.55);
   color: var(--lg-gold-2);
 }
+
+
+/* ══════════════════════════════════════════════════════
+   PHASE 3 — LGG SHADER CANVAS
+   The canvas is created dynamically by lgBackground.js.
+   This rule ensures it sits correctly in the layer stack
+   before JS applies inline position/z-index.
+══════════════════════════════════════════════════════ */
+#lgShaderCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-bg, -2);
+  pointer-events: none;
+  display: block;
+}
+
+/* ══════════════════════════════════════════════════════
+   PHASE 4 — INPUT MICRO-INTERACTIONS  (§5.B.4)
+   Classes toggled by initInputMicroInteractions() in the
+   inline animation script.
+══════════════════════════════════════════════════════ */
+
+/* Focus: gold halo ring ────────────────────────────── */
+.ui-input-active {
+  border-color: rgba(56, 189, 248, 0.70) !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.18),
+              0 0 12px rgba(56, 189, 248, 0.14) !important;
+  transition: border-color 180ms ease, box-shadow 180ms ease !important;
+}
+
+body[data-ui-mode="liquidGoldGlass"] .ui-input-active {
+  border-color: rgba(231, 184, 110, 0.75) !important;
+  box-shadow: 0 0 0 2px rgba(231, 184, 110, 0.22),
+              0 0 16px rgba(184, 119, 47, 0.28) !important;
+}
+
+/* Valid flash: short gold pulse ────────────────────── */
+@keyframes _lgInputValidPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);   }
+  35%  { box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.28); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);   }
+}
+
+@keyframes _lgInputValidPulseGold {
+  0%   { box-shadow: 0 0 0 0 rgba(184, 119, 47, 0);    }
+  35%  { box-shadow: 0 0 0 4px rgba(184, 119, 47, 0.35); }
+  100% { box-shadow: 0 0 0 0 rgba(184, 119, 47, 0);    }
+}
+
+.ui-input-valid-flash {
+  animation: _lgInputValidPulse 680ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+body[data-ui-mode="liquidGoldGlass"] .ui-input-valid-flash {
+  animation: _lgInputValidPulseGold 680ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+/* Error shake: warm-red shake + border alert ─────── */
+@keyframes _lgInputErrorShake {
+  0%, 100% { transform: translateX(0); }
+  18%      { transform: translateX(-5px); }
+  36%      { transform: translateX(5px); }
+  54%      { transform: translateX(-4px); }
+  72%      { transform: translateX(4px); }
+  90%      { transform: translateX(-2px); }
+}
+
+.ui-input-error-shake {
+  animation: _lgInputErrorShake 560ms cubic-bezier(0.36, 0.07, 0.19, 0.97) !important;
+  border-color: rgba(220, 60, 60, 0.80) !important;
+  box-shadow: 0 0 0 2px rgba(220, 60, 60, 0.22) !important;
+}
+
+body[data-ui-mode="liquidGoldGlass"] .ui-input-error-shake {
+  border-color: rgba(220, 80, 60, 0.80) !important;
+  box-shadow: 0 0 0 2px rgba(220, 80, 60, 0.22) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-input-active,
+  .ui-input-valid-flash,
+  .ui-input-error-shake {
+    animation: none !important;
+    transition: none !important;
+  }
+}

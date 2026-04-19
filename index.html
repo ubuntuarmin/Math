@@ -2131,6 +2131,129 @@
   }
 
   /* ────────────────────────────────────────────────────────
+     12. 3D MOUSE-TRACKING TILT  (Phase 4 — §5.A)
+         Computes cursor delta from card centre, maps to
+         rotateX/Y, and updates --mx/--my for shimmer.
+         Desktop pointer-fine only; respects reduced-motion.
+  ──────────────────────────────────────────────────────── */
+  function initCardTilt() {
+    if (prefersReducedMotion) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+
+    const MAX_TILT  = 10;   // degrees (§5.A)
+    const DEPTH_PX  = 10;   // translateZ depth
+    const SPRING_MS = 750;  // §5.A leave settle duration
+
+    let _activeCard = null;
+
+    function applyTilt(card, e) {
+      const rect = card.getBoundingClientRect();
+      const dx = (e.clientX - rect.left - rect.width  / 2) / (rect.width  / 2);
+      const dy = (e.clientY - rect.top  - rect.height / 2) / (rect.height / 2);
+      // Update shimmer hotspot (§5.A — --mx/--my)
+      card.style.setProperty("--mx", ((dx + 1) / 2 * 100).toFixed(1) + "%");
+      card.style.setProperty("--my", ((dy + 1) / 2 * 100).toFixed(1) + "%");
+      card.classList.add("card-tilting");
+      card.classList.remove("card-spring-back");
+      card.style.transform =
+        `perspective(900px) rotateX(${(-dy * MAX_TILT).toFixed(2)}deg) ` +
+        `rotateY(${(dx * MAX_TILT).toFixed(2)}deg) translateZ(${DEPTH_PX}px)`;
+    }
+
+    function resetCard(card) {
+      if (!card) return;
+      card.classList.remove("card-tilting");
+      card.classList.add("card-spring-back");
+      card.style.transform = "";
+      card.style.removeProperty("--mx");
+      card.style.removeProperty("--my");
+      setTimeout(() => card.classList.remove("card-spring-back"), SPRING_MS);
+    }
+
+    // Event delegation — tracks the "active" card across moves
+    document.addEventListener("mousemove", (e) => {
+      const card = e.target.closest?.(".link-card");
+      if (card !== _activeCard) {
+        if (_activeCard) resetCard(_activeCard);
+        _activeCard = card || null;
+      }
+      if (_activeCard) applyTilt(_activeCard, e);
+    }, { passive: true });
+
+    document.addEventListener("mouseleave", () => {
+      if (_activeCard) { resetCard(_activeCard); _activeCard = null; }
+    }, { passive: true });
+  }
+
+  /* ────────────────────────────────────────────────────────
+     13. INPUT MICRO-INTERACTIONS  (Phase 4 — §5.B.4)
+         Focus: edge glow class
+         Valid (blur with value): short gold-pulse class
+         Error (form:invalid):   warm-red shake + border
+  ──────────────────────────────────────────────────────── */
+  function initInputMicroInteractions() {
+    const INPUT_SEL = "input[type='text'],input[type='email']," +
+      "input[type='password'],input[type='number'],textarea";
+
+    document.addEventListener("focusin", (e) => {
+      if (!e.target.matches(INPUT_SEL)) return;
+      e.target.classList.add("ui-input-active");
+    });
+
+    document.addEventListener("focusout", (e) => {
+      if (!e.target.matches(INPUT_SEL)) return;
+      const el = e.target;
+      el.classList.remove("ui-input-active");
+      if (!prefersReducedMotion && el.value && el.checkValidity?.()) {
+        el.classList.add("ui-input-valid-flash");
+        setTimeout(() => el.classList.remove("ui-input-valid-flash"), 700);
+      }
+    });
+
+    // Capture phase catches the native invalid event before browser UI
+    document.addEventListener("invalid", (e) => {
+      if (!e.target.matches(INPUT_SEL)) return;
+      if (prefersReducedMotion) return;
+      const el = e.target;
+      el.classList.remove("ui-input-error-shake");
+      void el.offsetWidth; // force reflow to restart animation
+      el.classList.add("ui-input-error-shake");
+      setTimeout(() => el.classList.remove("ui-input-error-shake"), 600);
+    }, true);
+  }
+
+  /* ────────────────────────────────────────────────────────
+     14. SCROLL-BASED BACKGROUND PARALLAX  (Phase 4 — §5.B.5)
+         Applies a gentle translateY to the background canvases
+         (classic mode only; LGG mode handles parallax via mouse
+         uniform in the shader). Disabled under reduced-motion
+         and low-performance profile (§3.D).
+  ──────────────────────────────────────────────────────── */
+  function initScrollParallax() {
+    if (prefersReducedMotion) return;
+    const RATIO  = 0.10;  // very subtle — §5.B.5 "low ratio"
+    let ticking  = false;
+
+    window.addEventListener("scroll", () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        // Only apply in classic mode (LGG shader manages its own parallax)
+        if (document.body.dataset.uiMode === "liquidGoldGlass") {
+          ticking = false;
+          return;
+        }
+        const offset = -(window.scrollY * RATIO);
+        const bg     = document.getElementById("bgCanvas");
+        const three  = document.getElementById("threeCanvas");
+        if (bg)    bg.style.transform    = `translateY(${offset}px)`;
+        if (three) three.style.transform = `translateY(${offset}px)`;
+        ticking = false;
+      });
+    }, { passive: true });
+  }
+
+  /* ────────────────────────────────────────────────────────
      INIT ALL
   ──────────────────────────────────────────────────────── */
   async function runNonCriticalEnhancements() {
@@ -2142,6 +2265,9 @@
     initMagnetic();
     addRippleToNavBtns();
     initNewUiBannerDismiss();
+    initCardTilt();
+    initInputMicroInteractions();
+    initScrollParallax();
 
     const gsapReady = await ensureGsapLoaded();
     if (gsapReady) {

@@ -15,6 +15,7 @@ import { calculateTier, isAdminEligible, ADMIN_DEMOTION_CRITERIA } from "./tier.
 import { initInbox } from "./inbox.js";
 import { renderAdminHub } from "./admin.js";
 import { applyUiMode, VALID_MODES } from "./uiMode.js";
+import { startLgBackground } from "./lgBackground.js";
 
 const header = document.getElementById("header");
 const appContainer = document.getElementById("appContainer");
@@ -601,6 +602,10 @@ onAuthStateChanged(auth, async user => {
         const profileMode = currentUserData.uiMode;
         if (profileMode && VALID_MODES.includes(profileMode)) {
             applyUiMode(profileMode);
+            // Phase 3: start LGG background when logging in with that preference
+            if (profileMode === "liquidGoldGlass") {
+                startLgBackground();
+            }
         }
 
         if (sessionStorage.getItem("justSignedUp")) {
