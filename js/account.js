@@ -3,15 +3,18 @@ import { doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/fireb
 import { calculateTier, getNextTierInfo } from "./tier.js"; 
 import { handleDeleteAccount } from "./deleteAccount.js";
 import { startTourForExistingUser } from "./onboarding.js";
+import { applyUiMode, getCurrentUiMode, VALID_MODES } from "./uiMode.js";
+import { startLgBackground, stopLgBackground } from "./lgBackground.js";
 import React from "https://esm.sh/react@18.3.1";
 import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 
 const { useState, useCallback } = React;
 const h = React.createElement;
 
-const accountInfo  = document.getElementById("accountInfo");
-const referralArea = document.getElementById("referralArea");
-const tutorialArea = document.getElementById("tutorialArea");
+const accountInfo     = document.getElementById("accountInfo");
+const referralArea    = document.getElementById("referralArea");
+const tutorialArea    = document.getElementById("tutorialArea");
+const uiModeToggleArea = document.getElementById("uiModeToggleArea");
 
 // Lazy React roots – created once on first render
 let accountRoot  = null;
@@ -416,6 +419,7 @@ export async function updateAccount(userData) {
 
     renderReferralUI(data.referralCode);
     renderTutorialCard(data);
+    renderUiModeToggle(data);
 }
 
 /**
@@ -524,4 +528,68 @@ if (saveProfileBtn) {
 
 if (deleteBtn) {
     deleteBtn.onclick = () => handleDeleteAccount();
+}
+
+/* ── UI Mode Toggle ──────────────────────────────────────────────────────────
+   Renders the Classic / Liquid Gold Glass interface toggle in the account tab.
+   Persists choice to localStorage and (when authenticated) to Firestore so the
+   preference follows the user across devices.
+───────────────────────────────────────────────────────────────────────────── */
+
+// Single delegated click handler, attached once to the container.
+let _uiModeHandlerAttached = false;
+
+function renderUiModeToggle(userData) {
+    if (!uiModeToggleArea) return;
+
+    const currentMode = getCurrentUiMode();
+
+    // Re-render markup (replacing innerHTML discards old DOM nodes and their
+    // listeners, so no duplicate-listener risk from the inner forEach below).
+    uiModeToggleArea.innerHTML = `
+      <button
+        class="ui-mode-toggle${currentMode === "classic" ? " active" : ""}"
+        data-mode="classic"
+        aria-pressed="${currentMode === "classic"}"
+      >🎨 Classic</button>
+      <button
+        class="ui-mode-toggle${currentMode === "liquidGoldGlass" ? " active" : ""}"
+        data-mode="liquidGoldGlass"
+        aria-pressed="${currentMode === "liquidGoldGlass"}"
+      >✨ Liquid Gold</button>
+    `;
+
+    // Attach a delegated listener once — handles all future button clicks
+    // without needing to re-attach on every render.
+    if (!_uiModeHandlerAttached) {
+        _uiModeHandlerAttached = true;
+        uiModeToggleArea.addEventListener("click", async (e) => {
+            const btn = e.target.closest(".ui-mode-toggle");
+            if (!btn) return;
+            const selected = btn.dataset.mode;
+            if (!VALID_MODES.includes(selected) || selected === getCurrentUiMode()) return;
+
+            applyUiMode(selected);
+
+            // Phase 3: start/stop LGG WebGL background with the mode
+            if (selected === "liquidGoldGlass") {
+                startLgBackground();
+            } else {
+                stopLgBackground();
+            }
+
+            // Re-render toggle to reflect new active state
+            renderUiModeToggle(userData);
+
+            // Persist to Firestore in background — non-blocking
+            const uid = auth.currentUser?.uid;
+            if (uid) {
+                try {
+                    await updateDoc(doc(db, "users", uid), { uiMode: selected });
+                } catch (err) {
+                    console.warn("[uiMode] Firestore sync failed:", err);
+                }
+            }
+        });
+    }
 }
