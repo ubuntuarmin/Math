@@ -122,7 +122,9 @@
 </head>
 <body class="page" data-ui-mode="classic">
 <script>
-/* Anti-FOUC: apply stored UI mode before first paint */
+/* Anti-FOUC: apply stored UI mode before first paint.
+   Storage key and valid modes must stay in sync with js/uiMode.js
+   (STORAGE_KEY = "mathKatyUiMode", VALID_MODES = ["classic","liquidGoldGlass"]). */
 (function(){var m=localStorage.getItem("mathKatyUiMode");if(m==="liquidGoldGlass")document.body.dataset.uiMode="liquidGoldGlass";})();
 </script>
 

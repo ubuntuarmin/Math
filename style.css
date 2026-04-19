@@ -2491,7 +2491,9 @@ body[data-ui-mode="liquidGoldGlass"] .link-card:hover {
   border-color: rgba(124, 92, 255, 0.55) !important;
 }
 
-/* Shimmer radial highlight that follows the cursor */
+/* Shimmer radial highlight that follows the cursor.
+   --mx and --my (percentage values) are set by the existing JS 3D tilt
+   animation engine via element.style.setProperty('--mx', ...). */
 .link-card-shimmer {
   position: absolute;
   inset: 0;

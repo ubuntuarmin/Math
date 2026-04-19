@@ -534,11 +534,17 @@ if (deleteBtn) {
    Persists choice to localStorage and (when authenticated) to Firestore so the
    preference follows the user across devices.
 ───────────────────────────────────────────────────────────────────────────── */
+
+// Single delegated click handler, attached once to the container.
+let _uiModeHandlerAttached = false;
+
 function renderUiModeToggle(userData) {
     if (!uiModeToggleArea) return;
 
     const currentMode = getCurrentUiMode();
 
+    // Re-render markup (replacing innerHTML discards old DOM nodes and their
+    // listeners, so no duplicate-listener risk from the inner forEach below).
     uiModeToggleArea.innerHTML = `
       <button
         class="ui-mode-toggle${currentMode === "classic" ? " active" : ""}"
@@ -552,8 +558,13 @@ function renderUiModeToggle(userData) {
       >✨ Liquid Gold</button>
     `;
 
-    uiModeToggleArea.querySelectorAll(".ui-mode-toggle").forEach(btn => {
-        btn.addEventListener("click", async () => {
+    // Attach a delegated listener once — handles all future button clicks
+    // without needing to re-attach on every render.
+    if (!_uiModeHandlerAttached) {
+        _uiModeHandlerAttached = true;
+        uiModeToggleArea.addEventListener("click", async (e) => {
+            const btn = e.target.closest(".ui-mode-toggle");
+            if (!btn) return;
             const selected = btn.dataset.mode;
             if (!VALID_MODES.includes(selected) || selected === getCurrentUiMode()) return;
 
@@ -572,5 +583,5 @@ function renderUiModeToggle(userData) {
                 }
             }
         });
-    });
+    }
 }
