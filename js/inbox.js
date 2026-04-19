@@ -93,6 +93,7 @@ let _inboxUnsubscribe = null;
 const _seenMessageIds = new Set();
 const _messageById = new Map();
 const FIRESTORE_BATCH_CHUNK_SIZE = 450; // keep below Firestore's 500-op batch write cap
+const MAX_MARK_ALL_READ_PASSES = 50; // safety guard against unexpected endless fetch loops
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -156,7 +157,9 @@ async function markAllAsRead() {
 
   try {
     // Read/update in bounded chunks to avoid unbounded reads on large inboxes.
-    while (true) {
+    let pass = 0;
+    while (pass < MAX_MARK_ALL_READ_PASSES) {
+      pass += 1;
       const qUnread = query(
         collection(db, "messages"),
         where("to", "==", user.uid),
@@ -174,6 +177,11 @@ async function markAllAsRead() {
       await batch.commit();
 
       if (docs.length < FIRESTORE_BATCH_CHUNK_SIZE) break;
+    }
+    if (pass >= MAX_MARK_ALL_READ_PASSES) {
+      console.warn(
+        `markAllAsRead stopped after reaching max passes (${pass}, ${FIRESTORE_BATCH_CHUNK_SIZE} docs/pass max) to prevent excessive reads.`
+      );
     }
   } catch (err) {
     console.error("Error marking all read:", err);

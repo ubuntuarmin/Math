@@ -195,6 +195,7 @@ service cloud.firestore {
                     && request.resource.data.htmlCode is string
                     && request.resource.data.htmlCode.size() > 0
                     && request.resource.data.htmlCode.size() <= 20000
+                    && request.resource.data.submittedAt is timestamp
                     && (
                       request.resource.data.get('projectName', null) == null
                       || (
