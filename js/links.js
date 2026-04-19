@@ -1050,6 +1050,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   // ── Non-owner flow: global session with 30 free minutes ──────────────────
   const userData = currentUserData || {};
   const tier     = calculateTier(userData.totalEarned || 0);
+  let purchasedThisOpen = false;
 
   // Get or create global session (30 free minutes for new sessions)
   let gs = getGlobalSession();
@@ -1057,6 +1058,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
     gs = { remainingMs: FREE_SESSION_MS };
     saveGlobalSession(gs);
   }
+  const previousRemainingMs = gs.remainingMs;
 
   // If time is exhausted, first consume earned referral bonus minutes (if any).
   if (gs.remainingMs <= 0) {
@@ -1099,6 +1101,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       // Add rank-based minutes to the global session
       gs.remainingMs = tier.limitMinutes * 60 * 1000;
       saveGlobalSession(gs);
+      purchasedThisOpen = true;
 
       if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
       const creditEl = document.getElementById("creditCount");
@@ -1119,11 +1122,6 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
 
   // Compute the effective session expiry from remaining time
   const expiresAt = Date.now() + gs.remainingMs;
-
-  // Persist the active session expiry so the countdown survives page refreshes.
-  // When the modal closes, saveGlobalSession({ remainingMs }) replaces this entry
-  // without activeExpiresAt, clearing the active-session marker.
-  saveGlobalSession({ remainingMs: gs.remainingMs, activeExpiresAt: expiresAt });
 
   // Track this user in the link's activeSessions (enforces the 6-user capacity limit).
   // Uses a transaction so concurrent opens can't exceed the cap.
@@ -1156,6 +1154,26 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
     }
   } catch (err) {
     if (err.message === "SESSION_FULL") {
+      if (purchasedThisOpen) {
+        try {
+          const userRef = doc(db, "users", uid);
+          await runTransaction(db, async (txn) => {
+            const userSnap = await txn.get(userRef);
+            if (!userSnap.exists()) return;
+            txn.update(userRef, { credits: increment(SESSION_COST) });
+          });
+          gs.remainingMs = previousRemainingMs;
+          saveGlobalSession(gs);
+          if (currentUserData) {
+            currentUserData.credits = (currentUserData.credits || 0) + SESSION_COST;
+          }
+          const creditEl = document.getElementById("creditCount");
+          if (creditEl) creditEl.textContent = currentUserData?.credits ?? 0;
+          updateNavSessionTimer();
+        } catch (refundErr) {
+          console.warn("Session-full refund failed:", refundErr);
+        }
+      }
       showToast(`❌ This link is full (${MAX_SESSION_USERS}/${MAX_SESSION_USERS} slots used). Try again later.`);
       return;
     } else if (err.message === "LINK_NOT_FOUND") {
@@ -1166,6 +1184,11 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       console.warn("Session slot tracking failed (non-critical):", err);
     }
   }
+
+  // Persist the active session expiry only after slot reservation succeeds.
+  // When the modal closes, saveGlobalSession({ remainingMs }) replaces this entry
+  // without activeExpiresAt, clearing the active-session marker.
+  saveGlobalSession({ remainingMs: gs.remainingMs, activeExpiresAt: expiresAt });
 
   currentLinkId = linkId;
   _doOpenIframe(url, title, linkId, submittedBy, htmlContent, expiresAt);
@@ -2276,9 +2299,10 @@ export async function openProfileModal(uid, displayName) {
       data    = cached.userData;
       ratings = cached.ratings;
     } else {
-      const [userSnap, ratingsSnap] = await Promise.all([
+      const [userSnap, linkAggSnap, recentRatingsSnap] = await Promise.all([
         getDoc(doc(db, "users", uid)),
-        getDocs(query(collection(db, "linkRatings"), where("submittedBy", "==", uid))),
+        getDocs(query(collection(db, "sharedLinks"), where("submittedBy", "==", uid), limit(500))),
+        getDocs(query(collection(db, "linkRatings"), where("submittedBy", "==", uid), limit(60))),
       ]);
 
       if (!userSnap.exists()) {
@@ -2288,7 +2312,17 @@ export async function openProfileModal(uid, displayName) {
 
       data    = userSnap.data();
       ratings = [];
-      ratingsSnap.forEach(s => ratings.push(s.data()));
+      recentRatingsSnap.forEach(s => ratings.push(s.data()));
+
+      let ratingCountTotal = 0;
+      let ratingSumTotal = 0;
+      linkAggSnap.forEach((s) => {
+        const d = s.data() || {};
+        ratingCountTotal += Number(d.ratingCount || 0);
+        ratingSumTotal += Number(d.ratingSum || 0);
+      });
+      data.__profileRatingCount = ratingCountTotal;
+      data.__profileRatingSum = ratingSumTotal;
 
       // Cache the profile data for PROFILE_CACHE_TTL ms
       profileCache.set(uid, { userData: data, ratings, expiresAt: now + PROFILE_CACHE_TTL });
@@ -2298,8 +2332,8 @@ export async function openProfileModal(uid, displayName) {
     const currentUid = auth.currentUser?.uid ?? "";
     const isSelf     = currentUid === uid;
 
-    const avgRating = ratings.length
-      ? (ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length).toFixed(1)
+    const avgRating = (Number(data.__profileRatingCount || 0) > 0)
+      ? (Number(data.__profileRatingSum || 0) / Number(data.__profileRatingCount || 1)).toFixed(1)
       : null;
 
     const userLinks     = allDocs.filter(d => d.data.submittedBy === uid);
@@ -2531,20 +2565,27 @@ async function handleUpvote(linkId, data, btn, cardEl) {
 
   try {
     const linkRef = doc(db, "sharedLinks", linkId);
-    const batch   = writeBatch(db);
+    await runTransaction(db, async (txn) => {
+      const linkSnap = await txn.get(linkRef);
+      if (!linkSnap.exists()) throw new Error("LINK_NOT_FOUND");
+      const linkData = linkSnap.data() || {};
+      const currentUpvotes = Array.isArray(linkData.upvotes) ? linkData.upvotes : [];
+      const hasUpvoted = currentUpvotes.some(u => u === uid || u?.uid === uid);
+      if (hasUpvoted) throw new Error("ALREADY_UPVOTED");
+      if (linkData.submittedBy === uid) throw new Error("SELF_UPVOTE");
 
-    // Batch credits update + link upvote into a single round-trip
-    if (data.submittedBy) {
-      batch.update(doc(db, "users", data.submittedBy), {
-        credits:     increment(UPVOTE_CREDITS),
-        totalEarned: increment(UPVOTE_CREDITS),
+      txn.update(linkRef, {
+        upvotes: arrayUnion(uid),
+        upvoteCount: increment(1),
       });
-    }
-    batch.update(linkRef, {
-      upvotes:     arrayUnion(uid),
-      upvoteCount: increment(1),
+
+      if (linkData.submittedBy) {
+        txn.update(doc(db, "users", linkData.submittedBy), {
+          credits: increment(UPVOTE_CREDITS),
+          totalEarned: increment(UPVOTE_CREDITS),
+        });
+      }
     });
-    await batch.commit();
 
     // Record locally so the rate limit counter is immediately accurate
     rateLimitRecord("upvoteHistory", 3600000);
@@ -2580,6 +2621,18 @@ async function handleUpvote(linkId, data, btn, cardEl) {
       };
     }
   } catch (err) {
+    if (err.message === "ALREADY_UPVOTED") {
+      alert("You have already upvoted this link.");
+      btn.disabled = false;
+      btn.textContent = "\uD83D\uDC4D Upvote";
+      return;
+    }
+    if (err.message === "SELF_UPVOTE") {
+      alert("You cannot upvote your own link.");
+      btn.disabled = false;
+      btn.textContent = "\uD83D\uDC4D Upvote";
+      return;
+    }
     console.error("Upvote error:", err);
     btn.disabled    = false;
     btn.textContent = "\uD83D\uDC4D Upvote";
@@ -2607,25 +2660,24 @@ async function handleProfileUpvote(targetUid, btn) {
   btn.textContent = "Upvoting\u2026";
 
   try {
-    const myRef  = doc(db, "users", currentUid);
-    const mySnap = await getDoc(myRef);
-    const myData = mySnap.exists() ? mySnap.data() : {};
-    const upvotedUsers = myData.upvotedUsers || [];
+    const myRef = doc(db, "users", currentUid);
+    const targetRef = doc(db, "users", targetUid);
+    await runTransaction(db, async (txn) => {
+      const mySnap = await txn.get(myRef);
+      const targetSnap = await txn.get(targetRef);
+      if (!mySnap.exists() || !targetSnap.exists()) throw new Error("PROFILE_NOT_FOUND");
 
-    if (upvotedUsers.includes(targetUid)) {
-      btn.disabled  = false;
-      btn.innerHTML = "\uD83D\uDC4D Upvote Profile <span class=\"text-blue-200 font-normal\">(+" + UPVOTE_CREDITS + " credits)</span>";
-      alert("You have already upvoted this user.");
-      return;
-    }
+      const myData = mySnap.data() || {};
+      const upvotedUsers = Array.isArray(myData.upvotedUsers) ? myData.upvotedUsers : [];
+      if (upvotedUsers.includes(targetUid)) throw new Error("ALREADY_UPVOTED");
 
-    await updateDoc(doc(db, "users", targetUid), {
-      credits:     increment(UPVOTE_CREDITS),
-      totalEarned: increment(UPVOTE_CREDITS),
-    });
-
-    await updateDoc(myRef, {
-      upvotedUsers: arrayUnion(targetUid),
+      txn.update(targetRef, {
+        credits: increment(UPVOTE_CREDITS),
+        totalEarned: increment(UPVOTE_CREDITS),
+      });
+      txn.update(myRef, {
+        upvotedUsers: arrayUnion(targetUid),
+      });
     });
 
     // Record locally so the rate limit counter is immediately accurate
@@ -2641,6 +2693,12 @@ async function handleProfileUpvote(targetUid, btn) {
     btn.innerHTML = "\u2705 Upvoted (+" + UPVOTE_CREDITS + " credits sent)";
     btn.className = btn.className.replace("bg-blue-600 hover:bg-blue-500", "bg-gray-700 cursor-default");
   } catch (err) {
+    if (err.message === "ALREADY_UPVOTED") {
+      btn.disabled  = false;
+      btn.innerHTML = "\uD83D\uDC4D Upvote Profile <span class=\"text-blue-200 font-normal\">(+" + UPVOTE_CREDITS + " credits)</span>";
+      alert("You have already upvoted this user.");
+      return;
+    }
     console.error("Profile upvote error:", err);
     btn.disabled  = false;
     btn.innerHTML = "\uD83D\uDC4D Upvote Profile <span class=\"text-blue-200 font-normal\">(+" + UPVOTE_CREDITS + " credits)</span>";

@@ -160,11 +160,20 @@ async function markAllAsRead() {
       where("read", "==", false)
     );
     const querySnapshot = await getDocs(qUnread);
-    const batch = writeBatch(db);
-    querySnapshot.forEach((d) => {
-      batch.update(d.ref, { read: true });
-    });
-    await batch.commit();
+    const docs = querySnapshot.docs;
+    if (!docs.length) return;
+
+    // Firestore write batches cap at 500 operations.
+    // Keep headroom for safety and commit in chunks.
+    const CHUNK_SIZE = 450;
+    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+      const batch = writeBatch(db);
+      const chunk = docs.slice(i, i + CHUNK_SIZE);
+      chunk.forEach((d) => {
+        batch.update(d.ref, { read: true });
+      });
+      await batch.commit();
+    }
   } catch (err) {
     console.error("Error marking all read:", err);
   }
