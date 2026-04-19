@@ -1050,7 +1050,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   // ── Non-owner flow: global session with 30 free minutes ──────────────────
   const userData = currentUserData || {};
   const tier     = calculateTier(userData.totalEarned || 0);
-  let purchasedThisOpen = false;
+  let sessionPurchasedThisOpen = false;
 
   // Get or create global session (30 free minutes for new sessions)
   let gs = getGlobalSession();
@@ -1101,7 +1101,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
       // Add rank-based minutes to the global session
       gs.remainingMs = tier.limitMinutes * 60 * 1000;
       saveGlobalSession(gs);
-      purchasedThisOpen = true;
+      sessionPurchasedThisOpen = true;
 
       if (currentUserData) currentUserData.credits = (currentUserData.credits || 0) - SESSION_COST;
       const creditEl = document.getElementById("creditCount");
@@ -1154,7 +1154,7 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
     }
   } catch (err) {
     if (err.message === "SESSION_FULL") {
-      if (purchasedThisOpen) {
+      if (sessionPurchasedThisOpen) {
         try {
           const userRef = doc(db, "users", uid);
           await runTransaction(db, async (txn) => {
@@ -2321,8 +2321,8 @@ export async function openProfileModal(uid, displayName) {
         ratingCountTotal += Number(d.ratingCount || 0);
         ratingSumTotal += Number(d.ratingSum || 0);
       });
-      data.__profileRatingCount = ratingCountTotal;
-      data.__profileRatingSum = ratingSumTotal;
+      data.aggregatedRatingCount = ratingCountTotal;
+      data.aggregatedRatingSum = ratingSumTotal;
 
       // Cache the profile data for PROFILE_CACHE_TTL ms
       profileCache.set(uid, { userData: data, ratings, expiresAt: now + PROFILE_CACHE_TTL });
@@ -2332,8 +2332,8 @@ export async function openProfileModal(uid, displayName) {
     const currentUid = auth.currentUser?.uid ?? "";
     const isSelf     = currentUid === uid;
 
-    const avgRating = (Number(data.__profileRatingCount || 0) > 0)
-      ? (Number(data.__profileRatingSum || 0) / Number(data.__profileRatingCount)).toFixed(1)
+    const avgRating = (Number(data.aggregatedRatingCount || 0) > 0)
+      ? (Number(data.aggregatedRatingSum || 0) / Number(data.aggregatedRatingCount)).toFixed(1)
       : null;
 
     const userLinks     = allDocs.filter(d => d.data.submittedBy === uid);

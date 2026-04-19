@@ -92,6 +92,7 @@ let _inboxInitialized = false;
 let _inboxUnsubscribe = null;
 const _seenMessageIds = new Set();
 const _messageById = new Map();
+const FIRESTORE_BATCH_CHUNK_SIZE = 450; // keep below Firestore's 500-op batch write cap
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -165,10 +166,9 @@ async function markAllAsRead() {
 
     // Firestore write batches cap at 500 operations.
     // Keep headroom for safety and commit in chunks.
-    const CHUNK_SIZE = 450;
-    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+    for (let i = 0; i < docs.length; i += FIRESTORE_BATCH_CHUNK_SIZE) {
       const batch = writeBatch(db);
-      const chunk = docs.slice(i, i + CHUNK_SIZE);
+      const chunk = docs.slice(i, i + FIRESTORE_BATCH_CHUNK_SIZE);
       chunk.forEach((d) => {
         batch.update(d.ref, { read: true });
       });
