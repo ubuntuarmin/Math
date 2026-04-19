@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   writeBatch,
   runTransaction,
+  setDoc,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { calculateTier } from "./tier.js";
 
@@ -39,6 +40,10 @@ const GLOBAL_SESSION_KEY  = "global_session"; // localStorage key for cross-link
 const SESSION_TTL_MS      = 24 * 60 * 60 * 1000; // 24-hour TTL for stored session data
 const SLOT_EXPIRY_FALLBACK_MS = 4 * 60 * 60 * 1000; // fallback slot expiry for orphaned sessions
 const LOW_TIME_WARNING_MS = 5 * 60 * 1000;  // warn when < 5 minutes remain in session
+const REFERRAL_OFFER_THRESHOLD_MINUTES = 200;
+const REFERRAL_OFFER_REWARD_MINUTES = 100;
+const REFERRAL_OFFER_MAX_PAIRS = 35;
+const REFERRAL_OFFER_SETTINGS_DOC = "referralOffer";
 
 const LEADERBOARD_RESET_DAYS = [15, 29];
 
@@ -61,6 +66,11 @@ function getCurrentBimonthlyResetMillis(nowMs = Date.now()) {
     return new Date(year, month, LEADERBOARD_RESET_DAYS[0], 0, 0, 0, 0).getTime();
   }
   return new Date(year, month - 1, LEADERBOARD_RESET_DAYS[1], 0, 0, 0, 0).getTime();
+}
+
+function getCurrentMonthKey(nowMs = Date.now()) {
+  const d = new Date(nowMs);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 // Helper: compute average rating string ("4.2") or null
@@ -904,6 +914,128 @@ function showSessionPurchaseModal(title, sessionCount, tierName, sessionMinutes,
   });
 }
 
+async function consumeReferralBonusMinutes(uid, gs) {
+  if (!uid || !gs) return false;
+  const userRef = doc(db, "users", uid);
+  let consumedMinutes = 0;
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      if (!snap.exists()) return;
+      const balance = Math.max(0, Number(snap.data().bonusMinutesBalance || 0));
+      if (balance <= 0) return;
+      consumedMinutes = balance;
+      tx.update(userRef, { bonusMinutesBalance: 0 });
+    });
+  } catch (err) {
+    console.warn("Failed to consume referral bonus minutes:", err);
+    return false;
+  }
+
+  if (consumedMinutes <= 0) return false;
+  gs.remainingMs += consumedMinutes * 60 * 1000;
+  saveGlobalSession(gs);
+  if (currentUserData) currentUserData.bonusMinutesBalance = 0;
+  showToast(`🎁 ${consumedMinutes} free referral minutes were added to your timer!`);
+  window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: currentUserData }));
+  return true;
+}
+
+async function tryAwardReferralPlaytimeOffer(referredUid) {
+  if (!referredUid) return;
+  const referredRef = doc(db, "users", referredUid);
+  const settingsRef = doc(db, "settings", REFERRAL_OFFER_SETTINGS_DOC);
+  const monthKey = getCurrentMonthKey();
+  let awardResult = null;
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const referredSnap = await tx.get(referredRef);
+      if (!referredSnap.exists()) return;
+      const referredData = referredSnap.data() || {};
+      const referrerUid = referredData.referredBy || null;
+      const monthMinutes = Number(referredData.monthMinutes || 0);
+      const storedMonthKey = typeof referredData.monthMinutesKey === "string" ? referredData.monthMinutesKey : "";
+      if (!referrerUid || referrerUid === referredUid) return;
+      if (referredData.referralOfferRewardGranted === true) return;
+      if (storedMonthKey !== monthKey) return;
+      if (monthMinutes <= REFERRAL_OFFER_THRESHOLD_MINUTES) return;
+
+      const settingsSnap = await tx.get(settingsRef);
+      const awardedPairs = settingsSnap.exists()
+        ? Math.max(0, Number(settingsSnap.data().totalAwardedPairs || 0))
+        : 0;
+      if (awardedPairs >= REFERRAL_OFFER_MAX_PAIRS) return;
+
+      const referrerRef = doc(db, "users", referrerUid);
+      const referrerSnap = await tx.get(referrerRef);
+      if (!referrerSnap.exists()) return;
+
+      tx.update(referredRef, {
+        bonusMinutesBalance: increment(REFERRAL_OFFER_REWARD_MINUTES),
+        referralOfferRewardGranted: true,
+        referralOfferRewardGrantedAt: serverTimestamp(),
+        referralOfferRewardMonth: monthKey,
+      });
+      tx.update(referrerRef, {
+        bonusMinutesBalance: increment(REFERRAL_OFFER_REWARD_MINUTES),
+      });
+
+      if (settingsSnap.exists()) {
+        tx.update(settingsRef, {
+          totalAwardedPairs: increment(1),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        tx.set(settingsRef, {
+          totalAwardedPairs: 1,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      awardResult = { referrerUid };
+    });
+  } catch (err) {
+    console.warn("Referral offer transaction failed:", err);
+    return;
+  }
+
+  if (!awardResult?.referrerUid) return;
+
+  if (currentUserData) {
+    currentUserData.bonusMinutesBalance = (currentUserData.bonusMinutesBalance || 0) + REFERRAL_OFFER_REWARD_MINUTES;
+    currentUserData.referralOfferRewardGranted = true;
+    window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: currentUserData }));
+  }
+
+  showToast(`🎉 Referral milestone reached! You earned ${REFERRAL_OFFER_REWARD_MINUTES} free minutes.`);
+
+  try {
+    await addDoc(collection(db, "messages"), {
+      to: referredUid,
+      fromName: "Referral",
+      title: "Referral Milestone Reward 🎁",
+      text: `You passed ${REFERRAL_OFFER_THRESHOLD_MINUTES} playtime minutes this month. You and your referrer each earned +${REFERRAL_OFFER_REWARD_MINUTES} free minutes.`,
+      type: "referral",
+      timestamp: serverTimestamp(),
+      read: false,
+    });
+  } catch (_) {}
+
+  try {
+    await addDoc(collection(db, "messages"), {
+      to: awardResult.referrerUid,
+      fromName: "Referral",
+      title: "Referral Milestone Reward 🎁",
+      text: `One of your referrals passed ${REFERRAL_OFFER_THRESHOLD_MINUTES} playtime minutes this month. You both earned +${REFERRAL_OFFER_REWARD_MINUTES} free minutes.`,
+      type: "referral",
+      timestamp: serverTimestamp(),
+      read: false,
+    });
+  } catch (_) {}
+}
+
 // Open link in iframe modal — supports both URL and HTML-code submissions
 async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
   const uid     = auth.currentUser?.uid;
@@ -926,7 +1058,12 @@ async function openIframeModal(url, title, linkId, submittedBy, htmlContent) {
     saveGlobalSession(gs);
   }
 
-  // If time is exhausted, prompt user to buy more time (50 credits → tier minutes)
+  // If time is exhausted, first consume earned referral bonus minutes (if any).
+  if (gs.remainingMs <= 0) {
+    await consumeReferralBonusMinutes(uid, gs);
+  }
+
+  // If still exhausted, prompt user to buy more time (50 credits → tier minutes)
   if (gs.remainingMs <= 0) {
     const userCredits = userData.credits || 0;
 
@@ -1253,6 +1390,7 @@ function closeIframeModal() {
   if (uid && minutesSpent > 0) {
     const cappedMinutes = Math.min(minutesSpent, 500);
     const userRef = doc(db, "users", uid);
+    const currentMonthKey = getCurrentMonthKey();
     runTransaction(db, async (tx) => {
       const snap = await tx.get(userRef);
       if (!snap.exists()) {
@@ -1273,25 +1411,35 @@ function closeIframeModal() {
       }
 
       const didReset = resetMarker < currentResetMs;
+      const priorMonthKey = typeof data.monthMinutesKey === "string" ? data.monthMinutesKey : "";
+      const didMonthReset = priorMonthKey !== currentMonthKey;
       tx.update(userRef, {
         weekMinutes: didReset ? cappedMinutes : increment(cappedMinutes),
         totalMinutes: increment(cappedMinutes),
+        monthMinutes: didMonthReset ? cappedMinutes : increment(cappedMinutes),
+        monthMinutesKey: currentMonthKey,
         weekMinutesResetAtMs: currentResetMs,
       });
 
-      return { didReset, currentResetMs };
-    }).then(({ didReset = false, currentResetMs = 0 } = {}) => {
+      return { didReset, currentResetMs, didMonthReset };
+    }).then(async ({ didReset = false, currentResetMs = 0, didMonthReset = false } = {}) => {
       if (currentUserData) {
         currentUserData.weekMinutes = didReset
           ? cappedMinutes
           : (currentUserData.weekMinutes || 0) + cappedMinutes;
         currentUserData.totalMinutes = (currentUserData.totalMinutes || 0) + cappedMinutes;
+        currentUserData.monthMinutes = didMonthReset
+          ? cappedMinutes
+          : (currentUserData.monthMinutes || 0) + cappedMinutes;
+        currentUserData.monthMinutesKey = currentMonthKey;
         if (currentResetMs > 0) currentUserData.weekMinutesResetAtMs = currentResetMs;
       }
+      try {
+        await tryAwardReferralPlaytimeOffer(uid);
+      } catch (_) {}
+      window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: currentUserData }));
+      document.dispatchEvent(new CustomEvent("weekMinutesUpdated"));
     }).catch(err => console.warn(`Failed to update session minutes (uid=${uid}, minutes=${cappedMinutes}):`, err));
-    // Keep local cache in sync so the UI reflects the change immediately
-    // Notify the leaderboard to refresh so the new minutes are reflected
-    document.dispatchEvent(new CustomEvent("weekMinutesUpdated"));
   }
 }
 

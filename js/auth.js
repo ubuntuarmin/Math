@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
-import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc, collection, query, where, orderBy, limit, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import { doc, getDoc, updateDoc, increment, serverTimestamp, setDoc, collection, query, where, orderBy, limit, getDocs, addDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
 import { deleteInactiveAccount, deleteHackedAccount } from "./deleteAccount.js";
 
 // UI modules
@@ -43,6 +43,67 @@ const HACKED_WEEK_MINUTES = 99999999;
 // exceed this amount given all current earning caps and rate limits.
 const RAPID_CREDIT_THRESHOLD = 2000;
 const RAPID_CREDIT_WINDOW_MS  = 60 * 60 * 1000; // 1 hour
+const REFERRAL_BANNER_MAX_VIEWS = 3;
+const REFERRAL_BANNER_MS = 4000;
+const USER_COUNT_CACHE_KEY = "mathKatyUserCountCacheV1";
+const USER_COUNT_CACHE_MS = 5 * 60 * 1000;
+
+function showReferralOfferBanner(uid, userData) {
+    const banner = document.getElementById("referralOfferBanner");
+    const dismissBtn = document.getElementById("dismissReferralOfferBanner");
+    if (!banner || !uid || !userData) return;
+
+    const seenCount = Number(userData.referralOfferBannerViews || 0);
+    if (seenCount >= REFERRAL_BANNER_MAX_VIEWS) return;
+
+    const hideBanner = () => {
+        banner.classList.remove("is-visible");
+        setTimeout(() => {
+            banner.hidden = true;
+        }, 280);
+    };
+
+    banner.hidden = false;
+    requestAnimationFrame(() => banner.classList.add("is-visible"));
+
+    updateDoc(doc(db, "users", uid), {
+        referralOfferBannerViews: increment(1),
+    }).catch(() => {});
+    userData.referralOfferBannerViews = seenCount + 1;
+
+    dismissBtn?.addEventListener("click", hideBanner, { once: true });
+    setTimeout(hideBanner, REFERRAL_BANNER_MS);
+}
+
+async function updateUserCounterWidget() {
+    const widget = document.getElementById("userCountWidget");
+    const valueEl = document.getElementById("userCountValue");
+    if (!widget || !valueEl || !auth.currentUser) return;
+
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(USER_COUNT_CACHE_KEY) || "null");
+        if (cached && Number.isFinite(cached.value) && Number.isFinite(cached.expiresAt) && cached.expiresAt > Date.now()) {
+            valueEl.textContent = String(cached.value);
+            widget.classList.remove("hidden");
+            return;
+        }
+    } catch (_) {}
+
+    try {
+        const countSnap = await getCountFromServer(collection(db, "users"));
+        const count = Number(countSnap.data().count || 0);
+        valueEl.textContent = String(count);
+        try {
+            sessionStorage.setItem(USER_COUNT_CACHE_KEY, JSON.stringify({
+                value: count,
+                expiresAt: Date.now() + USER_COUNT_CACHE_MS,
+            }));
+        } catch (_) {}
+        widget.classList.remove("hidden");
+    } catch (err) {
+        console.warn("User counter load failed:", err);
+    }
+}
 
 export function refreshHeaderUI(userData) {
     if (!userData) return;
@@ -548,11 +609,16 @@ onAuthStateChanged(auth, async user => {
                 credits: 20,          
                 totalEarned: 20,
                 totalMinutes: 0,
+                monthMinutes: 0,
+                monthMinutesKey: new Date().toISOString().slice(0, 7),
                 weekMinutes: 0,
                 weekMinutesResetAtMs: Date.now(),
                 dailyLinkUsage: 0,
                 streak: 1,
                 unlockedLinks: [],
+                bonusMinutesBalance: 0,
+                referralOfferBannerViews: 0,
+                referralOfferRewardGranted: false,
                 referrals: [],
                 referralCode: user.uid.slice(0, 6).toUpperCase(),
                 lastVisitDate: new Date().toDateString(),
@@ -597,6 +663,8 @@ onAuthStateChanged(auth, async user => {
         }
 
         syncAllUI(currentUserData);
+        showReferralOfferBanner(user.uid, currentUserData);
+        updateUserCounterWidget();
 
         // Apply UI mode: profile takes priority over localStorage preference
         const profileMode = currentUserData.uiMode;

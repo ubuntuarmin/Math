@@ -68,6 +68,7 @@ function AccountInfoPanel({
   const stats = [
     { value: data.totalEarned || 0, label: "Lifetime 🪙", color: "#34d399", glow: "rgba(52,211,153,0.22)" },
     { value: `${data.totalMinutes || 0}m`, label: "Playtime", color: "#60a5fa", glow: "rgba(96,165,250,0.22)" },
+    { value: `${data.bonusMinutesBalance || 0}m`, label: "🎁 Bonus Minutes", color: "#f5d38c", glow: "rgba(245,211,140,0.25)" },
     { value: data.streak || 0, label: "🔥 Streak", color: "#fb923c", glow: "rgba(251,146,60,0.22)" },
     { value: (data.referrals || []).length, label: "👥 Referrals", color: "#c084fc", glow: "rgba(192,132,252,0.22)" },
   ];
@@ -153,7 +154,7 @@ function AccountInfoPanel({
         ),
 
     // ── Stats grid ───────────────────────────────────────────────────────────
-    h("div", { className: "grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" },
+    h("div", { className: "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-6" },
       ...stats.map(({ value, label, color, glow }) =>
         h("div", {
           className: "account-stat-glass p-3 text-center",
@@ -280,7 +281,7 @@ function ReferralPanel({ code, fullLink, hasNativeShare }) {
       },
         "?",
         h("span", { className: "tooltip-text" },
-          "Share this link with friends. When they sign up, you earn 150 🪙 bonus credits and they start with 20 credits!"
+          "Share this link with friends. You still earn +150 🪙 on sign-up, and if that referral passes 200 monthly playtime minutes you both earn +100 free minutes (first 35 referral pairs)."
         )
       )
     ),
@@ -305,7 +306,7 @@ function ReferralPanel({ code, fullLink, hasNativeShare }) {
       }, "SHARE")
     ),
     h("p", { className: "text-[10px] text-gray-500 mt-2" },
-      "New friends start with 20 credits; you earn 150 🪙 per referral!"
+      "New friends start with 20 credits, you earn +150 🪙 on sign-up, and both of you can unlock +100 free minutes when they pass 200 monthly playtime minutes (first 35 pairs)."
     )
   );
 }
