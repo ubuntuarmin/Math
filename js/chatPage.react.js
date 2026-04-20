@@ -50,8 +50,9 @@ const CHAT_PAGE_HTML = `
             <div class="flex items-center gap-2">
               <code id="myChatId" class="text-sm font-mono text-blue-300 bg-blue-500/10 px-3 py-1 rounded-lg border border-blue-500/30 select-all"></code>
               <button id="copyIdBtn" title="Copy Chat Handle" class="text-xs text-gray-400 hover:text-white px-2 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors">📋 Copy</button>
+              <button id="copyInviteLinkBtn" title="Copy one-click invite link" class="text-xs text-emerald-300 hover:text-white px-2 py-1 rounded-lg bg-emerald-700/60 hover:bg-emerald-600/70 transition-colors">🔗 Invite Link</button>
             </div>
-            <p class="text-xs text-gray-600 mt-1">Share this handle so people can find you fast (example: verb-adjective-123456).</p>
+            <p class="text-xs text-gray-600 mt-1">Only the initiator needs to enter a handle once — everyone else can join with the invite link in one click.</p>
             <p class="text-[11px] text-gray-600 mt-1">Fallback UID: <code id="myUidValue" class="font-mono"></code></p>
           </div>
           <div class="text-2xl">💬</div>

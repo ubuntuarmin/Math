@@ -139,11 +139,12 @@ service cloud.firestore {
                          .hasOnly([
                            'title', 'description', 'hashtags', 'url', 'canonicalUrl', 'lastEditedAt',
                            'upvotes', 'upvoteCount',
-                           'reportCount', 'reports', 'status', 'removedAt', 'creditsReversed',
-                           'activeSessions',
-                           'appealedAt', 'appealVotes', 'appealVoteCount', 'reinstateCount', 'appealClosed',
-                           'ratingSum', 'ratingCount'
-                         ]);
+                            'reportCount', 'reports', 'status', 'removedAt', 'creditsReversed',
+                            'activeSessions',
+                            'appealedAt', 'appealVotes', 'appealVoteCount', 'reinstateCount', 'appealClosed',
+                            'ratingSum', 'ratingCount',
+                            'weekPlayMinutes', 'weekPlayCount', 'weekPlayWindowStartedAtMs', 'lastPlayedAtMs'
+                          ]);
       allow delete: if isAuthenticated()
                     && (resource.data.submittedBy == request.auth.uid || isAdmin());
     }

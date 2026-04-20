@@ -47,6 +47,7 @@ const REFERRAL_OFFER_MAX_PAIRS = 35;
 const REFERRAL_OFFER_SETTINGS_DOC = "referralOffer";
 
 const LEADERBOARD_RESET_DAYS = [15, 29];
+const WEEKLY_PLAY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 function toMillisSafe(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -80,11 +81,33 @@ function calcAvgRating(ratingSum, ratingCount) {
   return (ratingSum / ratingCount).toFixed(1);
 }
 
+function toFiniteNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizedWeeklyPlayStats(linkData, now = Date.now()) {
+  const windowStart = toFiniteNumber(linkData?.weekPlayWindowStartedAtMs);
+  const isActiveWindow = windowStart > 0 && (now - windowStart) < WEEKLY_PLAY_WINDOW_MS;
+  if (!isActiveWindow) {
+    return {
+      weekPlayMinutes: 0,
+      weekPlayCount: 0,
+      weekPlayWindowStartedAtMs: now,
+    };
+  }
+  return {
+    weekPlayMinutes: Math.max(0, toFiniteNumber(linkData?.weekPlayMinutes)),
+    weekPlayCount: Math.max(0, toFiniteNumber(linkData?.weekPlayCount)),
+    weekPlayWindowStartedAtMs: windowStart,
+  };
+}
+
 // Module state
 let allDocs        = [];
 let activeFilter   = null;   // { type: 'profile'|'hashtag', value, label }
 let searchTerm     = "";
-let sortMode       = "newest";
+let sortMode       = "upvotes";
 let isLoadingLinks = false;  // guard against concurrent loadLinks calls
 
 // Cached current user data (set by updateUI, refreshed via userProfileUpdated event)
@@ -370,10 +393,64 @@ async function loadLinks() {
   }
 }
 
+function renderMostPlayedThisWeek() {
+  const listEl = document.getElementById("mostPlayedWeekList");
+  if (!listEl) return;
+
+  const ranked = [...allDocs]
+    .map((entry) => ({
+      ...entry,
+      weeklyStats: normalizedWeeklyPlayStats(entry.data),
+    }))
+    .filter((entry) => entry.weeklyStats.weekPlayMinutes > 0 || entry.weeklyStats.weekPlayCount > 0)
+    .sort((a, b) => {
+      if (b.weeklyStats.weekPlayMinutes !== a.weeklyStats.weekPlayMinutes) {
+        return b.weeklyStats.weekPlayMinutes - a.weeklyStats.weekPlayMinutes;
+      }
+      if (b.weeklyStats.weekPlayCount !== a.weeklyStats.weekPlayCount) {
+        return b.weeklyStats.weekPlayCount - a.weeklyStats.weekPlayCount;
+      }
+      return (b.data.upvoteCount || 0) - (a.data.upvoteCount || 0);
+    })
+    .slice(0, 3);
+
+  if (!ranked.length) {
+    listEl.innerHTML = '<div class="text-xs text-gray-500 md:col-span-3">No playtime recorded in the last 7 days yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = ranked.map((entry, i) => {
+    const data = entry.data || {};
+    const safeTitle = escapeHtml(data.title || "Untitled");
+    const rankBadge = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+    const playMinutes = Math.round(entry.weeklyStats.weekPlayMinutes);
+    const playCount = Math.round(entry.weeklyStats.weekPlayCount);
+    return '' +
+      '<article class="rounded-xl border border-gray-700/70 bg-gray-900/50 p-3 flex flex-col gap-2">' +
+        '<div class="flex items-start justify-between gap-2">' +
+          '<div class="text-xs font-bold text-white truncate">' + safeTitle + '</div>' +
+          '<span class="text-sm shrink-0">' + rankBadge + '</span>' +
+        '</div>' +
+        '<div class="text-[11px] text-gray-400">⏱ ' + playMinutes + ' min · ▶ ' + playCount + ' play' + (playCount === 1 ? '' : 's') + '</div>' +
+        '<button class="most-played-open-btn mt-1 px-3 py-1.5 rounded-lg bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-bold transition-colors" data-id="' + entry.id + '">Open</button>' +
+      '</article>';
+  }).join("");
+
+  listEl.querySelectorAll(".most-played-open-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const hit = allDocs.find((d) => d.id === btn.dataset.id);
+      if (!hit) return;
+      const d = hit.data || {};
+      openIframeModal(d.url, d.title || "Untitled", hit.id, d.submittedBy, d.htmlContent || null);
+    });
+  });
+}
+
 // Filter + sort + render
 function filterAndRenderLinks() {
   if (!linksGrid) return;
   linksGrid.innerHTML = "";
+  renderMostPlayedThisWeek();
 
   const uid  = auth.currentUser?.uid ?? "";
   const term = searchTerm.toLowerCase();
@@ -464,6 +541,7 @@ function setupSearchSort() {
   const searchInput = document.getElementById("linksSearch");
   const sortSelect  = document.getElementById("linksSort");
   const clearBtn    = document.getElementById("clearFilterBtn");
+  if (sortSelect) sortSelect.value = sortMode;
 
   // Debounce search input so Firestore filtering doesn't fire on every keystroke
   let searchDebounce = null;
@@ -1413,6 +1491,12 @@ function closeIframeModal() {
   iframeOpenTime = 0; // reset so a second accidental close cannot double-count
   if (uid && minutesSpent > 0) {
     const cappedMinutes = Math.min(minutesSpent, 500);
+    const playedLinkId = pr?.linkId || currentLinkId;
+    if (playedLinkId) {
+      recordWeeklyLinkPlay(playedLinkId, cappedMinutes).catch((err) =>
+        console.warn(`Failed to update weekly play stats (linkId=${playedLinkId}):`, err)
+      );
+    }
     const userRef = doc(db, "users", uid);
     const currentMonthKey = getCurrentMonthKey();
     runTransaction(db, async (tx) => {
@@ -1464,6 +1548,40 @@ function closeIframeModal() {
       window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: currentUserData }));
       document.dispatchEvent(new CustomEvent("weekMinutesUpdated"));
     }).catch(err => console.warn(`Failed to update session minutes (uid=${uid}, minutes=${cappedMinutes}):`, err));
+  }
+}
+
+async function recordWeeklyLinkPlay(linkId, minutesPlayed) {
+  if (!linkId || minutesPlayed <= 0) return;
+  const linkRef = doc(db, "sharedLinks", linkId);
+  const now = Date.now();
+
+  const nextStats = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(linkRef);
+    if (!snap.exists()) return null;
+    const data = snap.data() || {};
+    const currentStats = normalizedWeeklyPlayStats(data, now);
+    const didResetWindow = !toFiniteNumber(data.weekPlayWindowStartedAtMs) ||
+      (now - toFiniteNumber(data.weekPlayWindowStartedAtMs)) >= WEEKLY_PLAY_WINDOW_MS;
+
+    const updated = {
+      weekPlayWindowStartedAtMs: didResetWindow ? now : currentStats.weekPlayWindowStartedAtMs,
+      weekPlayMinutes: currentStats.weekPlayMinutes + minutesPlayed,
+      weekPlayCount: currentStats.weekPlayCount + 1,
+      lastPlayedAtMs: now,
+    };
+    tx.update(linkRef, updated);
+    return updated;
+  });
+
+  if (!nextStats) return;
+  const localEntry = allDocs.find((entry) => entry.id === linkId);
+  if (localEntry) {
+    localEntry.data = {
+      ...(localEntry.data || {}),
+      ...nextStats,
+    };
+    renderMostPlayedThisWeek();
   }
 }
 

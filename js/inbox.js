@@ -90,10 +90,13 @@ document.addEventListener("click", (e) => {
 
 let _inboxInitialized = false;
 let _inboxUnsubscribe = null;
-const _seenMessageIds = new Set();
 const _messageById = new Map();
 const FIRESTORE_BATCH_CHUNK_SIZE = 450; // keep below Firestore's 500-op batch write cap
 const MAX_MARK_ALL_READ_PASSES = 50; // safety guard against unexpected endless fetch loops
+const _initialPageTitle = document.title;
+let _notificationsPrimed = false;
+const _knownUnreadById = new Map();
+const _shownToastIds = new Set();
 
 export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
@@ -108,6 +111,10 @@ export function initInbox() {
     }
 
     if (!user) {
+      _notificationsPrimed = false;
+      _knownUnreadById.clear();
+      _shownToastIds.clear();
+      document.title = _initialPageTitle;
       // If on a sub-page without a login modal, redirect to index
       const loginModal = document.getElementById("loginModal");
       if (!loginModal) {
@@ -141,7 +148,7 @@ export function initInbox() {
       snapshot.forEach((docSnap) => {
         messages.push({ id: docSnap.id, ...docSnap.data() });
       });
-      maybeShowBrowserNotifications(messages);
+      maybeShowRealtimeNotifications(messages);
       renderInbox(messages);
       updateBadge(messages);
     });
@@ -262,6 +269,7 @@ function renderInbox(messages) {
 function updateBadge(messages) {
   const notifBadge = document.getElementById("notifBadge");
   const unreadCount = messages.filter((m) => !m.read).length;
+  document.title = unreadCount > 0 ? `(${unreadCount}) ${_initialPageTitle}` : _initialPageTitle;
 
   if (notifBadge) {
     if (unreadCount > 0) {
@@ -312,18 +320,36 @@ async function deleteMessage(msgId) {
 }
 
 function maybeShowBrowserNotifications(messages) {
-  if (!("Notification" in window)) return;
-  const canNotify = Notification.permission === "granted";
-  if (!canNotify && Notification.permission === "default") {
+  maybeShowRealtimeNotifications(messages);
+}
+
+function maybeShowRealtimeNotifications(messages) {
+  const supportsBrowserNotifications = "Notification" in window;
+  if (supportsBrowserNotifications && Notification.permission === "default") {
     Notification.requestPermission().catch(() => {});
+  }
+  const canNotify = supportsBrowserNotifications && Notification.permission === "granted";
+
+  const idsInSnapshot = new Set(messages.map((m) => m.id));
+  for (const id of [..._knownUnreadById.keys()]) {
+    if (!idsInSnapshot.has(id)) _knownUnreadById.delete(id);
+  }
+
+  if (!_notificationsPrimed) {
+    messages.forEach((msg) => _knownUnreadById.set(msg.id, !msg.read));
+    _notificationsPrimed = true;
+    return;
   }
 
   for (const msg of messages) {
-    if (_seenMessageIds.has(msg.id)) continue;
-    _seenMessageIds.add(msg.id);
-    if (!canNotify) continue;
-    if (msg.read) continue;
-    if (!document.hidden) continue;
+    const prevUnread = _knownUnreadById.get(msg.id) === true;
+    const isUnread = !msg.read;
+    _knownUnreadById.set(msg.id, isUnread);
+    if (!isUnread || prevUnread) continue;
+
+    showInAppNotificationToast(msg);
+    if (!canNotify || !document.hidden) continue;
+
     const title = msg.title || "New message";
     const body = msg.text || "";
     const safeUrl = safeJoinUrl(msg.joinUrl);
@@ -338,11 +364,52 @@ function maybeShowBrowserNotifications(messages) {
   }
 }
 
+function showInAppNotificationToast(msg) {
+  if (!msg?.id || _shownToastIds.has(msg.id)) return;
+  _shownToastIds.add(msg.id);
+  const safeUrl = safeJoinUrl(msg.joinUrl);
+
+  let host = document.getElementById("inboxToastHost");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "inboxToastHost";
+    host.className = "fixed top-20 right-4 z-[120] flex flex-col gap-2 max-w-xs";
+    document.body.appendChild(host);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = "rounded-xl border border-blue-500/30 bg-gray-900/95 p-3 shadow-2xl";
+  toast.innerHTML = `
+    <div class="text-[11px] font-bold text-blue-300 mb-1">${escapeHtml(msg.title || "New message")}</div>
+    <div class="text-[11px] text-gray-200 leading-snug">${escapeHtml(msg.text || "")}</div>
+    <div class="mt-2 flex justify-end gap-2">
+      ${safeUrl ? '<button type="button" class="toast-open text-[10px] px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white">Open</button>' : ""}
+      <button type="button" class="toast-dismiss text-[10px] px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200">Dismiss</button>
+    </div>
+  `;
+  toast.querySelector(".toast-open")?.addEventListener("click", () => {
+    window.location.href = safeUrl;
+  });
+  toast.querySelector(".toast-dismiss")?.addEventListener("click", () => {
+    toast.remove();
+  });
+  host.appendChild(toast);
+  setTimeout(() => toast.remove(), 7000);
+}
+
 function safeJoinUrl(urlValue) {
   const url = String(urlValue || "").trim();
   if (!url) return "";
   if (!url.startsWith("chat.html?partner=")) return "";
   return url;
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 // Keep this for inbox.html (full page) which imports this file directly
