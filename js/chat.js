@@ -7,6 +7,7 @@ import {
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   query,
   serverTimestamp,
   where,
@@ -44,6 +45,7 @@ const NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 const INVITE_COOLDOWN_MS = 2 * 60 * 1000;
 const ACTIVE_RECENTLY_MS = 2 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 30 * 1000;
+const CHAT_TITLE_BASE = document.title || "Private Chat | Math Katy";
 // Gold tier requires 300+ lifetime credits
 const GOLD_MIN_EARNED = 300;
 
@@ -88,6 +90,10 @@ let _nicknamesByUid = {};
 let _activePartnerBaseLabel = null;
 const _notificationLastSentAt = new Map();
 const _inviteLastSentAt = new Map();
+let _chatInboxUnsubscribe = null;
+let _chatNotifPrimed = false;
+const _knownUnreadInboxMessages = new Map();
+const _chatSeenToasts = new Set();
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const chatLoading    = document.getElementById("chatLoading");
@@ -96,6 +102,7 @@ const chatApp        = document.getElementById("chatApp");
 const myChatIdEl     = document.getElementById("myChatId");
 const myUidValueEl   = document.getElementById("myUidValue");
 const copyIdBtn      = document.getElementById("copyIdBtn");
+const copyInviteLinkBtn = document.getElementById("copyInviteLinkBtn");
 const partnerInput   = document.getElementById("partnerIdInput");
 const startChatBtn   = document.getElementById("startChatBtn");
 const startChatError = document.getElementById("startChatError");
@@ -245,6 +252,10 @@ function upsertSavedChat(partnerUid, partnerLabel) {
 // ── Auth flow ─────────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    if (_chatInboxUnsubscribe) {
+      _chatInboxUnsubscribe();
+      _chatInboxUnsubscribe = null;
+    }
     window.location.href = "index.html";
     return;
   }
@@ -270,6 +281,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   setupGlobalPresence();
+  initChatInboxNotifications();
 
   // Show chat UI
   chatApp?.classList.remove("hidden");
@@ -303,6 +315,127 @@ copyIdBtn?.addEventListener("click", () => {
     setTimeout(() => { copyIdBtn.textContent = "📋 Copy"; }, 2000);
   });
 });
+
+copyInviteLinkBtn?.addEventListener("click", () => {
+  if (!_currentUser) return;
+  const inviteLink = buildInviteLink(_currentUser.uid);
+  navigator.clipboard.writeText(inviteLink).then(() => {
+    copyInviteLinkBtn.textContent = "✓ Link Copied";
+    setTimeout(() => { copyInviteLinkBtn.textContent = "🔗 Invite Link"; }, 2200);
+  });
+});
+
+function buildInviteLink(uid) {
+  return new URL(`chat.html?partner=${encodeURIComponent(uid)}`, window.location.href).toString();
+}
+
+function sanitizeChatJoinUrl(urlValue) {
+  const rawUrl = String(urlValue || "").trim();
+  if (!rawUrl) return "";
+  try {
+    const parsed = new URL(rawUrl, window.location.href);
+    const lastPathPart = parsed.pathname.split("/").pop();
+    if (parsed.origin !== window.location.origin) return "";
+    if (lastPathPart !== "chat.html") return "";
+    const partner = String(parsed.searchParams.get("partner") || "").trim();
+    if (!partner) return "";
+    const normalized = normalizeChatHandle(partner);
+    if (!looksLikeUid(partner) && !CHAT_HANDLE_RE.test(normalized)) return "";
+    return `chat.html?partner=${encodeURIComponent(partner)}`;
+  } catch (_) {
+    return "";
+  }
+}
+
+function updateChatPageTitle(unreadCount) {
+  document.title = unreadCount > 0 ? `(${unreadCount}) ${CHAT_TITLE_BASE}` : CHAT_TITLE_BASE;
+}
+
+function showChatToast(msg) {
+  if (!msg?.id || _chatSeenToasts.has(msg.id)) return;
+  _chatSeenToasts.add(msg.id);
+
+  let host = document.getElementById("chatToastHost");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "chatToastHost";
+    host.className = "fixed top-20 right-4 z-[110] flex flex-col gap-2 max-w-xs";
+    document.body.appendChild(host);
+  }
+
+  const title = escapeHtml(msg.title || "New message");
+  const text = escapeHtml(msg.text || "");
+  const joinUrl = sanitizeChatJoinUrl(msg.joinUrl);
+  const toast = document.createElement("div");
+  toast.className = "rounded-xl border border-blue-500/40 bg-gray-900/95 p-3 shadow-2xl";
+  toast.innerHTML = `
+    <div class="text-xs font-bold text-blue-300 mb-1">${title}</div>
+    <div class="text-[11px] text-gray-200 leading-snug">${text}</div>
+    <div class="mt-2 flex justify-end gap-2">
+      ${joinUrl ? `<button type="button" class="chat-toast-open text-[10px] px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white">Open</button>` : ""}
+      <button type="button" class="chat-toast-close text-[10px] px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-200">Dismiss</button>
+    </div>
+  `;
+  toast.querySelector(".chat-toast-open")?.addEventListener("click", () => {
+    window.location.href = joinUrl;
+  });
+  toast.querySelector(".chat-toast-close")?.addEventListener("click", () => {
+    toast.remove();
+  });
+  host.appendChild(toast);
+  setTimeout(() => toast.remove(), 7000);
+}
+
+function initChatInboxNotifications() {
+  if (!_currentUser?.uid || _chatInboxUnsubscribe) return;
+  const q = query(
+    collection(db, "messages"),
+    where("to", "==", _currentUser.uid),
+    limit(20)
+  );
+  _chatInboxUnsubscribe = onSnapshot(q, (snapshot) => {
+    const messages = [];
+    snapshot.forEach((docSnap) => {
+      messages.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    const visibleIds = new Set(messages.map((m) => m.id));
+    for (const id of [..._knownUnreadInboxMessages.keys()]) {
+      if (!visibleIds.has(id)) _knownUnreadInboxMessages.delete(id);
+    }
+    const unreadCount = messages.filter((m) => !m.read).length;
+    updateChatPageTitle(unreadCount);
+
+    if (!_chatNotifPrimed) {
+      messages.forEach((m) => _knownUnreadInboxMessages.set(m.id, !m.read));
+      _chatNotifPrimed = true;
+      return;
+    }
+
+    const shouldBrowserNotify = ("Notification" in window) && Notification.permission === "granted";
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    for (const msg of messages) {
+      const wasUnread = _knownUnreadInboxMessages.get(msg.id) === true;
+      const isUnread = !msg.read;
+      _knownUnreadInboxMessages.set(msg.id, isUnread);
+      if (!isUnread || wasUnread) continue;
+      showChatToast(msg);
+      if (shouldBrowserNotify && document.hidden) {
+        try {
+          const n = new Notification(msg.title || "New message", { body: msg.text || "" });
+          const safeUrl = sanitizeChatJoinUrl(msg.joinUrl);
+          if (safeUrl) {
+            n.onclick = () => {
+              window.location.href = safeUrl;
+            };
+          }
+        } catch (_) {}
+      }
+    }
+  });
+}
 
 // ── Start / open chat room ────────────────────────────────────────────────────
 startChatBtn?.addEventListener("click", openChat);
@@ -741,6 +874,10 @@ chatInput?.addEventListener("blur", () => {
 });
 
 window.addEventListener("beforeunload", () => {
+  if (_chatInboxUnsubscribe) {
+    _chatInboxUnsubscribe();
+    _chatInboxUnsubscribe = null;
+  }
   if (_presenceHeartbeatTimer) {
     clearInterval(_presenceHeartbeatTimer);
     _presenceHeartbeatTimer = null;

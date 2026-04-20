@@ -49,6 +49,7 @@ function LockedView() {
 // ── Chat tab: controlled inputs + copy-button state via useState ───────────────
 function ChatView({ user, myHandle }) {
   const [copied, setCopied]           = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [partnerInput, setPartnerInput] = useState("");
   const [errorText, setErrorText]     = useState("");
 
@@ -60,6 +61,14 @@ function ChatView({ user, myHandle }) {
       setTimeout(() => setCopied(false), 2000);
     });
   }, [myHandle]);
+
+  const handleCopyInviteLink = useCallback(() => {
+    const inviteLink = new URL(`chat.html?partner=${encodeURIComponent(myUid)}`, window.location.href).toString();
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2200);
+    });
+  }, [myUid]);
 
   const doOpenChat = useCallback(() => {
     setErrorText("");
@@ -109,7 +118,13 @@ function ChatView({ user, myHandle }) {
         }, copied ? "✓ Copied!" : "📋 Copy")
       ),
       h("p", { className: "text-[11px] text-gray-600 mt-2" },
-        "Share this handle so people can add you without typing a long UID."
+        "Only the initiator needs manual entry once. Everyone else can join in one click with an invite link."
+      ),
+      h("div", { className: "mt-2" },
+        h("button", {
+          className: "text-[11px] px-3 py-1.5 rounded-lg bg-emerald-700/60 hover:bg-emerald-600/70 text-emerald-100 transition-colors",
+          onClick: handleCopyInviteLink,
+        }, inviteCopied ? "✓ Invite Link Copied" : "🔗 Copy One-Click Invite Link")
       ),
       h("p", { className: "text-[11px] text-gray-600 mt-1" },
         "Fallback UID: ",
