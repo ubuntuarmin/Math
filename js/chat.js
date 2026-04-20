@@ -45,7 +45,7 @@ const NOTIFICATION_COOLDOWN_MS = 45 * 1000;
 const INVITE_COOLDOWN_MS = 2 * 60 * 1000;
 const ACTIVE_RECENTLY_MS = 2 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 30 * 1000;
-const CHAT_TITLE_BASE = "Private Chat | Math Katy";
+const CHAT_TITLE_BASE = document.title || "Private Chat | Math Katy";
 // Gold tier requires 300+ lifetime credits
 const GOLD_MIN_EARNED = 300;
 
@@ -329,6 +329,11 @@ function buildInviteLink(uid) {
   return new URL(`chat.html?partner=${encodeURIComponent(uid)}`, window.location.href).toString();
 }
 
+function sanitizeChatJoinUrl(urlValue) {
+  const rawUrl = String(urlValue || "");
+  return rawUrl.startsWith("chat.html?partner=") ? rawUrl : "";
+}
+
 function updateChatPageTitle(unreadCount) {
   document.title = unreadCount > 0 ? `(${unreadCount}) ${CHAT_TITLE_BASE}` : CHAT_TITLE_BASE;
 }
@@ -347,7 +352,7 @@ function showChatToast(msg) {
 
   const title = escapeHtml(msg.title || "New message");
   const text = escapeHtml(msg.text || "");
-  const joinUrl = String(msg.joinUrl || "").startsWith("chat.html?partner=") ? String(msg.joinUrl) : "";
+  const joinUrl = sanitizeChatJoinUrl(msg.joinUrl);
   const toast = document.createElement("div");
   toast.className = "rounded-xl border border-blue-500/40 bg-gray-900/95 p-3 shadow-2xl";
   toast.innerHTML = `
@@ -407,7 +412,7 @@ function initChatInboxNotifications() {
       if (shouldBrowserNotify && document.hidden) {
         try {
           const n = new Notification(msg.title || "New message", { body: msg.text || "" });
-          const safeUrl = String(msg.joinUrl || "").startsWith("chat.html?partner=") ? String(msg.joinUrl) : "";
+          const safeUrl = sanitizeChatJoinUrl(msg.joinUrl);
           if (safeUrl) {
             n.onclick = () => {
               window.location.href = safeUrl;

@@ -107,7 +107,6 @@ function normalizedWeeklyPlayStats(linkData, now = Date.now()) {
 let allDocs        = [];
 let activeFilter   = null;   // { type: 'profile'|'hashtag', value, label }
 let searchTerm     = "";
-// "upvotes" sort mode is descending (most upvoted first).
 let sortMode       = "upvotes";
 let isLoadingLinks = false;  // guard against concurrent loadLinks calls
 

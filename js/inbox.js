@@ -93,7 +93,7 @@ let _inboxUnsubscribe = null;
 const _messageById = new Map();
 const FIRESTORE_BATCH_CHUNK_SIZE = 450; // keep below Firestore's 500-op batch write cap
 const MAX_MARK_ALL_READ_PASSES = 50; // safety guard against unexpected endless fetch loops
-const _initialPageTitle = document.title;
+let _initialPageTitle = "";
 let _notificationsPrimed = false;
 const _knownUnreadById = new Map();
 const _shownToastIds = new Set();
@@ -102,6 +102,7 @@ export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
   if (_inboxInitialized) return;
   _inboxInitialized = true;
+  _initialPageTitle = document.title || _initialPageTitle || "Math Katy";
 
   onAuthStateChanged(auth, (user) => {
     // Clean up any existing snapshot listener before (re-)initialising
