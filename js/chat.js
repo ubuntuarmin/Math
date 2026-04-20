@@ -330,8 +330,21 @@ function buildInviteLink(uid) {
 }
 
 function sanitizeChatJoinUrl(urlValue) {
-  const rawUrl = String(urlValue || "");
-  return rawUrl.startsWith("chat.html?partner=") ? rawUrl : "";
+  const rawUrl = String(urlValue || "").trim();
+  if (!rawUrl) return "";
+  try {
+    const parsed = new URL(rawUrl, window.location.href);
+    const lastPathPart = parsed.pathname.split("/").pop();
+    if (parsed.origin !== window.location.origin) return "";
+    if (lastPathPart !== "chat.html") return "";
+    const partner = String(parsed.searchParams.get("partner") || "").trim();
+    if (!partner) return "";
+    const normalized = normalizeChatHandle(partner);
+    if (!looksLikeUid(partner) && !CHAT_HANDLE_RE.test(normalized)) return "";
+    return `chat.html?partner=${encodeURIComponent(partner)}`;
+  } catch (_) {
+    return "";
+  }
 }
 
 function updateChatPageTitle(unreadCount) {

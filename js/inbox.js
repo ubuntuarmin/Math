@@ -102,7 +102,7 @@ export function initInbox() {
   // Guard against duplicate calls (e.g. imported by multiple modules)
   if (_inboxInitialized) return;
   _inboxInitialized = true;
-  _initialPageTitle = document.title || _initialPageTitle || "Math Katy";
+  _initialPageTitle = document.title || "Math Katy";
 
   onAuthStateChanged(auth, (user) => {
     // Clean up any existing snapshot listener before (re-)initialising
