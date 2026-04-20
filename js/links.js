@@ -107,6 +107,7 @@ function normalizedWeeklyPlayStats(linkData, now = Date.now()) {
 let allDocs        = [];
 let activeFilter   = null;   // { type: 'profile'|'hashtag', value, label }
 let searchTerm     = "";
+// "upvotes" sort mode is descending (most upvoted first).
 let sortMode       = "upvotes";
 let isLoadingLinks = false;  // guard against concurrent loadLinks calls
 
@@ -415,7 +416,7 @@ function renderMostPlayedThisWeek() {
     .slice(0, 3);
 
   if (!ranked.length) {
-    listEl.innerHTML = '<div class="text-xs text-gray-500 md:col-span-3">No playtime recorded in the last 7 days yet.</div>';
+    listEl.innerHTML = '<p class="text-xs text-gray-500 md:col-span-3">No playtime recorded in the last 7 days yet.</p>';
     return;
   }
 
