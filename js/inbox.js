@@ -319,10 +319,6 @@ async function deleteMessage(msgId) {
   }
 }
 
-function maybeShowBrowserNotifications(messages) {
-  maybeShowRealtimeNotifications(messages);
-}
-
 function maybeShowRealtimeNotifications(messages) {
   const supportsBrowserNotifications = "Notification" in window;
   if (supportsBrowserNotifications && Notification.permission === "default") {
