@@ -597,6 +597,72 @@ header.site-header::before {
   line-height: 1.45;
 }
 
+.referral-offer-progress {
+  width: 100%;
+  height: 6px;
+  margin-top: 0.5rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+}
+
+.referral-offer-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee, #a78bfa, #34d399);
+  transition: width 280ms ease;
+}
+
+.referral-offer-progress-text {
+  margin: 0.35rem 0 0;
+  font-size: 0.7rem;
+  color: #cbd5e1;
+}
+
+.referral-offer-limited-time {
+  margin: 0.2rem 0 0;
+  font-size: 0.68rem;
+  color: #86efac;
+  font-weight: 700;
+}
+
+.referral-offer-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.referral-offer-banner-action-btn {
+  border: 1px solid rgba(56, 189, 248, 0.38);
+  border-radius: 999px;
+  background: rgba(2, 132, 199, 0.18);
+  color: #e2e8f0;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  padding: 0.33rem 0.64rem;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast);
+}
+
+.referral-offer-banner-action-btn:hover {
+  border-color: rgba(125, 211, 252, 0.78);
+  background: rgba(14, 116, 144, 0.3);
+  color: #ffffff;
+}
+
+.referral-offer-banner-action-btn.secondary {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(91, 33, 182, 0.2);
+}
+
+.referral-offer-banner-action-btn.secondary:hover {
+  border-color: rgba(196, 181, 253, 0.85);
+  background: rgba(109, 40, 217, 0.32);
+}
+
 .referral-offer-banner-dismiss {
   width: 30px;
   height: 30px;

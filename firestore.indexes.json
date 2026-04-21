@@ -7,6 +7,14 @@
         { "fieldPath": "status",    "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "referralWeekKey", "order": "ASCENDING" },
+        { "fieldPath": "weeklyReferralCount", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

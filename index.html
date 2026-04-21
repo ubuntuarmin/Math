@@ -147,18 +147,26 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════
-     REFERRAL OFFER BANNER (auto pop once per load)
+     REFERRAL OFFER BANNER (stays visible until dismissed)
 ════════════════════════════════════════════════════════ -->
 <div id="referralOfferBanner" class="referral-offer-banner" hidden>
   <div class="referral-offer-banner-glow" aria-hidden="true"></div>
   <div class="referral-offer-banner-content">
     <div class="referral-offer-banner-icon" aria-hidden="true">🎁</div>
     <div class="referral-offer-banner-text">
-      <p class="referral-offer-banner-title">Referral Milestone Bonus</p>
+      <p id="referralOfferBannerTitle" class="referral-offer-banner-title">Referral Milestone Bonus</p>
       <p class="referral-offer-banner-sub">
-        If your referral passes <strong>200 playtime minutes this month</strong>, you both get
-        <strong>100 free minutes</strong>. Limited to the <strong>first 35 referral pairs</strong>.
+        Invite friends to earn <strong>+150 🪙</strong> each, unlock milestone rewards, and climb the weekly referral leaderboard.
       </p>
+      <div class="referral-offer-progress" aria-hidden="true">
+        <div id="referralOfferProgressFill" class="referral-offer-progress-fill"></div>
+      </div>
+      <p id="referralOfferProgressText" class="referral-offer-progress-text"></p>
+      <p id="referralOfferLimitedTimeText" class="referral-offer-limited-time"></p>
+      <div class="referral-offer-banner-actions">
+        <button id="referralOfferCopyInviteBtn" class="referral-offer-banner-action-btn" type="button">🔗 Copy Invite Link</button>
+        <button id="referralOfferLeaderboardBtn" class="referral-offer-banner-action-btn secondary" type="button">🏆 View Weekly Referral Race</button>
+      </div>
     </div>
     <button id="dismissReferralOfferBanner" class="referral-offer-banner-dismiss" aria-label="Dismiss referral offer banner">✕</button>
   </div>
@@ -486,8 +494,8 @@
     <!-- LEADERBOARD TAB -->
     <div id="tab-leaderboard" class="tab-content">
       <div class="surface">
-        <span class="badge">Bi-Monthly Rankings</span>
-        <h2 class="mt-2 mb-6">Top Contributors</h2>
+        <span class="badge">Rankings</span>
+        <h2 class="mt-2 mb-6">Leaderboard</h2>
         <div id="leaderboard"></div>
       </div>
     </div>
