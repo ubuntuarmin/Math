@@ -125,6 +125,14 @@ function getReferralLeaderboardReward(rank) {
   return 0;
 }
 
+function getReferralRewardLegend() {
+  return Array.from({ length: 10 }, (_, idx) => {
+    const rank = idx + 1;
+    const suffix = rank === 1 ? "st" : rank === 2 ? "nd" : rank === 3 ? "rd" : "th";
+    return `${rank}${suffix} ${getReferralLeaderboardReward(rank)}m`;
+  }).join(" · ");
+}
+
 const h = React.createElement;
 
 const LeaderboardEntries = React.memo(function LeaderboardEntries({ status, entries, metricSuffix, metricLabel }) {
@@ -239,8 +247,7 @@ function LeaderboardView({ state, onTabChange }) {
         { className: "mb-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-2xl text-center" },
         h("div", { className: "text-[10px] uppercase tracking-[0.2em] text-purple-300 font-black mb-1" }, "Weekly Referral Race"),
         h("div", { className: "text-2xl font-mono font-black text-white" }, state.referralCountdown),
-        h("div", { className: "text-[10px] text-purple-200 mt-1 font-semibold" }, "1st 200m · 2nd 150m · 3rd 100m · 4th 90m · 5th 80m"),
-        h("div", { className: "text-[9px] text-gray-500 mt-1 italic" }, "6th 70m · 7th 60m · 8th 50m · 9th 40m · 10th 30m.")
+        h("div", { className: "text-[10px] text-purple-200 mt-1 font-semibold" }, getReferralRewardLegend())
       ),
     h(
       "div",

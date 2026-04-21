@@ -120,7 +120,7 @@ function showReferralOfferBanner(uid, userData) {
     if (limitedTimeEl) {
         const daysLeft = getDaysUntilMonthEnds();
         limitedTimeEl.textContent =
-            `⏳ ${daysLeft} day${daysLeft === 1 ? "" : "s"} left this month for the extra +100 free-minute pair bonus (on top of +150 🪙 per sign-up).`;
+            `⏳ ${daysLeft} day${daysLeft === 1 ? "" : "s"} left this month to maximize referral milestones and weekly referral race rewards.`;
     }
 
     banner.hidden = false;
