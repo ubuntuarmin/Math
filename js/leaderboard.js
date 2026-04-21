@@ -129,7 +129,7 @@ function getReferralRewardLegend() {
   return Array.from({ length: 10 }, (_, idx) => {
     const rank = idx + 1;
     const suffix = rank === 1 ? "st" : rank === 2 ? "nd" : rank === 3 ? "rd" : "th";
-    return `${rank}${suffix} ${getReferralLeaderboardReward(rank)}m`;
+    return `${rank}${suffix} ${getReferralLeaderboardReward(rank)}min`;
   }).join(" · ");
 }
 

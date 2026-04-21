@@ -111,6 +111,13 @@ service cloud.firestore {
            && request.resource.data.get('weeklyReferralCount', 0) >= 0
            && request.resource.data.get('weeklyReferralCount', 0) <= 1000
            && (
+             request.resource.data.get('weeklyReferralCount', 0) >= resource.data.get('weeklyReferralCount', 0)
+             || (
+               request.resource.data.get('referralWeekKey', '') != resource.data.get('referralWeekKey', '')
+               && request.resource.data.get('weeklyReferralCount', 0) == 1
+             )
+           )
+           && (
              request.resource.data.get('referralWeekKey', '') is string
              || request.resource.data.get('referralWeekKey', null) == null
            )
