@@ -177,11 +177,7 @@ const LeaderboardEntries = React.memo(function LeaderboardEntries({ status, entr
                   entry.tierName
                 )
               ),
-              h(
-                "div",
-                { className: "text-[10px] text-emerald-400 font-bold" },
-                `Reward: +${entry.reward} min`
-              )
+              h("div", { className: "text-[10px] text-emerald-400 font-bold" }, entry.rewardText)
             )
           ),
           h(
@@ -363,6 +359,7 @@ export async function renderLeaderboard() {
           tierName: tier.name,
           tierColor: tier.color,
           reward: getTimeLeaderboardReward(rank),
+          rewardText: `Estimated Reward: +${getTimeLeaderboardReward(rank)} 🪙`,
           rank,
           rankBadge,
           metric: data.weekMinutes || 0,
@@ -406,6 +403,7 @@ export async function renderLeaderboard() {
           tierName: tier.name,
           tierColor: tier.color,
           reward: getReferralLeaderboardReward(rank),
+          rewardText: `Reward: +${getReferralLeaderboardReward(rank)} min`,
           rank,
           rankBadge,
           metric: Number(data.weeklyReferralCount || 0),

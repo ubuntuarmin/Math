@@ -84,11 +84,17 @@ function showReferralOfferBanner(uid, userData) {
 
     const referralCount = Array.isArray(userData.referrals) ? userData.referrals.length : 0;
     const weeklyReferrals = Number(userData.weeklyReferralCount || 0);
-    const nextMilestone = REFERRAL_MILESTONES.find((m) => referralCount < m) || REFERRAL_MILESTONES[REFERRAL_MILESTONES.length - 1];
+    const maxMilestone = REFERRAL_MILESTONES[REFERRAL_MILESTONES.length - 1];
+    const hasCompletedAllMilestones = referralCount >= maxMilestone;
+    const nextMilestone = hasCompletedAllMilestones
+        ? maxMilestone
+        : REFERRAL_MILESTONES.find((m) => referralCount < m);
     const prevMilestone = [...REFERRAL_MILESTONES].reverse().find((m) => referralCount >= m) || 0;
     const milestoneSpan = Math.max(1, nextMilestone - prevMilestone);
     const progressed = Math.max(0, referralCount - prevMilestone);
-    const progressPct = Math.min(100, Math.round((progressed / milestoneSpan) * 100));
+    const progressPct = hasCompletedAllMilestones
+        ? 100
+        : Math.min(100, Math.round((progressed / milestoneSpan) * 100));
 
     const hideBanner = () => {
         banner.classList.remove("is-visible");
@@ -104,14 +110,17 @@ function showReferralOfferBanner(uid, userData) {
         progressFillEl.style.width = `${progressPct}%`;
     }
     if (progressTextEl) {
-        const toNext = Math.max(0, nextMilestone - referralCount);
-        progressTextEl.textContent = toNext > 0
-            ? `${toNext} more referral${toNext === 1 ? "" : "s"} to hit your ${nextMilestone}-referral milestone.`
-            : `Milestone cleared! Push for the next one.`;
+        if (hasCompletedAllMilestones) {
+            progressTextEl.textContent = "All referral milestones completed. Keep inviting to stay on top weekly.";
+        } else {
+            const toNext = Math.max(0, nextMilestone - referralCount);
+            progressTextEl.textContent = `${toNext} more referral${toNext === 1 ? "" : "s"} to hit your ${nextMilestone}-referral milestone.`;
+        }
     }
     if (limitedTimeEl) {
+        const daysLeft = getDaysUntilMonthEnds();
         limitedTimeEl.textContent =
-            `⏳ ${getDaysUntilMonthEnds()} day${getDaysUntilMonthEnds() === 1 ? "" : "s"} left this month for the +100 free-minute referral offer (first 35 pairs).`;
+            `⏳ ${daysLeft} day${daysLeft === 1 ? "" : "s"} left this month for the +100 free-minute referral offer (first 35 pairs).`;
     }
 
     banner.hidden = false;
