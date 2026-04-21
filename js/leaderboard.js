@@ -17,14 +17,34 @@ import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
 const leaderboardContainer = document.getElementById("leaderboard");
 const leaderboardRoot = leaderboardContainer ? createRoot(leaderboardContainer) : null;
 let timerInterval = null;
-let leaderboardRendered = false; // render only once per page load
+let leaderboardRendered = false;
 
-// Must match the Firestore security rule cap on weekMinutes
 const MAX_WEEKLY_MINUTES = 10000;
+const SETTINGS_CACHE_KEY = "leaderboardNextReset";
+const SETTINGS_CACHE_TTL = 60 * 60 * 1000;
+const POST_RESET_REFRESH_DELAY = 10000;
 
-/**
- * Compute the next bi-monthly reset date (15th or 29th of a month).
- */
+function getUTCWeekKey(date = new Date()) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+function getNextWeeklyResetUTC() {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const daysUntilMonday = day === 0 ? 1 : 8 - day;
+  return new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() + daysUntilMonday,
+    0, 0, 0, 0
+  ));
+}
+
 function getNextBimonthlyReset() {
   const now = new Date();
   const year = now.getFullYear();
@@ -35,40 +55,19 @@ function getNextBimonthlyReset() {
     return new Date(year, month, 15, 0, 0, 0, 0);
   } else if (day < 29) {
     return new Date(year, month, 29, 0, 0, 0, 0);
-  } else {
-    // Advance to the 15th of the next month
-    return new Date(year, month + 1, 15, 0, 0, 0, 0);
   }
+  return new Date(year, month + 1, 15, 0, 0, 0, 0);
 }
 
-const SETTINGS_CACHE_KEY = "leaderboardNextReset";
-const SETTINGS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
-const POST_RESET_REFRESH_DELAY = 10000;     // 10 s — wait for Firestore to propagate resets
-
-/**
- * Helper: Get next reset time:
- * 1. Try sessionStorage cache (1-hour TTL) to reduce Firestore reads
- * 2. Try Firestore settings/leaderboard.nextReset
- * 3. Fallback to next 15th or 29th of the month
- *
- * Dates that are already in the past are always ignored so the countdown
- * can never get permanently stuck on "Resetting…".
- */
-async function getNextResetDate() {
+async function getNextTimeLeaderboardReset() {
   const now = Date.now();
-
-  // Check sessionStorage cache first
   try {
     const cached = sessionStorage.getItem(SETTINGS_CACHE_KEY);
     if (cached) {
       const { value, timestamp } = JSON.parse(cached);
       if (now - timestamp < SETTINGS_CACHE_TTL) {
         const date = new Date(value);
-        // Only use cached value if the reset date is still in the future
-        if (date.getTime() > now) {
-          return date;
-        }
-        // Stale/past — remove so the next path always fetches fresh data
+        if (date.getTime() > now) return date;
         try { sessionStorage.removeItem(SETTINGS_CACHE_KEY); } catch (_) {}
       }
     }
@@ -80,17 +79,9 @@ async function getNextResetDate() {
     if (snap.exists()) {
       const data = snap.data();
       if (data.nextReset) {
-        let date;
-        // Firestore Timestamp
-        if (typeof data.nextReset.toMillis === "function") {
-          date = new Date(data.nextReset.toMillis());
-        } else {
-          // Plain Date/string/number
-          date = new Date(data.nextReset);
-        }
-        // Only use Firestore value if the reset date is still in the future.
-        // If the admin hasn't updated settings/leaderboard yet (past date),
-        // fall through to the computed fallback so the UI never freezes.
+        const date = typeof data.nextReset.toMillis === "function"
+          ? new Date(data.nextReset.toMillis())
+          : new Date(data.nextReset);
         if (date.getTime() > now) {
           try {
             sessionStorage.setItem(
@@ -106,61 +97,54 @@ async function getNextResetDate() {
     console.warn("Leaderboard: failed to fetch settings/leaderboard:", err);
   }
 
-  // Fallback: compute next 15th or 29th
   return getNextBimonthlyReset();
 }
 
-/**
- * Compute the remaining time to a target date
- */
 function getTimeRemainingTo(targetDate) {
-  const now = new Date();
-  const diff = targetDate - now;
-
-  if (diff <= 0) {
-    return { days: 0, hours: 0, mins: 0, secs: 0, total: 0 };
-  }
-
+  const diff = targetDate - new Date();
+  if (diff <= 0) return { days: 0, hours: 0, mins: 0, secs: 0, total: 0 };
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
   const mins = Math.floor((diff / 1000 / 60) % 60);
   const secs = Math.floor((diff / 1000) % 60);
-
   return { days, hours, mins, secs, total: diff };
 }
 
-/**
- * Helper: Reward tier
- */
-function getPotentialReward(rank) {
+function getTimeLeaderboardReward(rank) {
   if (rank > 10) return 0;
   return 110 - rank * 10;
 }
 
+function getReferralLeaderboardReward(rank) {
+  if (rank === 1) return 200;
+  if (rank === 2) return 150;
+  if (rank === 3) return 100;
+  if (rank === 4) return 90;
+  if (rank === 5) return 80;
+  if (rank >= 6 && rank <= 10) return 80 - (rank - 5) * 10;
+  return 0;
+}
+
+function getReferralRewardLegend() {
+  return Array.from({ length: 10 }, (_, idx) => {
+    const rank = idx + 1;
+    const suffix = rank === 1 ? "st" : rank === 2 ? "nd" : rank === 3 ? "rd" : "th";
+    return `${rank}${suffix} ${getReferralLeaderboardReward(rank)}min`;
+  }).join(" · ");
+}
+
 const h = React.createElement;
 
-const LeaderboardEntries = React.memo(function LeaderboardEntries({ status, entries }) {
+const LeaderboardEntries = React.memo(function LeaderboardEntries({ status, entries, metricSuffix, metricLabel }) {
   return h(
     React.Fragment,
     null,
     status === "loading" &&
-      h(
-        "div",
-        { className: "flex justify-center py-8" },
-        h("div", { className: "loader" })
-      ),
+      h("div", { className: "flex justify-center py-8" }, h("div", { className: "loader" })),
     status === "empty" &&
-      h(
-        "p",
-        { className: "text-center py-10 text-gray-500" },
-        "No activity yet. Be the first!"
-      ),
+      h("p", { className: "text-center py-10 text-gray-500" }, "No activity yet. Be the first!"),
     status === "error" &&
-      h(
-        "p",
-        { className: "text-red-500 text-xs text-center" },
-        "Failed to load rankings."
-      ),
+      h("p", { className: "text-red-500 text-xs text-center" }, "Failed to load rankings."),
     status === "ready" &&
       entries.map((entry) =>
         h(
@@ -201,11 +185,7 @@ const LeaderboardEntries = React.memo(function LeaderboardEntries({ status, entr
                   entry.tierName
                 )
               ),
-              h(
-                "div",
-                { className: "text-[10px] text-emerald-400 font-bold" },
-                `Estimated Reward: +${entry.reward} 🪙`
-              )
+              h("div", { className: "text-[10px] text-emerald-400 font-bold" }, entry.rewardText)
             )
           ),
           h(
@@ -214,183 +194,241 @@ const LeaderboardEntries = React.memo(function LeaderboardEntries({ status, entr
             h(
               "div",
               { className: "text-blue-400 font-black text-lg" },
-              `${entry.weekMinutes}`,
-              h("span", { className: "text-[10px] ml-0.5" }, "m")
+              `${entry.metric}`,
+              h("span", { className: "text-[10px] ml-0.5" }, metricSuffix)
             ),
-            h(
-              "div",
-              { className: "text-[9px] text-gray-600 uppercase font-bold" },
-              "This Week"
-            ),
-            h(
-              "div",
-              { className: "text-[10px] text-gray-600 mt-0.5" },
-              "View Profile →"
-            )
+            h("div", { className: "text-[9px] text-gray-600 uppercase font-bold" }, metricLabel),
+            h("div", { className: "text-[10px] text-gray-600 mt-0.5" }, "View Profile →")
           )
         )
       )
   );
 });
 
-function LeaderboardView({ countdown, status, entries }) {
+function LeaderboardView({ state, onTabChange }) {
+  const activeIsTime = state.activeTab === "time";
   return h(
     React.Fragment,
     null,
     h(
       "div",
-      {
-        id: "leaderboardHeader",
-        className:
-          "mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-2xl text-center",
-      },
+      { className: "flex gap-2 mb-4 rounded-xl bg-gray-950/70 p-1 border border-gray-800" },
       h(
-        "div",
+        "button",
         {
-          className:
-            "text-[10px] uppercase tracking-[0.2em] text-blue-400 font-black mb-1",
+          className: `flex-1 text-xs font-black py-2 rounded-lg transition ${activeIsTime ? "bg-blue-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/80"}`,
+          onClick: () => onTabChange("time"),
         },
-        "Season Ends In"
+        "⏱️ Time Leaderboard"
       ),
       h(
-        "div",
+        "button",
         {
-          id: "leaderboardCountdown",
-          className: "text-2xl font-mono font-black text-white",
+          className: `flex-1 text-xs font-black py-2 rounded-lg transition ${!activeIsTime ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white hover:bg-gray-800/80"}`,
+          onClick: () => onTabChange("referrals"),
         },
-        countdown
-      ),
-      h(
-        "div",
-        { className: "text-[9px] text-gray-500 mt-1 italic" },
-        "Resets on the 15th & 29th · Top 10 win bonus credits!"
+        "👥 Weekly Referrals"
       )
     ),
+    activeIsTime &&
+      h(
+        "div",
+        {
+          id: "leaderboardHeader",
+          className: "mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-2xl text-center",
+        },
+        h("div", { className: "text-[10px] uppercase tracking-[0.2em] text-blue-400 font-black mb-1" }, "Season Ends In"),
+        h("div", { className: "text-2xl font-mono font-black text-white" }, state.timeCountdown),
+        h("div", { className: "text-[9px] text-gray-500 mt-1 italic" }, "Resets on the 15th & 29th · Top 10 win bonus minutes!")
+      ),
+    !activeIsTime &&
+      h(
+        "div",
+        { className: "mb-6 p-4 bg-purple-900/20 border border-purple-500/30 rounded-2xl text-center" },
+        h("div", { className: "text-[10px] uppercase tracking-[0.2em] text-purple-300 font-black mb-1" }, "Weekly Referral Race"),
+        h("div", { className: "text-2xl font-mono font-black text-white" }, state.referralCountdown),
+        h("div", { className: "text-[10px] text-purple-200 mt-1 font-semibold" }, getReferralRewardLegend())
+      ),
     h(
       "div",
-      { id: "leaderboardList", className: "space-y-3" },
-      h(LeaderboardEntries, { status, entries })
+      { className: "space-y-3" },
+      activeIsTime
+        ? h(LeaderboardEntries, {
+            status: state.timeStatus,
+            entries: state.timeEntries,
+            metricSuffix: "m",
+            metricLabel: "This Week",
+          })
+        : h(LeaderboardEntries, {
+            status: state.referralStatus,
+            entries: state.referralEntries,
+            metricSuffix: "",
+            metricLabel: "Referrals This Week",
+          })
     )
   );
 }
 
-/**
- * Render header + list, and keep header timer live‑updating.
- */
 export async function renderLeaderboard() {
   if (!leaderboardRoot) return;
-  // Only render once per page load to avoid unnecessary Firestore reads/writes
-  // and prevent the leaderboard from flickering on profile updates.
   if (leaderboardRendered) return;
   leaderboardRendered = true;
 
-  // Stop any previous countdown interval
   if (timerInterval) {
     clearInterval(timerInterval);
     timerInterval = null;
   }
 
-  let uiState = { countdown: "--", status: "loading", entries: [] };
+  let state = {
+    activeTab: "time",
+    timeCountdown: "--",
+    referralCountdown: "--",
+    timeStatus: "loading",
+    referralStatus: "loading",
+    timeEntries: [],
+    referralEntries: [],
+  };
+
   const renderState = (patch = {}) => {
-    uiState = { ...uiState, ...patch };
-    leaderboardRoot.render(h(LeaderboardView, uiState));
+    state = { ...state, ...patch };
+    leaderboardRoot.render(h(LeaderboardView, {
+      state,
+      onTabChange: (tab) => renderState({ activeTab: tab }),
+    }));
   };
   renderState();
 
-  // 1) Figure out target reset date
-  const nextResetDate = await getNextResetDate();
+  const nextTimeReset = await getNextTimeLeaderboardReset();
+  const nextReferralReset = getNextWeeklyResetUTC();
+  let refreshTriggered = false;
 
-  // 2) Start live countdown (self‑correcting each second)
-  let resetFired = false;
   const updateCountdown = () => {
-    const time = getTimeRemainingTo(nextResetDate);
-    if (time.total <= 0) {
-      renderState({ countdown: "Resetting…" });
-      if (!resetFired) {
-        resetFired = true;
-        // Clear the cache so the next render fetches the new reset date
-        try { sessionStorage.removeItem(SETTINGS_CACHE_KEY); } catch (_) {}
-        clearInterval(timerInterval);
-        timerInterval = null;
-        // Re-render the leaderboard after POST_RESET_REFRESH_DELAY to pick up post-reset data
-        setTimeout(() => {
-          leaderboardRendered = false;
-          renderLeaderboard();
-        }, POST_RESET_REFRESH_DELAY);
-      }
-      return;
-    }
-    if (time.days === 0 && time.hours === 0 && time.mins === 0) {
-      renderState({ countdown: `${time.secs}s` });
-    } else {
-      renderState({ countdown: `${time.days}d ${time.hours}h ${time.mins}m` });
+    const timeRemaining = getTimeRemainingTo(nextTimeReset);
+    const referralRemaining = getTimeRemainingTo(nextReferralReset);
+
+    const timeCountdown = timeRemaining.total <= 0
+      ? "Refreshing…"
+      : (timeRemaining.days === 0 && timeRemaining.hours === 0 && timeRemaining.mins === 0
+        ? `${timeRemaining.secs}s`
+        : `${timeRemaining.days}d ${timeRemaining.hours}h ${timeRemaining.mins}m`);
+
+    const referralCountdown = referralRemaining.total <= 0
+      ? "Refreshing…"
+      : (referralRemaining.days === 0 && referralRemaining.hours === 0 && referralRemaining.mins === 0
+        ? `${referralRemaining.secs}s`
+        : `${referralRemaining.days}d ${referralRemaining.hours}h ${referralRemaining.mins}m`);
+
+    renderState({ timeCountdown, referralCountdown });
+
+    if (!refreshTriggered && (timeRemaining.total <= 0 || referralRemaining.total <= 0)) {
+      refreshTriggered = true;
+      try { sessionStorage.removeItem(SETTINGS_CACHE_KEY); } catch (_) {}
+      clearInterval(timerInterval);
+      timerInterval = null;
+      setTimeout(() => {
+        leaderboardRendered = false;
+        renderLeaderboard();
+      }, POST_RESET_REFRESH_DELAY);
     }
   };
+
   updateCountdown();
   timerInterval = setInterval(updateCountdown, 1000);
 
-  // 3) Load leaderboard data
   try {
-    const leaderboardQuery = query(
+    const timeLeaderboardQuery = query(
       collection(db, "users"),
       where("weekMinutes", ">", 0),
       where("weekMinutes", "<=", MAX_WEEKLY_MINUTES),
       orderBy("weekMinutes", "desc"),
       limit(15)
     );
-
-    const snap = await getDocs(leaderboardQuery);
-    // Client-side guard: exclude any doc that somehow exceeds the cap
-    const validDocs = snap.docs.filter(d => (d.data().weekMinutes || 0) <= MAX_WEEKLY_MINUTES).slice(0, 10);
+    const timeSnap = await getDocs(timeLeaderboardQuery);
+    const validDocs = timeSnap.docs
+      .filter((d) => (d.data().weekMinutes || 0) <= MAX_WEEKLY_MINUTES)
+      .slice(0, 10);
 
     if (validDocs.length === 0) {
-      renderState({ status: "empty", entries: [] });
-      return;
+      renderState({ timeStatus: "empty", timeEntries: [] });
+    } else {
+      let rank = 1;
+      const entries = validDocs.map((docSnap) => {
+        const data = docSnap.data();
+        const tier = calculateTier(data.totalEarned || 0);
+        const rankBadge =
+          rank === 1 ? h("span", null, "🥇") :
+          rank === 2 ? h("span", null, "🥈") :
+          rank === 3 ? h("span", null, "🥉") :
+          h("span", { className: "text-gray-500 font-mono w-6 text-center" }, `${rank}`);
+        const entry = {
+          uid: docSnap.id,
+          name: data.firstName || "Student",
+          tierName: tier.name,
+          tierColor: tier.color,
+          reward: getTimeLeaderboardReward(rank),
+          rewardText: `Estimated Reward: +${getTimeLeaderboardReward(rank)} 🪙`,
+          rank,
+          rankBadge,
+          metric: data.weekMinutes || 0,
+        };
+        rank++;
+        return entry;
+      });
+      renderState({ timeStatus: "ready", timeEntries: entries });
     }
-
-    let rank = 1;
-    const entries = validDocs.map((docSnap) => {
-      const data = docSnap.data();
-      const tier = calculateTier(data.totalEarned || 0);
-      const reward = getPotentialReward(rank);
-
-      const rankBadge =
-        rank === 1 ? h("span", null, "🥇") :
-        rank === 2 ? h("span", null, "🥈") :
-        rank === 3 ? h("span", null, "🥉") :
-        h("span", { className: "text-gray-500 font-mono w-6 text-center" }, `${rank}`);
-
-      const entryUid  = docSnap.id;
-      const entryName = data.firstName || "Student";
-      const entry = {
-        uid: entryUid,
-        name: entryName,
-        tierName: tier.name,
-        tierColor: tier.color,
-        reward,
-        rank,
-        rankBadge,
-        weekMinutes: data.weekMinutes || 0,
-      };
-      rank++;
-      return entry;
-    });
-    renderState({ status: "ready", entries });
   } catch (err) {
-    console.error("Leaderboard Error:", err);
-    renderState({ status: "error", entries: [] });
+    console.error("Time Leaderboard Error:", err);
+    renderState({ timeStatus: "error", timeEntries: [] });
+  }
+
+  try {
+    const weekKey = getUTCWeekKey();
+    const referralLeaderboardQuery = query(
+      collection(db, "users"),
+      where("referralWeekKey", "==", weekKey),
+      where("weeklyReferralCount", ">", 0),
+      orderBy("weeklyReferralCount", "desc"),
+      limit(10)
+    );
+    const referralSnap = await getDocs(referralLeaderboardQuery);
+
+    if (referralSnap.empty) {
+      renderState({ referralStatus: "empty", referralEntries: [] });
+    } else {
+      let rank = 1;
+      const entries = referralSnap.docs.map((docSnap) => {
+        const data = docSnap.data();
+        const tier = calculateTier(data.totalEarned || 0);
+        const rankBadge =
+          rank === 1 ? h("span", null, "🥇") :
+          rank === 2 ? h("span", null, "🥈") :
+          rank === 3 ? h("span", null, "🥉") :
+          h("span", { className: "text-gray-500 font-mono w-6 text-center" }, `${rank}`);
+        const entry = {
+          uid: docSnap.id,
+          name: data.firstName || "Student",
+          tierName: tier.name,
+          tierColor: tier.color,
+          reward: getReferralLeaderboardReward(rank),
+          rewardText: `Reward: +${getReferralLeaderboardReward(rank)} min`,
+          rank,
+          rankBadge,
+          metric: Number(data.weeklyReferralCount || 0),
+        };
+        rank++;
+        return entry;
+      });
+      renderState({ referralStatus: "ready", referralEntries: entries });
+    }
+  } catch (err) {
+    console.error("Referral Leaderboard Error:", err);
+    renderState({ referralStatus: "error", referralEntries: [] });
   }
 }
 
-/**
- * Refresh the leaderboard by clearing the rendered flag and re-rendering.
- * Called after weekMinutes is updated so the new score is reflected.
- */
 function refreshLeaderboard() {
   leaderboardRendered = false;
   renderLeaderboard();
 }
 
-// Re-render the leaderboard whenever the user finishes a study session
-// (links.js dispatches this event after updating weekMinutes).
 document.addEventListener("weekMinutesUpdated", refreshLeaderboard);

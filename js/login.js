@@ -10,9 +10,7 @@ import {
   query,
   where,
   getDocs,
-  updateDoc,
-  arrayUnion,
-  increment,
+  runTransaction,
   addDoc,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
@@ -44,6 +42,15 @@ async function sendReferralNotification(referrerUid, newUserEmail) {
   } catch (err) {
     console.error("Failed to send referral notification:", err);
   }
+}
+
+function getUTCWeekKey(date = new Date()) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 }
 
 // --- 2. EXPORTS ---
@@ -154,11 +161,29 @@ const initLogin = () => {
             referrerUid = referrerDoc.id;
 
             if (referrerUid !== uid) {
-              // Reward the Referrer with 150 credits
-              await updateDoc(doc(db, "users", referrerUid), {
-                credits: increment(150),
-                totalEarned: increment(150),
-                referrals: arrayUnion(email),
+              const currentWeekKey = getUTCWeekKey();
+              await runTransaction(db, async (txn) => {
+                const refDocRef = doc(db, "users", referrerUid);
+                const refSnap = await txn.get(refDocRef);
+                if (!refSnap.exists()) return;
+
+                const refData = refSnap.data();
+                const storedWeekKey = refData.referralWeekKey || "";
+                const currentCount = storedWeekKey === currentWeekKey
+                  ? Number(refData.weeklyReferralCount || 0)
+                  : 0;
+                const nextCredits = Number(refData.credits || 0) + 150;
+                const nextTotalEarned = Number(refData.totalEarned || 0) + 150;
+                const existingReferrals = Array.isArray(refData.referrals) ? refData.referrals : [];
+                const nextReferrals = existingReferrals.includes(email) ? existingReferrals : [...existingReferrals, email];
+
+                txn.update(refDocRef, {
+                  credits: nextCredits,
+                  totalEarned: nextTotalEarned,
+                  referrals: nextReferrals,
+                  referralWeekKey: currentWeekKey,
+                  weeklyReferralCount: currentCount + 1,
+                });
               });
 
               // Send notification to referrer
@@ -194,6 +219,8 @@ const initLogin = () => {
         referralOfferBannerViews: 0,
         referralOfferRewardGranted: false,
         referrals: [],
+        referralWeekKey: getUTCWeekKey(),
+        weeklyReferralCount: 0,
         referralCode: uid.slice(0, 6).toUpperCase(),
         referredBy: referrerUid,
         lastVisitDate: new Date().toDateString(),

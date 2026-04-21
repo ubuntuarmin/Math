@@ -43,18 +43,58 @@ const HACKED_WEEK_MINUTES = 99999999;
 // exceed this amount given all current earning caps and rate limits.
 const RAPID_CREDIT_THRESHOLD = 2000;
 const RAPID_CREDIT_WINDOW_MS  = 60 * 60 * 1000; // 1 hour
-const REFERRAL_BANNER_MAX_VIEWS = 3;
-const REFERRAL_BANNER_MS = 4000;
+const REFERRAL_MILESTONES = [1, 3, 5, 10, 15];
 const USER_COUNT_CACHE_KEY = "mathKatyUserCountCacheV1";
 const USER_COUNT_CACHE_MS = 5 * 60 * 1000;
+
+function getUTCWeekKey(date = new Date()) {
+    const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+function openTab(tabName) {
+    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    tabBtn?.click();
+}
+
+function getDaysUntilMonthEnds() {
+    const now = new Date();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return Math.max(1, endOfMonth.getDate() - now.getDate());
+}
 
 function showReferralOfferBanner(uid, userData) {
     const banner = document.getElementById("referralOfferBanner");
     const dismissBtn = document.getElementById("dismissReferralOfferBanner");
+    const copyInviteBtn = document.getElementById("referralOfferCopyInviteBtn");
+    const leaderboardBtn = document.getElementById("referralOfferLeaderboardBtn");
+    const titleEl = document.getElementById("referralOfferBannerTitle");
+    const progressFillEl = document.getElementById("referralOfferProgressFill");
+    const progressTextEl = document.getElementById("referralOfferProgressText");
+    const limitedTimeEl = document.getElementById("referralOfferLimitedTimeText");
     if (!banner || !uid || !userData) return;
 
-    const seenCount = Number(userData.referralOfferBannerViews || 0);
-    if (seenCount >= REFERRAL_BANNER_MAX_VIEWS) return;
+    const weekKey = getUTCWeekKey();
+    const dismissKey = `mathReferralOfferBannerDismissed:${uid}:${weekKey}`;
+    if (localStorage.getItem(dismissKey) === "1") return;
+
+    const referralCount = Array.isArray(userData.referrals) ? userData.referrals.length : 0;
+    const weeklyReferrals = Number(userData.weeklyReferralCount || 0);
+    const maxMilestone = REFERRAL_MILESTONES[REFERRAL_MILESTONES.length - 1];
+    const hasCompletedAllMilestones = referralCount >= maxMilestone;
+    const nextMilestone = hasCompletedAllMilestones
+        ? maxMilestone
+        : REFERRAL_MILESTONES.find((m) => referralCount < m);
+    const prevMilestone = [...REFERRAL_MILESTONES].reverse().find((m) => referralCount >= m) || 0;
+    const milestoneSpan = Math.max(1, nextMilestone - prevMilestone);
+    const progressed = Math.max(0, referralCount - prevMilestone);
+    const progressPct = hasCompletedAllMilestones
+        ? 100
+        : Math.min(100, Math.round((progressed / milestoneSpan) * 100));
 
     const hideBanner = () => {
         banner.classList.remove("is-visible");
@@ -63,16 +103,60 @@ function showReferralOfferBanner(uid, userData) {
         }, 280);
     };
 
+    if (titleEl) {
+        titleEl.textContent = `Referral Boost · ${weeklyReferrals} this week`;
+    }
+    if (progressFillEl) {
+        progressFillEl.style.width = `${progressPct}%`;
+    }
+    if (progressTextEl) {
+        if (hasCompletedAllMilestones) {
+            progressTextEl.textContent = "All referral milestones completed. Keep inviting to stay on top weekly.";
+        } else {
+            const toNext = Math.max(0, nextMilestone - referralCount);
+            progressTextEl.textContent = `${toNext} more referral${toNext === 1 ? "" : "s"} to hit your ${nextMilestone}-referral milestone.`;
+        }
+    }
+    if (limitedTimeEl) {
+        const daysLeft = getDaysUntilMonthEnds();
+        limitedTimeEl.textContent =
+            `⏳ ${daysLeft} day${daysLeft === 1 ? "" : "s"} left this month to maximize referral milestones and weekly referral race rewards.`;
+    }
+
     banner.hidden = false;
     requestAnimationFrame(() => banner.classList.add("is-visible"));
 
+    const seenCount = Number(userData.referralOfferBannerViews || 0);
     updateDoc(doc(db, "users", uid), {
         referralOfferBannerViews: increment(1),
     }).catch(() => {});
     userData.referralOfferBannerViews = seenCount + 1;
 
-    dismissBtn?.addEventListener("click", hideBanner, { once: true });
-    setTimeout(hideBanner, REFERRAL_BANNER_MS);
+    dismissBtn.onclick = () => {
+        try {
+            localStorage.setItem(dismissKey, "1");
+        } catch (_) {}
+        hideBanner();
+    };
+
+    copyInviteBtn.onclick = async () => {
+        const code = userData.referralCode || uid.slice(0, 6).toUpperCase();
+        const inviteLink = `${window.location.origin}${window.location.pathname}?ref=${encodeURIComponent(code)}`;
+        try {
+            await navigator.clipboard.writeText(inviteLink);
+            copyInviteBtn.textContent = "✅ Copied";
+            setTimeout(() => {
+                copyInviteBtn.textContent = "🔗 Copy Invite Link";
+            }, 1400);
+        } catch (_) {
+            alert("Could not copy automatically. Please copy from your Account tab.");
+            openTab("account");
+        }
+    };
+
+    leaderboardBtn.onclick = () => {
+        openTab("leaderboard");
+    };
 }
 
 async function updateUserCounterWidget() {
@@ -625,6 +709,8 @@ onAuthStateChanged(auth, async user => {
                 referralOfferBannerViews: 0,
                 referralOfferRewardGranted: false,
                 referrals: [],
+                referralWeekKey: getUTCWeekKey(),
+                weeklyReferralCount: 0,
                 referralCode: user.uid.slice(0, 6).toUpperCase(),
                 lastVisitDate: new Date().toDateString(),
                 createdAt: serverTimestamp()

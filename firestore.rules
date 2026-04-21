@@ -100,14 +100,29 @@ service cloud.firestore {
         || (
            request.resource.data.diff(resource.data)
                 .affectedKeys()
-                .hasOnly(['credits', 'totalEarned', 'upvotedUsers', 'referrals', 'bonusMinutesBalance'])
+                .hasOnly(['credits', 'totalEarned', 'upvotedUsers', 'referrals', 'bonusMinutesBalance', 'weeklyReferralCount', 'referralWeekKey'])
            && fieldDelta('credits')            <= 500
            && fieldDelta('totalEarned')        <= 500
            && fieldDelta('bonusMinutesBalance') <= 100
-           && (fieldDelta('bonusMinutesBalance') == 0 || fieldDelta('bonusMinutesBalance') == 100)
-           && request.resource.data.get('bonusMinutesBalance', 0) >= resource.data.get('bonusMinutesBalance', 0)
-         )
-       );
+           && fieldDelta('weeklyReferralCount') <= 1
+            && (fieldDelta('bonusMinutesBalance') == 0 || fieldDelta('bonusMinutesBalance') == 100)
+            && request.resource.data.get('bonusMinutesBalance', 0) >= resource.data.get('bonusMinutesBalance', 0)
+           && request.resource.data.get('weeklyReferralCount', 0) is int
+           && request.resource.data.get('weeklyReferralCount', 0) >= 0
+           && request.resource.data.get('weeklyReferralCount', 0) <= 1000
+           && (
+             request.resource.data.get('weeklyReferralCount', 0) >= resource.data.get('weeklyReferralCount', 0)
+             || (
+               request.resource.data.get('referralWeekKey', '') != resource.data.get('referralWeekKey', '')
+               && request.resource.data.get('weeklyReferralCount', 0) == 1
+             )
+           )
+           && (
+             request.resource.data.get('referralWeekKey', '') is string
+             || request.resource.data.get('referralWeekKey', null) == null
+           )
+          )
+        );
 
       allow delete: if isAuthenticated() && request.auth.uid == userId;
     }
