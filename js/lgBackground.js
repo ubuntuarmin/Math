@@ -24,6 +24,7 @@ const _DPR_CAP        = 0.75;      // §3.D: cap DPR to 0.75× for laptop safety
 const _FPS_MONITOR_MS = 2000;      // §3.D: auto-detect window
 const _FPS_MED_THRESH = 40;        // below → medium
 const _FPS_LOW_THRESH = 25;        // below → low (freeze)
+const _VEL_SCALE      = 6.0;      // maps smoothed mouse-delta magnitude to [0,1] range
 const _FLOW_SPEED     = 0.28;      // uniform: base fluid speed
 
 // ── Module state ──────────────────────────────────────────────────────────────
@@ -210,7 +211,7 @@ const _FRAG = `
       float rDist   = abs(length(rVec) - rippleR);
       float rWave   = exp(-rDist * rDist * 50.0) * (1.0 - uRippleAge);
       /* Push fluid radially outward along the expanding ring */
-      p    += normalize(rVec + vec2(0.0001)) * rWave * 0.05;
+      p    += normalize(rVec + vec2(0.0001)) * rWave * 0.05; /* +epsilon avoids normalize(0) at exact centre */
       rGlow = rWave * 0.45;
     }
 
@@ -360,7 +361,7 @@ function _frame(ts) {
     _prevMouseY   = _mouseY;
     const rawVel  = Math.sqrt(dMouseX * dMouseX + dMouseY * dMouseY);
     _smoothVel    = _smoothVel * 0.85 + rawVel * 0.15;
-    const vel     = Math.min(_smoothVel * 6.0, 1.0);
+    const vel     = Math.min(_smoothVel * _VEL_SCALE, 1.0);
 
     _resize();
 
