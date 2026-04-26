@@ -45,18 +45,53 @@ let _mouseX = 0, _mouseY = 0;
 let _scrollY = 0;
 let _pageVisible = document.visibilityState === "visible";
 
+// Cursor spotlight state
+let _spotlight   = null;
+let _spotRawX    = 0;
+let _spotRawY    = 0;
+let _spotX       = 0;
+let _spotY       = 0;
+let _spotVisible = false;
+
+// Mouse velocity state (smoothed, for shader)
+let _prevMouseX = 0;
+let _prevMouseY = 0;
+let _smoothVel  = 0;
+
+// Click ripple state
+let _rippleX    = 0;
+let _rippleY    = 0;
+let _rippleTime = -100; // seconds since _startTime; starts far in the past
+
 // Uniform locations (cached after program link)
 let _uTime, _uResolution, _uFlowSpeed, _uGoldIntensity;
 let _uContrast, _uShimmerStrength, _uMouse, _uQuality;
+let _uMouseVelocity, _uRipplePos, _uRippleAge;
 
 // ── Event handlers (stable refs for cleanup) ─────────────────────────────────
 const _onMouseMove = (e) => {
-    _mouseX = (e.clientX / window.innerWidth  - 0.5) * 2;
-    _mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+    _mouseX   = (e.clientX / window.innerWidth  - 0.5) * 2;
+    _mouseY   = (e.clientY / window.innerHeight - 0.5) * 2;
+    _spotRawX = e.clientX;
+    _spotRawY = e.clientY;
+    if (!_spotVisible && _spotlight) {
+        // Teleport to cursor on first entry so it doesn't slide in from (0,0)
+        _spotX       = e.clientX;
+        _spotY       = e.clientY;
+        _spotVisible = true;
+        _spotlight.classList.add("lg-spot-visible");
+    }
 };
 const _onScroll = () => { _scrollY = window.scrollY; };
 const _onVis    = () => { _pageVisible = document.visibilityState === "visible"; };
 const _onResize = () => _resize();
+const _onClick  = (e) => {
+    if (!_running) return;
+    _rippleX    = (e.clientX / window.innerWidth  - 0.5) * 2;
+    _rippleY    = (e.clientY / window.innerHeight - 0.5) * 2;
+    _rippleTime = (performance.now() - _startTime) / 1000;
+    _emitDomRipple(e.clientX, e.clientY);
+};
 
 // ── Vertex shader ─────────────────────────────────────────────────────────────
 // Full-screen triangle-strip quad; vUv = [0,1]² UV
@@ -84,6 +119,9 @@ const _FRAG = `
   uniform float uShimmerStrength;
   uniform vec2  uMouse;
   uniform int   uQuality;
+  uniform float uMouseVelocity;
+  uniform vec2  uRipplePos;
+  uniform float uRippleAge;
 
   /* ── Value noise (hash-based) ──────────────────────────────── */
   float hash21(vec2 p) {
@@ -140,14 +178,41 @@ const _FRAG = `
   void main() {
     float aspect = uResolution.x / uResolution.y;
     vec2  p      = vec2(vUv.x * aspect, vUv.y);
+    vec2  pOrig  = p;                              /* pre-drift position for cursor math */
     float t      = uTime * uFlowSpeed;
 
     /* §2.5 Liquid Gravity: downward + slight lateral drift */
     p.y -= t * 0.040;
     p.x += t * 0.015;
 
-    /* §3.A: very subtle mouse influence (capped) */
-    p   += uMouse * 0.040;
+    /* Global mouse influence (increased from 0.040 for stronger fluid response) */
+    p   += uMouse * 0.10;
+
+    /* ── Cursor vortex: organic swirl centred on the pointer ──────────────
+       Converts uMouse from NDC [-1,1] to the same aspect-correct UV space
+       used by p, then adds a perpendicular (rotational) nudge that falls off
+       with distance.  uMouseVelocity amplifies the swirl when moving fast. */
+    vec2  cursorPos = vec2((uMouse.x * 0.5 + 0.5) * aspect,
+                            0.5 - uMouse.y * 0.5);
+    vec2  cVec      = pOrig - cursorPos;
+    float cDist     = length(cVec);
+    float cAtten    = exp(-cDist * cDist * 5.0);
+    vec2  cPerp     = vec2(-cVec.y, cVec.x);
+    p += cPerp * cAtten * 0.06 * (1.0 + uMouseVelocity * 0.8);
+
+    /* ── Click ripple: expanding radial wave that distorts the fluid ───── */
+    float rGlow = 0.0;
+    if (uRippleAge < 1.0) {
+      float rippleR = uRippleAge * 0.80;
+      vec2  rCenter = vec2((uRipplePos.x * 0.5 + 0.5) * aspect,
+                            0.5 - uRipplePos.y * 0.5);
+      vec2  rVec    = pOrig - rCenter;
+      float rDist   = abs(length(rVec) - rippleR);
+      float rWave   = exp(-rDist * rDist * 50.0) * (1.0 - uRippleAge);
+      /* Push fluid radially outward along the expanding ring */
+      p    += normalize(rVec + vec2(0.0001)) * rWave * 0.05;
+      rGlow = rWave * 0.45;
+    }
 
     /* Noise field — quality-gated (§3.D) */
     float n;
@@ -171,6 +236,12 @@ const _FRAG = `
       float sparkle = step(0.86, sh) * uShimmerStrength;
       col += vec3(0.95, 0.88, 0.72) * sparkle * 0.22;
     }
+
+    /* Cursor velocity glow — warm gold pulse near the pointer when moving */
+    col += vec3(0.95, 0.78, 0.42) * uMouseVelocity * cAtten * 0.28;
+
+    /* Click ripple brightness ring — gold-amber ring chasing the wave front */
+    col += vec3(0.90, 0.72, 0.48) * rGlow;
 
     /* Radial vignette (§2.3 top-left key + low bounce) */
     vec2  vig = vUv - 0.5;
@@ -227,6 +298,22 @@ function _resize() {
     }
 }
 
+// ── DOM ripple helper ─────────────────────────────────────────────────────────
+/**
+ * Spawns a CSS-animated click ripple ring at (x, y) in viewport coordinates.
+ * The element removes itself when its animation finishes.
+ * No-op when prefers-reduced-motion is set (CSS also hides .lg-click-ripple).
+ */
+function _emitDomRipple(x, y) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const el = document.createElement("div");
+    el.className = "lg-click-ripple";
+    el.style.left = x + "px";
+    el.style.top  = y + "px";
+    document.body.appendChild(el);
+    el.addEventListener("animationend", () => el.remove(), { once: true });
+}
+
 // ── Render loop ───────────────────────────────────────────────────────────────
 function _frame(ts) {
     if (!_running) return;
@@ -258,6 +345,23 @@ function _frame(ts) {
     // §3.D: freeze time at quality=0 (static gradient via WebGL)
     const uTime = (_qualityTier === 0) ? _frozenTime : elapsed;
 
+    // ── Smooth spotlight position (liquid-lag follow) ──────────────────────
+    if (_spotlight && _spotVisible) {
+        _spotX += (_spotRawX - _spotX) * 0.12;
+        _spotY += (_spotRawY - _spotY) * 0.12;
+        _spotlight.style.left = _spotX + "px";
+        _spotlight.style.top  = _spotY + "px";
+    }
+
+    // ── Mouse velocity (per-frame delta, smoothed) ─────────────────────────
+    const dMouseX = _mouseX - _prevMouseX;
+    const dMouseY = _mouseY - _prevMouseY;
+    _prevMouseX   = _mouseX;
+    _prevMouseY   = _mouseY;
+    const rawVel  = Math.sqrt(dMouseX * dMouseX + dMouseY * dMouseY);
+    _smoothVel    = _smoothVel * 0.85 + rawVel * 0.15;
+    const vel     = Math.min(_smoothVel * 6.0, 1.0);
+
     _resize();
 
     const gl = _gl;
@@ -266,6 +370,9 @@ function _frame(ts) {
     gl.uniform1f(_uTime, uTime);
     gl.uniform2f(_uResolution, _canvas.width, _canvas.height);
     gl.uniform2f(_uMouse, _mouseX, _mouseY);
+    gl.uniform1f(_uMouseVelocity, vel);
+    gl.uniform2f(_uRipplePos, _rippleX, _rippleY);
+    gl.uniform1f(_uRippleAge, Math.min(elapsed - _rippleTime, 2.0));
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
@@ -350,6 +457,9 @@ export function startLgBackground() {
     _uShimmerStrength = _gl.getUniformLocation(_prog, "uShimmerStrength");
     _uMouse           = _gl.getUniformLocation(_prog, "uMouse");
     _uQuality         = _gl.getUniformLocation(_prog, "uQuality");
+    _uMouseVelocity   = _gl.getUniformLocation(_prog, "uMouseVelocity");
+    _uRipplePos       = _gl.getUniformLocation(_prog, "uRipplePos");
+    _uRippleAge       = _gl.getUniformLocation(_prog, "uRippleAge");
 
     // §7: Start at medium quality (tier 1) on small laptop screens (viewport height < 780).
     // The FPS monitor can only lower quality further, never raise it, so this sets a safe ceiling.
@@ -362,6 +472,10 @@ export function startLgBackground() {
     // Shimmer: disabled when reduced-motion is preferred (§3.C) or quality is below high (§7)
     _gl.uniform1f(_uShimmerStrength, (reducedMotion || _qualityTier < 2) ? 0.0 : 0.85);
     _gl.uniform1i(_uQuality,        _qualityTier);
+    // Cursor interactivity: initial safe values (no ripple active)
+    _gl.uniform1f(_uMouseVelocity,  0.0);
+    _gl.uniform2f(_uRipplePos,      0.0, 0.0);
+    _gl.uniform1f(_uRippleAge,      2.0); // > 1 → ripple branch skipped until first click
 
     _resize();
 
@@ -372,9 +486,29 @@ export function startLgBackground() {
     document.getElementById("threeCanvas")?.style.setProperty("display", "none");
     window._bgPaused = "lgShader";
 
+    // ── Cursor spotlight overlay ──────────────────────────────────────────
+    // A large radial glow element that smoothly tracks the cursor to give the
+    // impression of a glass lens focusing ambient light.  Skipped when
+    // reduced-motion is preferred (the spotlight is purely cosmetic).
+    if (!reducedMotion) {
+        _spotlight = document.createElement("div");
+        _spotlight.id = "lgCursorSpotlight";
+        _spotlight.setAttribute("aria-hidden", "true");
+        document.body.appendChild(_spotlight);
+    }
+
+    // Reset per-session cursor state
+    _spotVisible = false;
+    _spotX = 0; _spotY = 0;
+    _spotRawX = 0; _spotRawY = 0;
+    _prevMouseX = _mouseX; _prevMouseY = _mouseY;
+    _smoothVel  = 0;
+    _rippleTime = -100;
+
     // Event listeners
     window.addEventListener("mousemove",          _onMouseMove, { passive: true });
     window.addEventListener("scroll",             _onScroll,    { passive: true });
+    window.addEventListener("click",              _onClick,     { passive: true });
     document.addEventListener("visibilitychange", _onVis);
     window.addEventListener("resize",             _onResize,    { passive: true });
 
@@ -404,6 +538,11 @@ export function stopLgBackground() {
     _gl     = null;
     _prog   = null;
 
+    // Remove cursor spotlight
+    _spotlight?.remove();
+    _spotlight   = null;
+    _spotVisible = false;
+
     // Restore classic backgrounds (only if we were the ones who paused them)
     if (window._bgPaused === "lgShader") {
         document.getElementById("bgCanvas")?.style.removeProperty("display");
@@ -414,6 +553,7 @@ export function stopLgBackground() {
     // Remove event listeners
     window.removeEventListener("mousemove",          _onMouseMove);
     window.removeEventListener("scroll",             _onScroll);
+    window.removeEventListener("click",              _onClick);
     document.removeEventListener("visibilitychange", _onVis);
     window.removeEventListener("resize",             _onResize);
 }
