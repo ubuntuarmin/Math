@@ -653,7 +653,15 @@ function checkInactivity(userData, user) {
 }
 
 // --- MAIN AUTH LISTENER ---
+function hideStartupLoader() {
+    const loader = document.getElementById("startupLoader");
+    if (!loader) return;
+    loader.style.opacity = "0";
+    setTimeout(() => { loader.style.display = "none"; }, 350);
+}
+
 onAuthStateChanged(auth, async user => {
+    hideStartupLoader();
     if (!user) {
         header?.classList.add("hidden");
         appContainer?.classList.add("hidden");

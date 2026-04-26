@@ -126,7 +126,7 @@ let selectedStars        = 0;
 let ratingTimerOut       = null;
 let iframeLoadTimeout    = null; // 15-second embed-detection timeout
 let currentBlobUrl       = null; // active Blob URL for HTML submissions
-let loadingFrame         = null; // cached reference to loading animation iframe
+let loadingFrame         = document.getElementById("loadingFrame"); // loading animation iframe — safe at module top level: ES modules are deferred and run after DOMContentLoaded
 let loadingAnimCompleted = false; // true once loading.html has sent animationComplete at least once
 let setupDone            = false;
 let pendingDelete        = null; // { linkId, data, cardEl }
@@ -1290,7 +1290,6 @@ function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpi
   // Re-use the loading animation if it has already completed (avoids a costly
   // Babylon.js reload). After the first run, show a random spot-file ad page
   // so Babylon.js does not consume GPU/CPU on every subsequent open.
-  if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
   if (loadingAnimCompleted) {
     // Animation already played — skip Babylon.js, show spot-file ad loader instead.
     animationDone = true;
@@ -1305,7 +1304,7 @@ function _doOpenIframe(url, title, linkId, submittedBy, htmlContent, sessionExpi
       quickLoader.classList.remove("hidden");
     }
   } else {
-    // First open: (re)load the animation so Babylon.js initialises.
+    // First open: load the animation so Babylon.js initialises.
     if (loadingFrame) { loadingFrame.style.display = ""; loadingFrame.src = "loading.html"; }
     if (quickLoader)  quickLoader.classList.add("hidden");
     animationDone = false;
@@ -1451,7 +1450,6 @@ function closeIframeModal() {
   if (frame) frame.src = "";
   // Keep the loading animation iframe alive so Babylon.js stays warm for the
   // next open — avoids re-downloading and re-initialising the 3-D engine.
-  if (!loadingFrame) { loadingFrame = document.getElementById("loadingFrame"); }
   // animationDone is intentionally left in its current state; loadingAnimCompleted
   // tracks whether the animation has run at least once so _doOpenIframe can skip
   // the animation on subsequent opens.
